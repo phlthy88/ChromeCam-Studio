@@ -1,16 +1,23 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import ControlsPanel from './ControlsPanel';
 import VideoPanel from './VideoPanel';
 import { CameraSettings, DEFAULT_SETTINGS } from './settings';
 
+/**
+ * Main Application Container
+ *
+ * Material 3 Layout:
+ * - Desktop: Side panel navigation pattern
+ * - Mobile: Bottom sheet pattern with proper scrim
+ * - M3 surface colors and elevation
+ */
 const WebcamApp: React.FC = () => {
     const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
     const [settings, setSettings] = useState<CameraSettings>(DEFAULT_SETTINGS);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    
+
     // Store camera capabilities to pass to controls
     const [capabilities, setCapabilities] = useState<MediaTrackCapabilities | null>(null);
 
@@ -39,13 +46,12 @@ const WebcamApp: React.FC = () => {
                     await navigator.mediaDevices.getUserMedia({ video: true });
                 } catch (permErr) {
                     console.warn("Camera permission might be denied or dismissed", permErr);
-                    // Continue to enumeration anyway - might get devices without labels
                 }
 
                 const allDevices = await navigator.mediaDevices.enumerateDevices();
                 const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
                 setDevices(videoDevices);
-                
+
                 if (videoDevices.length > 0) {
                     setSelectedDeviceId(currentId => currentId ?? videoDevices[0].deviceId);
                 }
@@ -55,14 +61,15 @@ const WebcamApp: React.FC = () => {
         };
 
         getDevices();
-        
+
         // Listen for device changes (plug/unplug)
         navigator.mediaDevices.addEventListener('devicechange', getDevices);
         return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
     }, []);
 
     return (
-        <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden">
+        <div className="flex flex-col h-full w-full bg-background text-on-background font-sans overflow-hidden">
+            {/* Header */}
             <Header
                 devices={devices}
                 selectedDeviceId={selectedDeviceId}
@@ -70,43 +77,52 @@ const WebcamApp: React.FC = () => {
                 onToggleSidebar={toggleSidebar}
                 isSidebarOpen={isSidebarOpen}
             />
+
+            {/* Main Content */}
             <main className="flex flex-1 overflow-hidden relative p-2 lg:p-4 gap-4">
-                
-                {/* Mobile Backdrop (Transparent, used for click-to-dismiss) */}
-                <div 
+
+                {/* Mobile Scrim - M3 spec: dims background when sheet is open */}
+                <div
                     className={`
-                        absolute inset-0 bg-transparent z-20 lg:hidden
-                        transition-all duration-300 ease-in-out
-                        ${isSidebarOpen ? 'pointer-events-auto' : 'pointer-events-none'}
+                        fixed inset-0 z-20 lg:hidden
+                        bg-scrim/40
+                        transition-opacity duration-medium2 ease-standard
+                        ${isSidebarOpen
+                            ? 'opacity-100 pointer-events-auto'
+                            : 'opacity-0 pointer-events-none'
+                        }
                     `}
                     onClick={() => setIsSidebarOpen(false)}
                     aria-hidden="true"
-                ></div>
+                />
 
                 <div className="flex flex-col lg:flex-row flex-1 h-full relative w-full gap-4">
-                    
-                    {/* Controls Panel - Bottom Sheet on Mobile, Sidebar on Desktop */}
-                    <aside 
+
+                    {/* Controls Panel - Bottom Sheet (Mobile) / Side Panel (Desktop) */}
+                    <aside
                         className={`
-                            z-30 flex-shrink-0 
-                            bg-slate-100 dark:bg-slate-900 
-                            shadow-[0_-8px_30px_rgba(0,0,0,0.12)] lg:shadow-none
-                            transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)]
-                            
-                            /* Mobile Styles: Bottom Sheet */
-                            fixed bottom-0 left-0 right-0 
-                            h-[65vh] w-full 
-                            rounded-t-3xl 
+                            z-30 flex-shrink-0
+                            bg-surface
+                            transition-transform duration-long1 ease-emphasized
+
+                            /* Mobile: Bottom Sheet */
+                            fixed bottom-0 left-0 right-0
+                            h-[70vh] w-full
+                            rounded-t-xl
+                            shadow-elevation-3
                             ${isSidebarOpen ? 'translate-y-0' : 'translate-y-full'}
 
-                            /* Desktop Styles: Side Drawer */
-                            lg:relative lg:h-full lg:w-80 xl:w-96 
-                            lg:rounded-3xl lg:translate-y-0
-                            lg:${isSidebarOpen ? 'translate-x-0' : '-translate-x-[110%] lg:hidden'}
+                            /* Desktop: Side Panel */
+                            lg:relative lg:h-full lg:w-80 xl:w-96
+                            lg:rounded-md lg:translate-y-0
+                            lg:shadow-elevation-1
                         `}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Camera Settings"
                     >
-                        <div className="h-full overflow-y-auto custom-scrollbar">
-                            <ControlsPanel 
+                        <div className="h-full overflow-hidden flex flex-col">
+                            <ControlsPanel
                                 settings={settings}
                                 onSettingsChange={setSettings}
                                 onCloseMobile={() => setIsSidebarOpen(false)}
@@ -115,22 +131,23 @@ const WebcamApp: React.FC = () => {
                         </div>
                     </aside>
 
-                    {/* Video Panel - Material You Surface */}
-                    <div 
+                    {/* Video Panel - M3 Surface Container */}
+                    <div
                         className={`
-                            bg-black rounded-3xl overflow-hidden relative w-full shadow-inner ring-1 ring-black/5 dark:ring-white/10
-                            transition-all duration-500 ease-[cubic-bezier(0.2,0,0,1)]
-                            
-                            /* Mobile Layout: Shrink to top when settings open */
-                            ${isSidebarOpen ? 'h-[33vh] flex-none' : 'h-full flex-1'}
-                            
-                            /* Desktop Layout: Always full height */
+                            bg-inverse-surface rounded-md overflow-hidden relative w-full
+                            shadow-inner ring-1 ring-outline-variant/20
+                            transition-all duration-long1 ease-emphasized
+
+                            /* Mobile: Shrink when sheet open */
+                            ${isSidebarOpen ? 'h-[28vh] flex-none' : 'h-full flex-1'}
+
+                            /* Desktop: Always full */
                             lg:h-full lg:flex-1
                         `}
                     >
-                        <VideoPanel 
-                            deviceId={selectedDeviceId} 
-                            settings={settings} 
+                        <VideoPanel
+                            deviceId={selectedDeviceId}
+                            settings={settings}
                             onCapabilitiesChange={setCapabilities}
                         />
                     </div>

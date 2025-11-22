@@ -1,6 +1,11 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 
+/**
+ * Material 3 Audio Level Meter
+ *
+ * Visual indicator for microphone input levels
+ * Uses M3 color tokens for theming
+ */
 const VUMeter: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [active, setActive] = useState(false);
@@ -16,35 +21,38 @@ const VUMeter: React.FC = () => {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 setActive(true);
-                
+
                 audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
                 analyser = audioContext.createAnalyser();
                 microphone = audioContext.createMediaStreamSource(stream);
-                
+
                 analyser.fftSize = 256;
                 analyser.smoothingTimeConstant = 0.5;
-                
+
                 microphone.connect(analyser);
-                
+
                 const bufferLength = analyser.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
 
+                // Get CSS custom properties for M3 colors
+                const getColor = (property: string, fallback: string) => {
+                    return getComputedStyle(document.documentElement)
+                        .getPropertyValue(property).trim() || fallback;
+                };
+
                 const draw = () => {
                     if (!analyser || !canvasRef.current) return;
-                    
+
                     analyser.getByteFrequencyData(dataArray);
-                    
-                    // Calculate RMS (Root Mean Square) for better volume approximation
+
+                    // Calculate RMS for volume approximation
                     let sum = 0;
-                    for(let i = 0; i < bufferLength; i++) {
+                    for (let i = 0; i < bufferLength; i++) {
                         sum += dataArray[i] * dataArray[i];
                     }
                     const rms = Math.sqrt(sum / bufferLength);
-                    
-                    // Normalize (rms usually 0-128ish for normal speech)
-                    // Scale to 0-100 range with some boost
                     const volume = Math.min(100, (rms / 128) * 100 * 1.5);
-                    
+
                     const canvas = canvasRef.current;
                     const ctx = canvas.getContext('2d');
                     if (!ctx) return;
@@ -57,22 +65,31 @@ const VUMeter: React.FC = () => {
 
                     ctx.clearRect(0, 0, width, height);
 
+                    // M3 color scheme for bars
+                    const colorLow = '#4ade80';      // Green (safe levels)
+                    const colorMid = '#facc15';      // Yellow (moderate)
+                    const colorHigh = '#f87171';     // Red (peak)
+                    const colorInactive = getColor('--md-sys-color-outline-variant', '#cac4d0');
+
                     // Draw bars
                     for (let i = 0; i < bars; i++) {
                         const x = i * (barWidth + gap);
                         const threshold = (i + 1) * (100 / bars);
-                        const isActive = volume >= (threshold - (100/bars)/2); // simpler threshold
-                        
-                        let color = isActive 
-                            ? (i < bars * 0.6 ? '#4ade80' : i < bars * 0.85 ? '#facc15' : '#f87171') // green-400, yellow-400, red-400
-                            : '#e2e8f0'; // slate-200 (light mode inactive)
+                        const isActive = volume >= (threshold - (100 / bars) / 2);
 
-                        // Dark mode check helper - naive check for simplicity in loop
-                        // ideally passed via context or css variable usage
-                        if (!isActive && document.documentElement.classList.contains('dark')) {
-                            color = '#334155'; // slate-700
+                        let color: string;
+                        if (isActive) {
+                            if (i < bars * 0.6) {
+                                color = colorLow;
+                            } else if (i < bars * 0.85) {
+                                color = colorMid;
+                            } else {
+                                color = colorHigh;
+                            }
+                        } else {
+                            color = colorInactive;
                         }
-                        
+
                         ctx.fillStyle = color;
                         ctx.beginPath();
                         ctx.roundRect(x, 0, barWidth, height, 2);
@@ -81,7 +98,7 @@ const VUMeter: React.FC = () => {
 
                     requestRef.current = requestAnimationFrame(draw);
                 };
-                
+
                 draw();
 
             } catch (e) {
@@ -102,11 +119,38 @@ const VUMeter: React.FC = () => {
     if (!active) return null;
 
     return (
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-900 rounded-full border border-slate-200 dark:border-slate-700 transition-colors">
-            <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        <div
+            className="
+                hidden md:flex items-center gap-2
+                px-3 py-2
+                bg-surface-container rounded-full
+                border border-outline-variant
+                transition-colors duration-short2 ease-standard
+            "
+        >
+            {/* Microphone Icon */}
+            <svg
+                className="w-4 h-4 text-on-surface-variant"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+            >
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
             </svg>
-            <canvas ref={canvasRef} width={80} height={10} className="block" />
+
+            {/* Level Canvas */}
+            <canvas
+                ref={canvasRef}
+                width={80}
+                height={10}
+                className="block"
+                aria-label="Audio level meter"
+            />
         </div>
     );
 };
