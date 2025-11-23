@@ -7,367 +7,102 @@
 
 ## Overview
 
-This roadmap prioritizes solving remaining performance bottlenecks before expanding to "Studio-grade" features. The primary focus is unlocking smooth 60fps UI performance on lower-end devices (including Chromebooks) before adding cinematic effects and power-user features.
+ChromeCam Studio is evolving from a prototype into a professional-grade PWA. The current architecture uses a hybrid rendering approach (Canvas 2D + WebGL for effects) and a modular hook-based system. The immediate focus is resolving performance bottlenecks caused by main-thread AI processing and finalizing the "Studio" feature set for V1.0 deployment.
 
 ---
 
-## Phase 1: Performance & Architecture (The "AI Worker" Fix)
+## Execution Plan: Path to V1.0
 
-**Goal:** Unlock 60fps UI performance on lower-end devices
+This section outlines the specific execution steps required to reach "professional grade and deployment ready" status.
 
-### 1.1 Solve the AI Worker CDN Issue
+### Phase 1: Performance Core (The 60fps Standard)
+**Goal:** Decouple AI processing from the UI thread to guarantee 60fps responsiveness.
 
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P1 - High |
-| **Impact** | High (Performance) |
-| **Difficulty** | Medium |
-| **Location** | `components/aiWorker.ts`, `hooks/useBodySegmentation.ts` |
+1.  **Local Asset Bundling & Worker Setup (P1)**
+    *   **Task:** Download MediaPipe WASM/TFLite assets to `public/mediapipe/`.
+    *   **Task:** Implement `components/aiWorker.ts` to load these local assets.
+    *   **Task:** Update `hooks/useBodySegmentation.ts` to communicate with the worker.
+    *   **Benefit:** Removes network dependency and enables worker-based inference.
 
-**Current State:**
-The `components/aiWorker.ts` file is intentionally empty because loading MediaPipe from a CDN inside a Web Worker failed due to cross-origin/security policies. All AI inference currently runs on the main JavaScript thread, competing with React renders and UI interactions.
+2.  **OffscreenCanvas Implementation (P1)**
+    *   **Task:** Transfer control of the rendering canvas to a dedicated `render.worker.ts`.
+    *   **Task:** Move the `useVideoRenderer` logic into the worker.
+    *   **Benefit:** UI interactions (sliders, buttons) will never stutter due to video processing.
 
-**Problem:**
-- On lower-end devices, enabling "Background Blur" causes UI jank
-- Video frame rate drops below 30fps
-- Input lag on sliders and controls
+### Phase 2: Visual & Audio Excellence
+**Goal:** Solidify the "Studio" in ChromeCam Studio.
 
-**Action:**
-Bundle the MediaPipe `.tflite` and `.wasm` assets locally in the `public/` directory instead of relying on `jsdelivr`.
+1.  **Consolidate WebGL Pipeline (P2)**
+    *   **Status:** *Partially Implemented (LUTs & Face Warp active).*
+    *   **Task:** Move the remaining 2D Canvas compositing (text, simple overlays) into the WebGL context where possible, or optimize the hybrid approach.
+    *   **Task:** Ensure the WebGL context is robust against context loss.
 
-```
-public/
-├── mediapipe/
-│   ├── selfie_segmentation.tflite
-│   ├── selfie_segmentation_solution_simd.wasm
-│   └── selfie_segmentation_solution_simd_wasm_bin.wasm
-```
+2.  **Finalize Audio Processing (P3)**
+    *   **Status:** *Beta Implemented (Compressor & Noise Gate).*
+    *   **Task:** Add visual feedback for Compressor (gain reduction meter).
+    *   **Task:** Verify audio synchronization with the video stream (especially after moving video to worker).
 
-**Benefit:**
-This allows moving the heavy inference logic from `hooks/useBodySegmentation.ts` into a Web Worker, completely freeing up the main thread for UI updates.
+### Phase 3: Resilience & Production
+**Goal:** Crash-proof the app and prepare for store submission.
 
----
+1.  **Global Error Boundaries (P3)**
+    *   **Task:** Wrap `VideoPanel` and `ControlsPanel` in React Error Boundaries.
+    *   **Task:** Implement graceful degradation (e.g., if WebGL fails, fallback to 2D Canvas; if AI fails, disable blur).
 
-### 1.2 Implement OffscreenCanvas
-
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P1 - High |
-| **Impact** | High (Performance) |
-| **Difficulty** | Medium |
-| **Location** | `hooks/useVideoRenderer.ts` |
-
-**Current State:**
-`useVideoRenderer.ts` renders to a DOM `<canvas>` element on the main thread.
-
-**Action:**
-Use the `canvas.transferControlToOffscreen()` API to send rendering control to the worker.
-
-```typescript
-// Main thread
-const offscreen = canvas.transferControlToOffscreen();
-worker.postMessage({ type: 'init', canvas: offscreen }, [offscreen]);
-
-// Worker thread
-self.onmessage = (e) => {
-  if (e.data.type === 'init') {
-    const ctx = e.data.canvas.getContext('2d');
-    // Full rendering pipeline in worker
-  }
-};
-```
-
-**Benefit:**
-The entire video pipeline (Segmentation → Filtering → Rendering) runs in a separate thread. The UI will never freeze, even if the video processing lags.
+2.  **Deployment Readiness**
+    *   **Task:** Verify PWA installation flow and offline capabilities.
+    *   **Task:** Run production build analysis (`npm run build` and size check).
+    *   **Task:** Add basic unit/integration tests for critical paths (AI Worker communication).
 
 ---
 
-## Phase 2: Visual Fidelity (WebGL Migration)
+## Detailed Feature Status
 
-**Goal:** Enable cinematic effects that are impossible with the current 2D Canvas context
+### 1. Performance & Architecture
 
-### 2.1 Migrate useVideoRenderer to WebGL
+| Priority | Task | Status | Notes |
+|:---------|:-----|:-------|:------|
+| **P1** | **Local Asset Bundling** | 🔴 Incomplete | `aiWorker.ts` is a placeholder. Assets missing from `public/`. |
+| **P1** | **OffscreenCanvas** | 🔴 Incomplete | Rendering still happens on Main Thread. |
+| **P1** | **AI Worker Fix** | 🔴 Incomplete | Dependent on Local Asset Bundling. |
 
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P2 - Medium |
-| **Impact** | High (Visual Quality) |
-| **Difficulty** | High |
-| **Location** | `hooks/useVideoRenderer.ts` |
+### 2. Visual Fidelity
 
-**Current State:**
-Filters are applied using CSS-like strings:
-```typescript
-ctx.filter = 'contrast(1.1) blur(4px)';
-```
-This is CPU-intensive and limited to basic browser filters.
+| Priority | Task | Status | Notes |
+|:---------|:-----|:-------|:------|
+| **P2** | **WebGL Renderer** | 🟡 Partial | 3D LUTs and Face Warp implemented via `useWebGLRenderer`. Main loop is still 2D. |
+| **P0** | **PWA Assets** | ✅ Complete | SVG icons and manifest generation configured. |
 
-**Action:**
-Rewrite the renderer using a lightweight WebGL wrapper (like `regl` or raw WebGL2).
+### 3. Resilience & UX
 
-**Benefits — Hardware-accelerated rendering unlocks:**
+| Priority | Task | Status | Notes |
+|:---------|:-----|:-------|:------|
+| **P3** | **Error Boundaries** | 🔴 Incomplete | No error containment for video crashes. |
+| **P3** | **Audio Effects** | 🟢 Beta | Compressor & Noise Gate logic exists in `utils/audio.ts`. |
+| **P4** | **Multi-Source Comp.** | 🔴 Incomplete | Screen share not implemented. |
+| **P4** | **Gesture Control** | 🔴 Incomplete | No hand tracking logic. |
 
-| Feature | Description |
-|---------|-------------|
-| **3D LUTs** | Hollywood-style color grading via `.cube` file loading |
-| **Green Screen (Chroma Key)** | Faster and cleaner than AI segmentation for users with physical screens |
-| **Film Grain/Noise** | Cinematic grain effects without killing performance |
-| **Custom Shaders** | Unlimited visual effects possibilities |
+### 4. Quick Wins (Completed)
 
-**Implementation Approach:**
-```typescript
-// Fragment shader for 3D LUT color grading
-uniform sampler3D uLUT;
-uniform sampler2D uVideo;
-
-void main() {
-  vec4 color = texture2D(uVideo, vTexCoord);
-  // Sample through 3D LUT for professional color grading
-  gl_FragColor = texture3D(uLUT, color.rgb);
-}
-```
+| Task | Impact | Status |
+|------|--------|--------|
+| Shared AudioContext utility | Medium | ✅ Complete |
+| Optimize useAutoLowLight memory | Medium | ✅ Complete |
+| Cache vignette gradient | Low-Medium | ✅ Complete |
+| Memoize filter strings | Low | ✅ Complete |
 
 ---
 
-## Phase 3: Resilience & UX
+## Technical Appendix
 
-**Goal:** Make the app crash-proof and more accessible
+### AI Worker CDN Issue
+**Current State:** `components/aiWorker.ts` is empty. `hooks/useBodySegmentation.ts` attempts to load scripts from CDN on the main thread.
+**Action:** Must bundle `.tflite` and `.wasm` files in `public/mediapipe/` to bypass CORS/CSP issues in Web Workers.
 
-### 3.1 Global Error Boundaries
+### Audio Processing Rack
+**Current State:** Implemented in `hooks/useAudioProcessor.ts` and `utils/audio.ts`.
+**Action:** Validate performance and synchronization.
 
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P3 - Medium |
-| **Impact** | Medium (Stability) |
-| **Difficulty** | Low |
-| **Location** | `components/VideoPanel.tsx` |
-
-**Current State:**
-`useBodySegmentation` handles its own errors, but a crash in the rendering loop could still take down the whole React tree.
-
-**Action:**
-Wrap `VideoPanel` in a React Error Boundary component.
-
-```typescript
-class VideoPanelErrorBoundary extends React.Component {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="error-fallback">
-          <p>Camera encountered an error</p>
-          <button onClick={() => this.setState({ hasError: false })}>
-            Reload Camera
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-```
-
-**Benefit:**
-If the camera crashes, show a "Reload Camera" button instead of a white screen.
-
----
-
-### 3.2 Audio Effects Rack
-
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P4 - Low |
-| **Impact** | Medium (Feature) |
-| **Difficulty** | Medium |
-| **Location** | `hooks/useCameraStream.ts` |
-
-**Current State:**
-Audio settings allow for basic Noise Suppression and Gain Control only.
-
-**Action:**
-Implement a Web Audio API processing graph.
-
-```typescript
-// Audio processing chain
-const audioContext = new AudioContext();
-const source = audioContext.createMediaStreamSource(stream);
-
-// Compressor - even out voice volume
-const compressor = audioContext.createDynamicsCompressor();
-compressor.threshold.value = -24;
-compressor.knee.value = 30;
-compressor.ratio.value = 12;
-compressor.attack.value = 0.003;
-compressor.release.value = 0.25;
-
-// Noise Gate - silence background hiss when not speaking
-const gate = createNoiseGate(audioContext, {
-  threshold: -50,
-  attack: 0.005,
-  release: 0.1
-});
-
-// Connect the chain
-source
-  .connect(compressor)
-  .connect(gate)
-  .connect(audioContext.destination);
-```
-
-**Features Added:**
-- **Compressor** — Even out voice volume for consistent audio levels
-- **Noise Gate** — Silence background hiss when not speaking
-- **EQ (Future)** — Reduce room boom, add presence
-
----
-
-## Phase 4: "Studio" Features
-
-**Goal:** Expand capabilities for power users
-
-### 4.1 Multi-Source Composition
-
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P4 - Low |
-| **Impact** | High (Feature) |
-| **Difficulty** | Medium |
-
-**Action:**
-Add `getDisplayMedia` (Screen Share) support to `useCameraStream`.
-
-```typescript
-const startScreenShare = async () => {
-  const displayStream = await navigator.mediaDevices.getDisplayMedia({
-    video: { cursor: 'always' },
-    audio: true
-  });
-
-  // Composite: screen share as background, webcam as foreground PIP
-  compositeStreams(displayStream, cameraStream);
-};
-```
-
-**Feature:**
-Allow users to put their webcam (background removed) *on top* of their screen share, creating a "Weather Reporter" effect for presentations.
-
----
-
-### 4.2 Gesture Control
-
-| Aspect | Details |
-|--------|---------|
-| **Priority** | P4 - Low |
-| **Impact** | Medium (Feature) |
-| **Difficulty** | Medium |
-
-**Action:**
-Since MediaPipe is already loaded, enable its Hand Tracking module.
-
-**Supported Gestures:**
-
-| Gesture | Action |
-|---------|--------|
-| ✌️ Peace Sign | Take a snapshot |
-| ✋ Raise Hand | Toggle visual indicator |
-| 👍 Thumb Up | Show emoji overlay |
-| 👋 Wave | Start/stop recording |
-
-```typescript
-import { Hands } from '@mediapipe/hands';
-
-const hands = new Hands({
-  locateFile: (file) => `/mediapipe/${file}`
-});
-
-hands.onResults((results) => {
-  if (detectPeaceSign(results.multiHandLandmarks)) {
-    takeSnapshot();
-  }
-});
-```
-
----
-
-## Priority Summary
-
-| Priority | Task | Impact | Difficulty | Status |
-|:---------|:-----|:-------|:-----------|:-------|
-| **P0** | Fix PWA Assets (Empty SVGs) | Critical (App Installability) | Low | ✅ Complete |
-| **P1** | Local Asset Bundling + AI Worker | High (Performance) | Medium | 🔲 Planned |
-| **P1** | OffscreenCanvas Implementation | High (Performance) | Medium | 🔲 Planned |
-| **P2** | WebGL Renderer Migration | High (Visual Quality) | High | 🔲 Planned |
-| **P3** | Error Boundaries | Medium (Stability) | Low | 🔲 Planned |
-| **P4** | Audio Processing Rack | Medium (Feature) | Medium | 🔲 Planned |
-| **P4** | Multi-Source Composition | High (Feature) | Medium | 🔲 Planned |
-| **P4** | Gesture Control | Medium (Feature) | Medium | 🔲 Planned |
-
----
-
-## Quick Wins (Can Be Done Immediately)
-
-These optimizations from the codebase analysis can be implemented quickly:
-
-| Task | Location | Impact | Effort |
-|------|----------|--------|--------|
-| Create shared AudioContext utility | `components/ui/VUMeter.tsx` | Medium | Low |
-| Optimize useAutoLowLight memory allocations | `hooks/useAutoLowLight.ts` | Medium | Low |
-| Cache vignette gradient in useVideoRenderer | `hooks/useVideoRenderer.ts` | Low-Medium | Low |
-| Memoize filter strings | `hooks/useVideoRenderer.ts` | Low | Low |
-
----
-
-## Success Metrics
-
-| Metric | Current (Estimated) | Target |
-|--------|---------------------|--------|
-| Time to Interactive | ~2s | <1.5s |
-| AI Inference FPS | ~30fps (blocks UI) | 30fps (non-blocking) |
-| UI Frame Rate | Variable (jank during AI) | Consistent 60fps |
-| Memory Churn (GC) | High during low-light analysis | Minimal |
-| Lighthouse PWA Score | Good | 100 |
-| Bundle Size | TBD | <500KB gzipped |
-
----
-
-## Implementation Notes
-
-### Recommended Development Order
-
-1. **Phase 1.1** → Local asset bundling (unblocks everything else)
-2. **Phase 1.2** → OffscreenCanvas (immediate UX improvement)
-3. **Phase 3.1** → Error boundaries (quick win for stability)
-4. **Quick Wins** → Memory/performance optimizations
-5. **Phase 2.1** → WebGL migration (biggest effort, biggest payoff)
-6. **Phase 3.2 & 4.x** → Feature additions (after core stability)
-
-### Dependencies
-
-```
-Phase 1.1 (Local Assets)
-    └── Phase 1.2 (OffscreenCanvas)
-            └── Phase 2.1 (WebGL)
-                    └── Phase 4.1 (Multi-Source)
-                    └── Phase 4.2 (Gestures) ← Also depends on 1.1
-```
-
----
-
-## Related Documentation
-
-- **[README.md](./README.md)** — Project overview and quick start
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Detailed architectural analysis
-- **[CODEBASE_ANALYSIS.md](./CODEBASE_ANALYSIS.md)** — Performance analysis and recommendations
-
----
-
-<div align="center">
-
-*This roadmap is a living document and will be updated as development progresses.*
-
-</div>
+### WebGL Migration
+**Current State:** Hybrid. `useVideoRenderer` creates a 2D context but calls `useWebGLRenderer` (which creates a separate WebGL canvas) for specific effects, then draws the result back to the 2D canvas.
+**Action:** This "copy-back" mechanism is expensive. Moving everything to a single WebGL context in an OffscreenCanvas (Phase 1.2) is the ultimate solution.
