@@ -381,16 +381,16 @@ export function useVideoRenderer({
   );
 
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
-    enabled: settingsRef.current.cinematicLut !== 'none' || beautyEnabled,
+    enabled: settingsRef.current.cinematicLut !== 'none', // || beautyEnabled, // Temporarily disable beauty
     lutPreset: settings.cinematicLut,
     lutIntensity: settings.cinematicLutIntensity,
-    faceLandmarks,
-    beautySettings: {
-      eyeEnlargement: settings.eyeEnlargement,
-      noseSlimming: settings.noseSlimming,
-      jawSlimming: settings.jawSlimming,
-      mouthScaling: settings.mouthScaling,
-    },
+    // faceLandmarks,
+    // beautySettings: {
+    //   eyeEnlargement: settings.eyeEnlargement,
+    //   noseSlimming: settings.noseSlimming,
+    //   jawSlimming: settings.jawSlimming,
+    //   mouthScaling: settings.mouthScaling,
+    // },
   });
 
   // Performance monitoring
