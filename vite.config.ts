@@ -25,9 +25,7 @@ export default defineConfig(({ mode }) => {
       __DEV__: JSON.stringify(isDev),
       __PROD__: JSON.stringify(isProd),
     },
-    plugins: [
-      react(),
-    ],
+    plugins: [react()],
   };
 
   // Development-specific configuration
@@ -50,6 +48,18 @@ export default defineConfig(({ mode }) => {
         watch: {
           usePolling: false,
           ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+        },
+        // Content Security Policy for security
+        headers: {
+          'Content-Security-Policy': [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net",
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
+            "img-src 'self' blob: data:",
+            "media-src 'self' blob:",
+            "connect-src 'self' wss: https:",
+            "worker-src 'self' blob:",
+          ].join('; '),
         },
       },
       // Enable source maps for debugging
@@ -92,7 +102,8 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'ChromeCam Studio',
           short_name: 'ChromeCam',
-          description: 'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
+          description:
+            'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
           theme_color: '#1c1b1f',
           background_color: '#1c1b1f',
           display: 'standalone',
