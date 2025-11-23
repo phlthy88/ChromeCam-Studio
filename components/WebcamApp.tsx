@@ -154,22 +154,46 @@ const WebcamAppInner: React.FC = () => {
   useEffect(() => {
     const getDevices = async () => {
       try {
+        console.log('[WebcamApp] Requesting camera permissions...');
         // Request permissions to get device labels
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(() => {});
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        console.log('[WebcamApp] Permissions granted, enumerating devices...');
+        // Close the temporary stream
+        stream.getTracks().forEach((track) => track.stop());
+
         const allDevices = await navigator.mediaDevices.enumerateDevices();
+        console.log('[WebcamApp] Found devices:', allDevices);
 
         // Get video devices
         const videoDevices = allDevices.filter((device) => device.kind === 'videoinput');
+        console.log('[WebcamApp] Video devices:', videoDevices);
         setDevices(videoDevices);
         if (videoDevices.length > 0) {
-          setSelectedDeviceId((currentId) => currentId ?? videoDevices[0]?.deviceId ?? null);
+          const firstDeviceId = videoDevices[0]?.deviceId;
+          console.log('[WebcamApp] Selecting first device:', firstDeviceId);
+          if (firstDeviceId) {
+            setSelectedDeviceId((currentId) => currentId ?? firstDeviceId);
+          }
+        } else {
+          console.warn('[WebcamApp] No video devices found');
         }
 
         // Get audio devices
         const audioInputs = allDevices.filter((device) => device.kind === 'audioinput');
         setAudioDevices(audioInputs);
       } catch (err) {
-        console.error('Error enumerating devices: ', err);
+        console.error('[WebcamApp] Error getting devices:', err);
+        // Still try to enumerate without permissions
+        try {
+          const allDevices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = allDevices.filter((device) => device.kind === 'videoinput');
+          setDevices(videoDevices);
+          if (videoDevices.length > 0) {
+            setSelectedDeviceId(videoDevices[0]?.deviceId || null);
+          }
+        } catch (enumErr) {
+          console.error('[WebcamApp] Failed to enumerate devices:', enumErr);
+        }
       }
     };
     getDevices();
