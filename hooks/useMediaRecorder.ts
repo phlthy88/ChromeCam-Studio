@@ -37,6 +37,8 @@ export interface UseMediaRecorderOptions {
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
     streamRef: React.RefObject<MediaStream | null>;
     settings: CameraSettings;
+    /** Optional processed audio stream (from useAudioProcessor) - used instead of raw audio from streamRef */
+    processedAudioStream?: MediaStream | null;
 }
 
 export interface UseMediaRecorderReturn {
@@ -62,6 +64,7 @@ export function useMediaRecorder({
     canvasRef,
     streamRef,
     settings,
+    processedAudioStream,
 }: UseMediaRecorderOptions): UseMediaRecorderReturn {
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
@@ -109,11 +112,15 @@ export function useMediaRecorder({
             const canvasStream = canvasRef.current.captureStream(settings.frameRate || 30);
 
             // Add audio track if enabled
-            if (streamRef.current && settings.enableAudio) {
-                const audioTracks = streamRef.current.getAudioTracks();
-                const firstTrack = audioTracks[0];
-                if (firstTrack) {
-                    canvasStream.addTrack(firstTrack);
+            // Prefer processed audio stream (with compressor/noise gate) over raw stream
+            if (settings.enableAudio) {
+                const audioSource = processedAudioStream || streamRef.current;
+                if (audioSource) {
+                    const audioTracks = audioSource.getAudioTracks();
+                    const firstTrack = audioTracks[0];
+                    if (firstTrack) {
+                        canvasStream.addTrack(firstTrack);
+                    }
                 }
             }
 
@@ -166,7 +173,7 @@ export function useMediaRecorder({
                 console.error('Recording failed', e);
             }
         }
-    }, [isRecording, canvasRef, streamRef, settings]);
+    }, [isRecording, canvasRef, streamRef, settings, processedAudioStream]);
 
     return {
         isRecording,

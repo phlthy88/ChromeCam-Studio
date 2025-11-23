@@ -8,6 +8,7 @@ import {
     useVideoRenderer,
     useMediaRecorder,
     useAutoLowLight,
+    useAudioProcessor,
 } from '../hooks';
 
 interface VideoPanelProps {
@@ -66,6 +67,22 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
         smoothingFactor: 0.08,
     });
 
+    // Audio processing (compressor + noise gate)
+    const { processedStream: processedAudioStream, isProcessing: isAudioProcessing } = useAudioProcessor({
+        inputStream: streamRef.current,
+        enabled: settings.enableAudio,
+        compressorEnabled: settings.audioCompressorEnabled,
+        compressorThreshold: settings.audioCompressorThreshold,
+        compressorKnee: settings.audioCompressorKnee,
+        compressorRatio: settings.audioCompressorRatio,
+        compressorAttack: settings.audioCompressorAttack,
+        compressorRelease: settings.audioCompressorRelease,
+        noiseGateEnabled: settings.audioNoiseGateEnabled,
+        noiseGateThreshold: settings.audioNoiseGateThreshold,
+        noiseGateAttack: settings.audioNoiseGateAttack,
+        noiseGateRelease: settings.audioNoiseGateRelease,
+    });
+
     // AI body segmentation and auto-framing
     const {
         segmentationMaskRef,
@@ -105,6 +122,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
         canvasRef,
         streamRef,
         settings,
+        processedAudioStream,
     });
 
     // Load virtual background image
@@ -232,8 +250,16 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             <div className={`absolute inset-0 bg-white z-50 pointer-events-none transition-opacity duration-150 ${flashActive ? 'opacity-100' : 'opacity-0'}`}></div>
 
             {/* Status Indicators (Top Left/Right) - M3 Semantic Colors */}
-            {(isAiActive || (settings.autoLowLight && autoGain > 5)) && !isCompareActive && (
+            {(isAiActive || isAudioProcessing || (settings.autoLowLight && autoGain > 5)) && !isCompareActive && (
                 <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 items-end pointer-events-none">
+                    {isAudioProcessing && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary-container/90 backdrop-blur-sm rounded-full border border-secondary/30 shadow-sm">
+                            <svg className="w-4 h-4 text-on-secondary-container" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                            </svg>
+                            <span className="md-label-small text-on-secondary-container">Audio Studio</span>
+                        </div>
+                    )}
                     {isAiActive && (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/90 backdrop-blur-sm rounded-full border border-outline-variant/30 shadow-sm">
                             <span className="relative flex h-2 w-2">
