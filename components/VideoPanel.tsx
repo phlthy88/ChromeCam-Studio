@@ -641,23 +641,24 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
               </svg>
             </button>
 
-            {/* Record: Large FAB - Responsive sizing */}
+            {/* Record Button - Matching style with other toolbar buttons */}
             <button
               onClick={toggleRecording}
               className={`
-                                w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16
-                                flex items-center justify-center rounded-xl sm:rounded-2xl
+                                w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12
+                                flex items-center justify-center rounded-full
                                 transition-all duration-300
-                                text-on-surface-variant hover:bg-on-surface-variant/10
-                                active:bg-on-surface-variant/20
-                                ${isRecording ? 'bg-error/20 text-error' : ''}
+                                ${isRecording
+                                  ? 'bg-error/20 text-error hover:bg-error/30'
+                                  : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
+                                }
                             `}
               title={isRecording ? 'Stop Recording' : 'Start Recording'}
               aria-label={isRecording ? 'Stop recording (R)' : 'Start recording (R)'}
               aria-pressed={isRecording}
             >
               <div
-                className={`transition-all duration-300 ${isRecording ? 'w-5 h-5 sm:w-6 sm:h-6 bg-current rounded-sm' : 'w-3 h-3 sm:w-4 sm:h-4 bg-current rounded-full scale-150'}`}
+                className={`transition-all duration-300 ${isRecording ? 'w-4 h-4 sm:w-5 sm:h-5 bg-current rounded-sm' : 'w-4 h-4 sm:w-5 sm:h-5 bg-error rounded-full'}`}
                 aria-hidden="true"
               ></div>
             </button>
