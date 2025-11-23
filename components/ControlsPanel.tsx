@@ -84,17 +84,6 @@ const DEFAULTS_AUDIO_PROCESSOR = {
   audioNoiseGateRelease: 0.1,
 };
 
-const DEFAULTS_CONFERENCING = {
-  enableAudio: false,
-  noiseSuppression: true,
-  bandwidthSaver: false,
-  audioDeviceId: null,
-  echoCancellation: true,
-  autoGainControl: true,
-  sampleRate: 48000,
-  channelCount: 1,
-};
-
 const DEFAULTS_CAMERA_HARDWARE = {
   whiteBalanceMode: 'continuous',
   colorTemperature: 4500,
@@ -346,7 +335,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   const resetFilters = () => onSettingsChange({ ...settings, ...DEFAULTS_FILTER });
   const resetGeometry = () => onSettingsChange({ ...settings, ...DEFAULTS_GEOMETRY });
   const resetEffects = () => onSettingsChange({ ...settings, ...DEFAULTS_EFFECTS });
-  const resetConferencing = () => onSettingsChange({ ...settings, ...DEFAULTS_CONFERENCING });
+
   const resetCameraHardware = () => onSettingsChange({ ...settings, ...DEFAULTS_CAMERA_HARDWARE });
   const resetStream = () => onSettingsChange({ ...settings, ...DEFAULTS_STREAM });
   const resetRecording = () => onSettingsChange({ ...settings, ...DEFAULTS_RECORDING });
