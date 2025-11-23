@@ -54,6 +54,72 @@ const FILTER_PRESETS: Record<string, FilterDef> = {
     },
 };
 
+/**
+ * Draw a vignette effect on the canvas
+ * @param ctx - Canvas 2D context
+ * @param width - Canvas width
+ * @param height - Canvas height
+ * @param intensity - Vignette intensity (0-100)
+ */
+function drawVignette(ctx: CanvasRenderingContext2D, width: number, height: number, intensity: number): void {
+    if (intensity <= 0) return;
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.max(width, height) * 0.7;
+
+    // Create radial gradient
+    const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.3, centerX, centerY, radius);
+
+    // Scale intensity (0-100) to opacity (0-0.8)
+    const opacity = (intensity / 100) * 0.8;
+
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(0.5, `rgba(0, 0, 0, ${opacity * 0.3})`);
+    gradient.addColorStop(0.8, `rgba(0, 0, 0, ${opacity * 0.6})`);
+    gradient.addColorStop(1, `rgba(0, 0, 0, ${opacity})`);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+}
+
+/**
+ * Apply software sharpening using unsharp mask technique
+ * This uses canvas filter for performance
+ * @param ctx - Canvas 2D context
+ * @param canvas - The canvas element
+ * @param intensity - Sharpness intensity (0-100)
+ */
+function applySoftwareSharpness(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    intensity: number
+): void {
+    if (intensity <= 0) return;
+
+    // Scale intensity to practical values
+    // At 100%, we apply contrast boost and slight blur overlay for edge enhancement
+    const contrastBoost = 1 + (intensity / 100) * 0.15; // Max 15% contrast boost
+    const blurRadius = 0.3 + (intensity / 100) * 0.4; // 0.3-0.7px blur for overlay
+
+    ctx.save();
+
+    // Method: High-pass filter simulation
+    // 1. Draw slightly blurred copy with darken blend (creates edge darkening)
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = (intensity / 100) * 0.5;
+    ctx.filter = `blur(${blurRadius}px) contrast(${contrastBoost})`;
+    ctx.drawImage(canvas, 0, 0);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
+    ctx.filter = 'none';
+    ctx.restore();
+}
+
 const lerp = (start: number, end: number, factor: number) => start + (end - start) * factor;
 
 export interface UseVideoRendererOptions {
@@ -157,6 +223,8 @@ export function useVideoRenderer({
                 blur,
                 portraitLighting,
                 faceSmoothing,
+                vignette,
+                softwareSharpness,
                 autoFrame,
                 denoise,
                 mirror,
@@ -300,6 +368,19 @@ export function useVideoRenderer({
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         ctx.globalCompositeOperation = 'source-over';
                         ctx.globalAlpha = 1.0;
+                    }
+
+                    // Reset transform for post-processing effects
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+                    // Apply software sharpness effect
+                    if (softwareSharpness > 0) {
+                        applySoftwareSharpness(ctx, canvas, softwareSharpness);
+                    }
+
+                    // Apply vignette effect
+                    if (vignette > 0) {
+                        drawVignette(ctx, canvas.width, canvas.height, vignette);
                     }
 
                     // Draw professional overlays

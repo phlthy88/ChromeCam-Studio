@@ -57,6 +57,8 @@ const DEFAULTS_EFFECTS = {
     blur: 0,
     portraitLighting: 0,
     faceSmoothing: 0,
+    vignette: 0,
+    softwareSharpness: 0,
     autoFrame: false,
     denoise: false,
     virtualBackground: false,
@@ -862,6 +864,30 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                             min={0} max={100}
                             onChange={(v) => update('faceSmoothing', v)}
                         />
+
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Post-Processing</label>
+                            <div className="space-y-5">
+                                <Slider
+                                    label="Software Sharpness"
+                                    value={settings.softwareSharpness}
+                                    min={0} max={100}
+                                    onChange={(v) => update('softwareSharpness', v)}
+                                />
+                                <p className="md-body-small text-on-surface-variant -mt-2 ml-1">
+                                    Enhance edge definition (use when hardware sharpness unavailable).
+                                </p>
+                                <Slider
+                                    label="Vignette"
+                                    value={settings.vignette}
+                                    min={0} max={100}
+                                    onChange={(v) => update('vignette', v)}
+                                />
+                                <p className="md-body-small text-on-surface-variant -mt-2 ml-1">
+                                    Add a subtle darkening around the edges for a cinematic look.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </ControlSection>
 

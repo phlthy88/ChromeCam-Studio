@@ -7,6 +7,7 @@ import {
     useBodySegmentation,
     useVideoRenderer,
     useMediaRecorder,
+    useAutoLowLight,
 } from '../hooks';
 
 interface VideoPanelProps {
@@ -41,9 +42,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
 
     // UI state
     const [isCompareActive, setIsCompareActive] = useState(false);
-    const [autoGain, setAutoGain] = useState(0);
-    const autoGainRef = useRef(0);
-    const lowLightIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Keep screen awake during camera operation
     useWakeLock();
@@ -58,6 +56,14 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
         deviceId,
         settings,
         onCapabilitiesChange,
+    });
+
+    // Auto low-light detection and gain adjustment
+    const { autoGain } = useAutoLowLight({
+        videoRef,
+        enabled: settings.autoLowLight,
+        targetBrightness: 120,
+        smoothingFactor: 0.08,
     });
 
     // AI body segmentation and auto-framing
@@ -116,55 +122,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             bgImageRef.current = null;
         }
     }, [settings.virtualBackground, settings.virtualBackgroundImage]);
-
-    // Auto low-light gain adjustment
-    useEffect(() => {
-        if (!settings.autoLowLight) {
-            setAutoGain(0);
-            autoGainRef.current = 0;
-            if (lowLightIntervalRef.current) clearInterval(lowLightIntervalRef.current);
-            return;
-        }
-
-        const analyzeBrightness = () => {
-            const video = videoRef.current;
-            if (!video || video.paused || video.readyState < 2) return;
-
-            const sampleSize = 32;
-            const canvas = document.createElement('canvas');
-            canvas.width = sampleSize;
-            canvas.height = sampleSize;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-
-            try {
-                ctx.drawImage(video, video.videoWidth / 2 - 16, video.videoHeight / 2 - 16, 32, 32, 0, 0, 32, 32);
-                const data = ctx.getImageData(0, 0, 32, 32).data;
-                let totalLum = 0;
-                for (let i = 0; i < data.length; i += 4) {
-                    totalLum += 0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0);
-                }
-                const avg = totalLum / 1024;
-                const target = 110;
-                let gain = 0;
-                if (avg < target) gain = ((target - avg) / target) * 80;
-                const prev = autoGainRef.current;
-                const diff = gain - prev;
-                if (Math.abs(diff) > 0.5) {
-                    const newValue = prev + diff * 0.1;
-                    autoGainRef.current = newValue;
-                    setAutoGain(newValue);
-                }
-            } catch (e) {
-                // Ignore errors from tainted canvas
-            }
-        };
-
-        lowLightIntervalRef.current = setInterval(analyzeBrightness, 500);
-        return () => {
-            if (lowLightIntervalRef.current) clearInterval(lowLightIntervalRef.current);
-        };
-    }, [settings.autoLowLight, videoRef]);
 
     // Maintain PiP video stream
     useEffect(() => {
@@ -275,15 +232,25 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             <div className={`absolute inset-0 bg-white z-50 pointer-events-none transition-opacity duration-150 ${flashActive ? 'opacity-100' : 'opacity-0'}`}></div>
 
             {/* Status Indicators (Top Left/Right) - M3 Semantic Colors */}
-            {isAiActive && !isCompareActive && (
+            {(isAiActive || (settings.autoLowLight && autoGain > 5)) && !isCompareActive && (
                 <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 items-end pointer-events-none">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/90 backdrop-blur-sm rounded-full border border-outline-variant/30 shadow-sm">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                        </span>
-                        <span className="md-label-small text-on-surface-variant">AI Processing</span>
-                    </div>
+                    {isAiActive && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/90 backdrop-blur-sm rounded-full border border-outline-variant/30 shadow-sm">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+                            <span className="md-label-small text-on-surface-variant">AI Processing</span>
+                        </div>
+                    )}
+                    {settings.autoLowLight && autoGain > 5 && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-tertiary-container/90 backdrop-blur-sm rounded-full border border-tertiary/30 shadow-sm">
+                            <svg className="w-4 h-4 text-on-tertiary-container" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            <span className="md-label-small text-on-tertiary-container">Low Light +{Math.round(autoGain)}%</span>
+                        </div>
+                    )}
                 </div>
             )}
 

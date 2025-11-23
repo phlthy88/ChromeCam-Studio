@@ -42,6 +42,8 @@ export interface CameraSettings {
     blur: number;
     portraitLighting: number; // 0-100 (Studio Light effect)
     faceSmoothing: number; // 0-100 (Beauty/Soft focus)
+    vignette: number; // 0-100 (Vignette intensity)
+    softwareSharpness: number; // 0-100 (Software-based sharpening)
 
     // AI/System
     autoFrame: boolean;
@@ -127,6 +129,8 @@ export const DEFAULT_SETTINGS: CameraSettings = {
     blur: 0,
     portraitLighting: 0,
     faceSmoothing: 0,
+    vignette: 0,
+    softwareSharpness: 0,
 
     // AI/System
     autoFrame: false,
@@ -203,3 +207,30 @@ export const GRID_OVERLAYS = [
     { id: 'golden', label: 'Golden Ratio' },
     { id: 'safe', label: 'Safe Zones' },
 ];
+
+// Aspect ratio presets with their numeric values
+export const ASPECT_RATIO_PRESETS = [
+    { id: 'none', label: 'Free', ratio: null },
+    { id: '4:3', label: '4:3', ratio: 4 / 3 },
+    { id: '16:9', label: '16:9', ratio: 16 / 9 },
+    { id: '1:1', label: '1:1', ratio: 1 },
+    { id: '21:9', label: '21:9', ratio: 21 / 9 },
+    { id: '9:16', label: '9:16', ratio: 9 / 16 },
+];
+
+// Detected camera capabilities interface
+export interface DetectedCapabilities {
+    maxResolution: { width: number; height: number } | null;
+    supportedResolutions: Array<{ width: number; height: number; label: string }>;
+    maxFrameRate: number | null;
+    supportedFrameRates: number[];
+    supportedAspectRatios: string[];
+    hasAutoExposure: boolean;
+    hasAutoFocus: boolean;
+    hasAutoWhiteBalance: boolean;
+    hasTorch: boolean;
+    hasZoom: boolean;
+    hasPan: boolean;
+    hasTilt: boolean;
+    hasBacklightCompensation: boolean;
+}
