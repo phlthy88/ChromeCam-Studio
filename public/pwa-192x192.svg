@@ -1,10 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="24" fill="#4f46e5"/>
-  <g transform="translate(32, 32)">
-    <circle cx="64" cy="48" r="36" fill="none" stroke="#ffffff" stroke-width="6"/>
-    <circle cx="64" cy="48" r="12" fill="#ffffff"/>
-    <path d="M20 80 L64 112 L108 80 L108 108 C108 116 100 124 92 124 L36 124 C28 124 20 116 20 108 Z" fill="#ffffff"/>
-    <rect x="100" y="28" width="16" height="12" rx="2" fill="#ffffff"/>
-    <circle cx="108" cy="34" r="3" fill="#4f46e5"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#1c1b1f"/>
+  <circle cx="96" cy="96" r="70" fill="#4f46e5"/>
+  <circle cx="96" cy="96" r="56" fill="#2e2e2e" stroke="#ffffff" stroke-width="4"/>
+  <circle cx="96" cy="96" r="40" fill="#1c1b1f"/>
+  <circle cx="106" cy="86" r="8" fill="rgba(255,255,255,0.5)"/>
 </svg>

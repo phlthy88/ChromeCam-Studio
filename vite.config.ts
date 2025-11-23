@@ -14,15 +14,18 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'autoUpdate',
+          injectRegister: 'auto',
           includeAssets: ['favicon.ico', 'apple-touch-icon.svg', 'masked-icon.svg'],
           manifest: {
             name: 'ChromeCam Studio',
             short_name: 'ChromeCam',
-            description: 'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
+            description: 'Advanced webcam studio with local AI effects.',
             theme_color: '#1c1b1f',
             background_color: '#1c1b1f',
             display: 'standalone',
-            orientation: 'any',
+            orientation: 'landscape',
+            categories: ['photo', 'productivity', 'utilities'],
+            id: '/',
             scope: '/',
             start_url: '/',
             icons: [
@@ -43,12 +46,29 @@ export default defineConfig(({ mode }) => {
                 purpose: 'maskable'
               }
             ],
-            display_override: ['window-controls-overlay'],
+            screenshots: [
+              {
+                src: 'pwa-512x512.svg',
+                sizes: '512x512',
+                type: 'image/svg+xml',
+                form_factor: 'wide',
+                label: 'ChromeCam Studio Interface'
+              },
+              {
+                src: 'pwa-512x512.svg',
+                sizes: '512x512',
+                type: 'image/svg+xml',
+                form_factor: 'narrow',
+                label: 'Mobile View'
+              }
+            ],
+            display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
             shortcuts: [
               {
                 name: 'Open Settings',
                 url: '/?settings=true',
-                description: 'Open directly to camera settings'
+                description: 'Open directly to camera settings',
+                icons: [{ src: 'pwa-192x192.svg', sizes: '192x192', type: 'image/svg+xml' }]
               }
             ]
           },
