@@ -11,12 +11,14 @@ import {
   useAutoLowLight,
   useAudioProcessor,
   useToast,
+  useVirtualCamera,
 } from '../hooks';
 
 interface VideoPanelProps {
   deviceId: string | null;
   settings: CameraSettings;
   onCapabilitiesChange?: (capabilities: ExtendedMediaTrackCapabilities | null) => void;
+  onProcessedAudioStream?: (stream: MediaStream | null) => void;
 }
 
 /**
@@ -37,7 +39,12 @@ interface VideoPanelProps {
  * - Enhanced performance (granular re-renders only where needed)
  * - Easier debugging (errors are contained to specific functionality)
  */
-const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilitiesChange }) => {
+const VideoPanel: React.FC<VideoPanelProps> = ({
+  deviceId,
+  settings,
+  onCapabilitiesChange,
+  onProcessedAudioStream,
+}) => {
   // Canvas ref for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
@@ -55,6 +62,13 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
 
   // Toast notifications
   const { showToast } = useToast();
+
+  // Virtual camera
+  const {
+    isActive: isVirtualCameraActive,
+    startVirtualCamera,
+    stopVirtualCamera,
+  } = useVirtualCamera();
 
   // Keep screen awake during camera operation
   useWakeLock();
@@ -157,6 +171,11 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     noiseGateAttack: settings.audioNoiseGateAttack,
     noiseGateRelease: settings.audioNoiseGateRelease,
   });
+
+  // Notify parent of processed audio stream changes
+  useEffect(() => {
+    onProcessedAudioStream?.(processedAudioStream);
+  }, [processedAudioStream, onProcessedAudioStream]);
 
   // AI body segmentation and auto-framing
   const {
@@ -494,6 +513,69 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                 />
               </svg>
             </button>
+
+            <button
+              onClick={
+                isVirtualCameraActive
+                  ? stopVirtualCamera
+                  : () => canvasRef.current && startVirtualCamera(canvasRef.current)
+              }
+              className="
+                                p-2 sm:p-2.5 md:p-3 rounded-full
+                                text-on-surface-variant hover:bg-on-surface-variant/10
+                                active:bg-on-surface-variant/20 transition-colors
+                            "
+              title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
+              aria-label={isVirtualCameraActive ? 'Stop virtual camera' : 'Start virtual camera'}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 md:h-6 md:w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 10h.01M11 10h.01" />
+              </svg>
+            </button>
+
+            <button
+              onClick={
+                isVirtualCameraActive
+                  ? stopVirtualCamera
+                  : () => canvasRef.current && startVirtualCamera(canvasRef.current)
+              }
+              className="
+                                p-2 sm:p-2.5 md:p-3 rounded-full
+                                text-on-surface-variant hover:bg-on-surface-variant/10
+                                active:bg-on-surface-variant/20 transition-colors
+                            "
+              title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
+              aria-label={isVirtualCameraActive ? 'Stop virtual camera' : 'Start virtual camera'}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 md:h-6 md:w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                />
+              </svg>
+            </button>
           </div>
 
           {/* Primary Actions (Center) */}
@@ -510,8 +592,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
               className="
                                 w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12
                                 flex items-center justify-center rounded-full
-                                bg-secondary-container text-on-secondary-container
-                                hover:shadow-elevation-1 active:scale-95 transition-all
+                                text-on-surface-variant hover:bg-on-surface-variant/10
+                                active:bg-on-surface-variant/20 transition-colors
                             "
               title="Take Snapshot"
               aria-label="Take snapshot (Space)"

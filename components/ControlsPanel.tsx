@@ -12,6 +12,7 @@ import {
   AUDIO_CODECS,
   GRID_OVERLAYS,
 } from './settings';
+import { useOBSIntegration } from '../hooks';
 import { CINEMATIC_LUT_PRESETS } from '../data/cinematicLuts';
 import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
 
@@ -147,8 +148,11 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onSettingsChange,
   onCloseMobile,
   capabilities,
-  audioDevices = [],
+  audioDevices,
 }) => {
+  // OBS Integration
+  const { connected, connecting, connect, disconnect, startRecording, startStreaming } =
+    useOBSIntegration();
   const [resetConfirm, setResetConfirm] = useState(false);
   const [showCameraInfo, setShowCameraInfo] = useState(false);
   const [supportedCodecs, setSupportedCodecs] = useState<string[]>([]);
@@ -443,7 +447,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               className={`space-y-5 transition-opacity duration-medium2 ease-standard ${settings.enableAudio ? 'opacity-100' : 'opacity-[0.38] pointer-events-none'}`}
             >
               {/* Microphone Selection */}
-              {audioDevices.length > 0 && (
+              {audioDevices && audioDevices.length > 0 && (
                 <div>
                   <label className="md-label-large text-on-surface mb-2 block">Microphone</label>
                   <select
@@ -1517,6 +1521,67 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 Highlights in-focus edges for manual focus assistance.
               </p>
             </div>
+          </div>
+        </ControlSection>
+
+        {/* OBS Studio Integration */}
+        <ControlSection title="OBS Studio">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={connected ? disconnect : () => connect()}
+                disabled={connecting}
+                className="px-4 py-2 bg-primary text-on-primary rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {connecting ? 'Connecting...' : connected ? 'Disconnect' : 'Connect to OBS'}
+              </button>
+              <div
+                className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-error'}`}
+              ></div>
+              <span className="text-sm text-on-surface-variant">
+                {connected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+
+            {connected && (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={startRecording}
+                  className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                >
+                  Start Recording
+                </button>
+                <button
+                  onClick={startStreaming}
+                  className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                >
+                  Start Streaming
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  /* TODO: Start recording */
+                }}
+                className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+              >
+                Start Recording
+              </button>
+              <button
+                onClick={() => {
+                  /* TODO: Start streaming */
+                }}
+                className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+              >
+                Start Streaming
+              </button>
+            </div>
+
+            <p className="md-body-small text-on-surface-variant ml-1">
+              Control OBS Studio recording and streaming from ChromeCam.
+            </p>
           </div>
         </ControlSection>
 

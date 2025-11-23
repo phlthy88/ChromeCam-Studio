@@ -10,9 +10,17 @@
 
 export { useWakeLock } from './useWakeLock';
 export { useCameraStream } from './useCameraStream';
-export type { HardwareCapabilities, UseCameraStreamOptions, UseCameraStreamReturn } from './useCameraStream';
+export type {
+  HardwareCapabilities,
+  UseCameraStreamOptions,
+  UseCameraStreamReturn,
+} from './useCameraStream';
 export { useBodySegmentation } from './useBodySegmentation';
-export type { AutoFrameTransform, UseBodySegmentationOptions, UseBodySegmentationReturn } from './useBodySegmentation';
+export type {
+  AutoFrameTransform,
+  UseBodySegmentationOptions,
+  UseBodySegmentationReturn,
+} from './useBodySegmentation';
 export { useProOverlays } from './useProOverlays';
 export type { ProOverlaySettings, UseProOverlaysReturn } from './useProOverlays';
 export { useVideoRenderer } from './useVideoRenderer';
@@ -24,8 +32,17 @@ export { useTheme } from './useTheme';
 export { useToast, ToastProvider, ToastContainer } from './useToast';
 export type { Toast, ToastType } from './useToast';
 export { useAutoLowLight } from './useAutoLowLight';
-export type { LowLightAnalysis, UseAutoLowLightOptions, UseAutoLowLightReturn } from './useAutoLowLight';
+export type {
+  LowLightAnalysis,
+  UseAutoLowLightOptions,
+  UseAutoLowLightReturn,
+} from './useAutoLowLight';
 export { useWebGLRenderer } from './useWebGLRenderer';
 export type { UseWebGLRendererOptions, UseWebGLRendererReturn } from './useWebGLRenderer';
 export { useAudioProcessor } from './useAudioProcessor';
 export type { UseAudioProcessorOptions, UseAudioProcessorReturn } from './useAudioProcessor';
+export { useVirtualCamera } from './useVirtualCamera';
+export { useOBSIntegration } from './useOBSIntegration';
+export { useKeyboardShortcuts } from './useKeyboardShortcuts';
+export { usePerformanceMonitor } from './usePerformanceMonitor';
+export { usePresets } from './usePresets';
