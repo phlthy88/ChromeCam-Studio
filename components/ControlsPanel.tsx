@@ -13,12 +13,13 @@ import {
     AUDIO_CODECS,
     GRID_OVERLAYS
 } from './settings';
+import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
 
 interface ControlsPanelProps {
     settings: CameraSettings;
     onSettingsChange: (settings: CameraSettings) => void;
     onCloseMobile?: () => void;
-    capabilities?: MediaTrackCapabilities | null;
+    capabilities?: ExtendedMediaTrackCapabilities | null;
     audioDevices?: MediaDeviceInfo[];
 }
 
@@ -400,14 +401,12 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                         />
 
                         {/* Hardware Exposure Controls */}
-                        {/* @ts-ignore */}
                         {capabilities && capabilities.exposureMode && (
                             <div className="pt-4 border-t border-outline-variant">
                                 <label className="md-label-large text-on-surface mb-3 block">Exposure Mode</label>
                                 <div className="flex gap-2 mb-5">
-                                    {['continuous', 'manual'].map(mode => (
-                                        // @ts-ignore
-                                        (capabilities.exposureMode.includes(mode)) && (
+                                    {(['continuous', 'manual'] as const).map(mode => (
+                                        (capabilities.exposureMode?.includes(mode)) && (
                                             <Chip
                                                 key={mode}
                                                 label={mode === 'continuous' ? 'Auto' : 'Manual'}
@@ -420,34 +419,25 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                 </div>
 
                                 {settings.exposureMode === 'manual' &&
-                                 // @ts-ignore
                                  capabilities.exposureTime && (
                                     <div className="mb-4">
                                         <Slider
                                             label="Exposure Time"
-                                            // @ts-ignore
                                             value={settings.exposureTime || capabilities.exposureTime.min}
-                                            // @ts-ignore
                                             min={capabilities.exposureTime.min}
-                                            // @ts-ignore
                                             max={capabilities.exposureTime.max}
-                                            // @ts-ignore
                                             step={capabilities.exposureTime.step}
                                             onChange={(v) => update('exposureTime', v)}
                                         />
                                     </div>
                                 )}
 
-                                {/* @ts-ignore */}
                                 {capabilities.exposureCompensation && (
                                     <Slider
                                         label="Exposure Comp."
                                         value={settings.exposureCompensation}
-                                        // @ts-ignore
                                         min={capabilities.exposureCompensation.min}
-                                        // @ts-ignore
                                         max={capabilities.exposureCompensation.max}
-                                        // @ts-ignore
                                         step={capabilities.exposureCompensation.step}
                                         onChange={(v) => update('exposureCompensation', v)}
                                     />

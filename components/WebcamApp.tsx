@@ -5,6 +5,7 @@ import VideoPanel from './VideoPanel';
 import { CameraSettings, DEFAULT_SETTINGS, GRID_OVERLAYS } from './settings';
 import { useTheme } from '../hooks/useTheme';
 import { useSystemAccentColor } from '../hooks/useSystemAccentColor';
+import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
 
 /**
  * Main Application Container
@@ -21,7 +22,7 @@ const WebcamApp: React.FC = () => {
     const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
     const [settings, setSettings] = useState<CameraSettings>(DEFAULT_SETTINGS);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [capabilities, setCapabilities] = useState<MediaTrackCapabilities | null>(null);
+    const [capabilities, setCapabilities] = useState<ExtendedMediaTrackCapabilities | null>(null);
     const { theme, setTheme } = useTheme();
 
     // Initialize dynamic color theming from ChromeOS/system
