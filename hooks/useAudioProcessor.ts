@@ -49,6 +49,8 @@ export interface UseAudioProcessorReturn {
     compressorReduction: number;
     /** Whether the noise gate is open */
     noiseGateOpen: boolean;
+    /** Error message if audio processing failed */
+    audioError: string | null;
 }
 
 /**
@@ -73,6 +75,7 @@ export function useAudioProcessor({
     const [isProcessing, setIsProcessing] = useState(false);
     const [compressorReduction, setCompressorReduction] = useState(0);
     const [noiseGateOpen, setNoiseGateOpen] = useState(true);
+    const [audioError, setAudioError] = useState<string | null>(null);
     const animationFrameRef = useRef<number | null>(null);
 
     // Cleanup function
@@ -145,6 +148,7 @@ export function useAudioProcessor({
             chainRef.current = chain;
             setProcessedStream(chain.processedStream);
             setIsProcessing(true);
+            setAudioError(null); // Clear any previous error on successful initialization
 
             // Start monitoring compressor reduction and gate state
             const monitor = () => {
@@ -162,6 +166,8 @@ export function useAudioProcessor({
             animationFrameRef.current = requestAnimationFrame(monitor);
         } catch (error) {
             console.error('Failed to create audio processing chain:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown audio processing error';
+            setAudioError(`Audio processing failed: ${errorMessage}`);
             cleanup();
         }
 
@@ -217,6 +223,7 @@ export function useAudioProcessor({
         isProcessing,
         compressorReduction,
         noiseGateOpen,
+        audioError,
     };
 }
 
