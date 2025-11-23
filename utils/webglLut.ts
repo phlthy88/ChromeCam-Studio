@@ -366,9 +366,9 @@ export function applyLutSoftware(imageData: ImageData, lutData: LutData): ImageD
   const lut = lutData.data;
 
   for (let i = 0; i < data.length; i += 4) {
-    const r = data[i] / 255;
-    const g = data[i + 1] / 255;
-    const b = data[i + 2] / 255;
+    const r = data[i]! / 255;
+    const g = data[i + 1]! / 255;
+    const b = data[i + 2]! / 255;
 
     // Find nearest LUT indices (simplified, no interpolation for performance)
     const rIndex = Math.min(Math.floor(r * (lutSize - 1)), lutSize - 1);
@@ -388,7 +388,7 @@ export function applyLutSoftware(imageData: ImageData, lutData: LutData): ImageD
     resultData[i] = Math.round(newR);
     resultData[i + 1] = Math.round(newG);
     resultData[i + 2] = Math.round(newB);
-    resultData[i + 3] = data[i + 3];
+    resultData[i + 3] = data[i + 3]!;
   }
 
   return result;

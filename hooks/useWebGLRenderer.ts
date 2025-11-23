@@ -171,13 +171,13 @@ export function useWebGLRenderer({
 
         // Apply intensity
         for (let i = 0; i < processedData.data.length; i += 4) {
-          const originalR = imageData.data[i] / 255;
-          const originalG = imageData.data[i + 1] / 255;
-          const originalB = imageData.data[i + 2] / 255;
+          const originalR = imageData.data[i]! / 255;
+          const originalG = imageData.data[i + 1]! / 255;
+          const originalB = imageData.data[i + 2]! / 255;
 
-          const lutR = processedData.data[i] / 255;
-          const lutG = processedData.data[i + 1] / 255;
-          const lutB = processedData.data[i + 2] / 255;
+          const lutR = processedData.data[i]! / 255;
+          const lutG = processedData.data[i + 1]! / 255;
+          const lutB = processedData.data[i + 2]! / 255;
 
           const finalR = originalR * (1 - normalizedIntensity) + lutR * normalizedIntensity;
           const finalG = originalG * (1 - normalizedIntensity) + lutG * normalizedIntensity;
