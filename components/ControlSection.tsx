@@ -37,13 +37,14 @@ const ControlSection: React.FC<ControlSectionProps> = ({
     return (
         <div
             className={`
-                bg-surface-container rounded-[20px] overflow-hidden
+                bg-surface-container rounded-xl
                 shadow-elevation-1 hover:shadow-elevation-2
-                transition-all duration-short3 ease-standard
-                border border-outline-variant/20
+                transition-shadow duration-short3 ease-standard
+                border border-outline-variant/15
+                isolate
             `}
         >
-            {/* Header */}
+            {/* Header - rounded top corners only */}
             <button
                 type="button"
                 className={`
@@ -51,10 +52,11 @@ const ControlSection: React.FC<ControlSectionProps> = ({
                     px-5 py-4
                     text-left cursor-pointer
                     transition-colors duration-short2 ease-standard
-                    hover:bg-on-surface/[0.08]
-                    active:bg-on-surface/[0.12]
-                    focus:outline-none focus-visible:bg-on-surface/[0.12]
+                    hover:bg-on-surface/[0.04]
+                    active:bg-on-surface/[0.08]
+                    focus:outline-none focus-visible:bg-on-surface/[0.08]
                     group
+                    rounded-xl
                 `}
                 onClick={toggleSection}
                 aria-expanded={isOpen}
@@ -72,8 +74,8 @@ const ControlSection: React.FC<ControlSectionProps> = ({
                                 opacity-0 group-hover:opacity-100
                                 md-label-medium text-primary
                                 px-3 py-1.5 rounded-full
-                                hover:bg-primary/[0.08]
-                                active:bg-primary/[0.12]
+                                hover:bg-primary/[0.06]
+                                active:bg-primary/[0.1]
                                 transition-all duration-short2 ease-standard
                             `}
                         >
@@ -87,23 +89,25 @@ const ControlSection: React.FC<ControlSectionProps> = ({
                             ${isOpen ? 'rotate-180' : 'rotate-0'}
                         `}
                     >
-                        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="6 9 12 15 18 9" />
                         </svg>
                     </span>
                 </div>
             </button>
 
-            {/* Content */}
+            {/* Content - uses grid for smooth animation without overflow issues */}
             <div
-                className={`overflow-hidden transition-all duration-medium2 ease-emphasized`}
+                className="grid transition-all duration-medium2 ease-emphasized"
                 style={{
-                    maxHeight: isOpen ? (contentHeight ? `${contentHeight}px` : '1000px') : '0px',
+                    gridTemplateRows: isOpen ? '1fr' : '0fr',
                     opacity: isOpen ? 1 : 0,
                 }}
             >
-                <div ref={contentRef} className="px-5 pb-6 pt-1">
-                    {children}
+                <div className="overflow-hidden">
+                    <div ref={contentRef} className="px-5 pb-5 pt-1">
+                        {children}
+                    </div>
                 </div>
             </div>
         </div>

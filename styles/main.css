@@ -2,10 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar using M3 tokens */
+/* ========================================
+ * Theme Transition Support
+ * Smooth color transitions when switching themes
+ * ======================================== */
+
+.theme-transitioning,
+.theme-transitioning * {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 300ms;
+  transition-timing-function: var(--md-sys-motion-easing-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .theme-transitioning,
+  .theme-transitioning * {
+    transition-duration: 0ms;
+  }
+}
+
+/* ========================================
+ * Custom Scrollbar - Softer appearance
+ * ======================================== */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -15,10 +38,12 @@
 ::-webkit-scrollbar-thumb {
   background-color: var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-full);
+  opacity: 0.6;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--md-sys-color-outline);
+  opacity: 0.8;
 }
 
 /* Base layer customizations */

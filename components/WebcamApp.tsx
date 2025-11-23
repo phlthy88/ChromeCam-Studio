@@ -4,13 +4,15 @@ import ControlsPanel from './ControlsPanel';
 import VideoPanel from './VideoPanel';
 import { CameraSettings, DEFAULT_SETTINGS, GRID_OVERLAYS } from './settings';
 import { useTheme } from '../hooks/useTheme';
+import { useSystemAccentColor } from '../hooks/useSystemAccentColor';
 
 /**
  * Main Application Container
  *
- * Material 3 Refactor:
- * - Uses "Extra Large" shape (28px) for main containers
- * - Distinct background color vs surface container colors
+ * Material 3 Refactor with ChromeOS Dynamic Theming:
+ * - Softer appearance with reduced blur and contrast
+ * - Dynamic color theming from system accent colors
+ * - Uses "Large" shape (16px) for gentler rounded corners
  * - Proper spacing to simulate floating panels
  */
 const WebcamApp: React.FC = () => {
@@ -21,6 +23,9 @@ const WebcamApp: React.FC = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [capabilities, setCapabilities] = useState<MediaTrackCapabilities | null>(null);
     const { theme, setTheme } = useTheme();
+
+    // Initialize dynamic color theming from ChromeOS/system
+    useSystemAccentColor();
 
     // Handle keyboard shortcut events from VideoPanel
     useEffect(() => {
@@ -85,9 +90,9 @@ const WebcamApp: React.FC = () => {
     }, []);
 
     return (
-        <div className="flex flex-col h-full w-full bg-background text-on-background font-sans overflow-hidden md:p-4 gap-4">
+        <div className="flex flex-col h-full w-full bg-background text-on-background font-sans overflow-hidden md:p-3 gap-3">
             {/* Header - Floating on Desktop, standard on Mobile */}
-            <div className="rounded-2xl overflow-hidden shadow-elevation-0 shrink-0">
+            <div className="rounded-xl overflow-hidden shadow-elevation-0 shrink-0">
                 <Header
                     devices={devices}
                     selectedDeviceId={selectedDeviceId}
@@ -100,13 +105,13 @@ const WebcamApp: React.FC = () => {
             </div>
 
             {/* Main Content Area */}
-            <main className="flex flex-1 overflow-hidden relative gap-4">
+            <main className="flex flex-1 overflow-hidden relative gap-3">
 
-                {/* Mobile Scrim */}
+                {/* Mobile Scrim - Softer blur and transparency */}
                 <div
                     className={`
                         fixed inset-0 z-20 lg:hidden
-                        bg-scrim/40 backdrop-blur-sm
+                        bg-scrim/25 backdrop-blur-[2px]
                         transition-opacity duration-medium2 ease-standard
                         ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
                     `}
@@ -114,32 +119,32 @@ const WebcamApp: React.FC = () => {
                     aria-hidden="true"
                 />
 
-                <div className="flex flex-col lg:flex-row flex-1 h-full relative w-full gap-4">
+                <div className="flex flex-col lg:flex-row flex-1 h-full relative w-full gap-3">
 
-                    {/* Sidebar / Settings Panel */}
+                    {/* Sidebar / Settings Panel - Softer appearance */}
                     <aside
                         className={`
                             z-30 flex-shrink-0
-                            bg-surface-container-low
+                            bg-surface-low
                             text-on-surface
                             transition-all duration-long1 ease-emphasized
 
-                            /* Shape: Top rounded on mobile, Full rounded on desktop */
-                            rounded-t-[28px] lg:rounded-[28px]
+                            /* Shape: Gentler rounded corners */
+                            rounded-t-2xl lg:rounded-xl
 
-                            /* Mobile: Bottom Sheet */
+                            /* Mobile: Bottom Sheet with softer shadow */
                             fixed bottom-0 left-0 right-0
                             h-[75vh] w-full
-                            shadow-elevation-3
+                            shadow-elevation-2
                             ${isSidebarOpen ? 'translate-y-0' : 'translate-y-full'}
 
                             /* Desktop: Side Panel */
                             lg:relative lg:h-full lg:w-80 xl:w-96
-                            lg:translate-y-0 lg:shadow-none
-                            border border-outline-variant/20
+                            lg:translate-y-0 lg:shadow-elevation-1
+                            border border-outline-variant/10
                         `}
                     >
-                        <div className="h-full overflow-hidden flex flex-col">
+                        <div className="h-full overflow-hidden flex flex-col rounded-t-2xl lg:rounded-xl">
                             <ControlsPanel
                                 settings={settings}
                                 onSettingsChange={setSettings}
@@ -150,11 +155,11 @@ const WebcamApp: React.FC = () => {
                         </div>
                     </aside>
 
-                    {/* Video Panel */}
+                    {/* Video Panel - Softer border and shadow */}
                     <div
                         className={`
-                            bg-black rounded-[28px] overflow-hidden relative w-full
-                            shadow-elevation-1 ring-1 ring-outline/10
+                            bg-black rounded-xl overflow-hidden relative w-full
+                            shadow-elevation-1 ring-1 ring-outline-variant/5
                             transition-all duration-long1 ease-emphasized
 
                             /* Mobile: Shrink when sheet open */

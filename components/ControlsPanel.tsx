@@ -240,39 +240,40 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-surface overflow-x-hidden relative">
+        <div className="flex flex-col h-full bg-surface-low overflow-x-hidden relative">
 
-            {/* Mobile Drag Handle */}
-            <div className="lg:hidden flex justify-center pt-3 pb-1 cursor-pointer" onClick={onCloseMobile}>
-                <div className="w-8 h-1 rounded-full bg-outline-variant" />
+            {/* Mobile Drag Handle - Softer styling */}
+            <div className="lg:hidden flex justify-center pt-2.5 pb-1 cursor-pointer" onClick={onCloseMobile}>
+                <div className="w-9 h-1 rounded-full bg-outline-variant/60" />
             </div>
 
             {/* Header & Global Actions */}
-            <div className="p-4 pb-2 shrink-0">
+            <div className="px-4 pt-3 pb-2 shrink-0">
                 <div className="flex justify-between items-center">
                     <h2 className="md-title-large text-on-surface">Settings</h2>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={handleMasterReset}
                             className={`
-                                md-label-large transition-colors duration-short2 ease-standard
+                                md-label-medium transition-colors duration-short2 ease-standard
+                                px-3 py-1.5 rounded-lg
                                 ${resetConfirm
-                                    ? 'text-error'
-                                    : 'text-on-surface-variant hover:text-on-surface'
+                                    ? 'text-error bg-error/10'
+                                    : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]'
                                 }
                             `}
                         >
                             {resetConfirm ? 'Confirm Reset' : 'Reset All'}
                         </button>
 
-                        {/* Mobile Close Button */}
+                        {/* Mobile Close Button - Softer */}
                         <button
                             onClick={onCloseMobile}
-                            className="lg:hidden p-2 -mr-2 rounded-full hover:bg-on-surface/[0.08] text-on-surface-variant transition-colors duration-short2 ease-standard"
+                            className="lg:hidden p-2 -mr-1 rounded-lg hover:bg-on-surface/[0.05] text-on-surface-variant transition-colors duration-short2 ease-standard"
                             aria-label="Close settings"
                         >
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
@@ -280,8 +281,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 </div>
             </div>
 
-            {/* Controls Scroll Area */}
-            <div className="flex-1 overflow-y-auto md-scrollbar px-4 pb-8 space-y-4">
+            {/* Controls Scroll Area - Softer spacing */}
+            <div className="flex-1 overflow-y-auto md-scrollbar px-3 pb-6 space-y-3">
 
                 {/* Conferencing / Audio */}
                 <ControlSection title="Audio" defaultOpen={true} onReset={resetConferencing}>
