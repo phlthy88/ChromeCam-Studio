@@ -3,6 +3,7 @@ import type { CameraSettings } from '../components/settings';
 import { ASPECT_RATIO_PRESETS } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
 import type { AutoFrameTransform } from './useBodySegmentation';
+
 import { useProOverlays } from './useProOverlays';
 import { useWebGLRenderer } from './useWebGLRenderer';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
@@ -395,6 +396,13 @@ export function useVideoRenderer({
   // Performance monitoring
   const performanceMetrics = usePerformanceMonitor(true);
 
+  // Adaptive quality: disable heavy effects if performance is poor
+  const adaptiveQuality = performanceMetrics.fps < 30;
+
+  // Frame rate limiting for performance
+  const frameSkipRef = useRef(0);
+  const shouldSkipFrame = adaptiveQuality && frameSkipRef.current++ % 2 !== 0; // Skip every other frame in low perf
+
   // Keep settings ref updated
   useEffect(() => {
     settingsRef.current = settings;
@@ -425,6 +433,12 @@ export function useVideoRenderer({
 
     const processVideo = () => {
       if (!isLoopActive) return;
+
+      // Skip frames in low-performance mode
+      if (shouldSkipFrame) {
+        requestAnimationFrame(processVideo);
+        return;
+      }
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -628,8 +642,8 @@ export function useVideoRenderer({
             tempCtx.drawImage(video, 0, 0);
             tempCtx.filter = 'none';
 
-            // Face smoothing effect
-            if (faceSmoothing > 0) {
+            // Face smoothing effect (disabled in low-performance mode)
+            if (faceSmoothing > 0 && !adaptiveQuality) {
               tempCtx.globalCompositeOperation = 'screen';
               const smoothAmt = (faceSmoothing / 100) * 10;
               tempCtx.filter = `blur(${smoothAmt}px) brightness(1.1)`;
