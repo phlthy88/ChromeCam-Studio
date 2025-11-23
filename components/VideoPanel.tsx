@@ -300,9 +300,11 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                                 }
                             }
                             if (found) {
-                                const boxCenterX = (minX + maxX) / 2; const boxCenterY = (minY + maxY) / 2; const boxHeight = maxY - minY;
-                                const centerXPercent = boxCenterX / width; const centerYPercent = boxCenterY / height;
-                                const targetPanX = (0.5 - centerXPercent) * 100; const targetPanY = (0.5 - centerYPercent) * 100;
+                                const boxCenterX = (minX + maxX) / 2; const boxHeight = maxY - minY;
+                                // Focus on the face/head area (upper ~25% of detected body) instead of body center
+                                const faceY = minY + boxHeight * 0.25;
+                                const centerXPercent = boxCenterX / width; const faceYPercent = faceY / height;
+                                const targetPanX = (0.5 - centerXPercent) * 100; const targetPanY = (0.5 - faceYPercent) * 100;
                                 let targetZoom = (height * 0.6) / boxHeight; targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
                                 targetTransformRef.current = { panX: targetPanX, panY: targetPanY, zoom: targetZoom };
                             }
@@ -380,10 +382,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                         if (faceSmoothing > 0) { tempCtx.globalCompositeOperation = 'screen'; const smoothAmt = (faceSmoothing / 100) * 10; tempCtx.filter = `blur(${smoothAmt}px) brightness(1.1)`; tempCtx.globalAlpha = 0.6; tempCtx.drawImage(tempCanvas, 0, 0); tempCtx.globalAlpha = 1.0; tempCtx.filter = 'none'; }
 
                         ctx.globalCompositeOperation = 'source-over';
-                        if (portraitLighting > 0) { ctx.shadowColor = 'rgba(255, 240, 200, 0.2)'; ctx.shadowBlur = 15; }
-                        else if (autoFrame) { ctx.shadowColor = 'rgba(74, 222, 128, 0.2)'; ctx.shadowBlur = 10; }
-                        else if (virtualBackground) { ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 5; }
-                        ctx.drawImage(tempCanvas, 0, 0); ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+                        // Draw subject without shadow effects to avoid shadow focal points behind the figure
+                        ctx.drawImage(tempCanvas, 0, 0);
                     } else { ctx.filter = baseFilter || 'none'; ctx.drawImage(video, 0, 0); ctx.filter = 'none'; }
 
                     if (filterPreset?.overlay) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = filterPreset.blend || 'overlay'; ctx.globalAlpha = filterPreset.alpha || 0.2; ctx.fillStyle = filterPreset.overlay; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1.0; }
