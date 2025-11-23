@@ -90,18 +90,20 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // In production, use locally bundled scripts
     const cdnPath = modelPath || '/mediapipe/';
 
-    // Scripts are loaded in main thread
+    // Import required libraries
+    const tf = await import('@tensorflow/tfjs-core');
+    await import('@tensorflow/tfjs-backend-webgl');
+    const { FaceMesh } = await import('@mediapipe/face_mesh');
 
-    // Access the globally loaded libraries
-    const bodySegmentation = (self as unknown as { bodySegmentation: unknown }).bodySegmentation;
-    const FaceMesh = (self as unknown as { FaceMesh: unknown }).FaceMesh;
+    // For body segmentation, use the face-landmarks-detection which includes tfjs
+    const bodySegmentation = await import('@tensorflow-models/body-segmentation');
 
-    console.log('[Worker] bodySegmentation available:', !!bodySegmentation);
-    console.log('[Worker] FaceMesh available:', !!FaceMesh);
+    console.log('[Worker] Libraries loaded successfully');
 
-    if (!bodySegmentation) {
-      throw new Error('bodySegmentation not available after script load');
-    }
+    // Make available globally for compatibility
+    (self as any).FaceMesh = FaceMesh;
+    (self as any).tf = tf;
+    (self as any).bodySegmentation = bodySegmentation;
 
     // Create segmenter
     const model = (
