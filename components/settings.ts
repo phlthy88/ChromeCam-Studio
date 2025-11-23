@@ -92,6 +92,7 @@ export interface CameraSettings {
   frameRate: number; // 15 | 24 | 30 | 60
   aspectRatioLock: string; // 'none' | '4:3' | '16:9' | '1:1'
   facingMode: string; // 'user' | 'environment'
+  performanceMode: string; // 'quality' | 'balanced' | 'performance'
 
   // Recording
   videoCodec: string; // 'vp8' | 'vp9' | 'h264' | 'av1'
@@ -202,6 +203,7 @@ export const DEFAULT_SETTINGS: CameraSettings = {
   frameRate: 30,
   aspectRatioLock: 'none',
   facingMode: 'user',
+  performanceMode: 'balanced',
 
   // Recording
   videoCodec: 'vp9',

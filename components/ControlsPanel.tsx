@@ -283,6 +283,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
       showFocusPeaking: 'boolean',
       focusPeakingColor: 'string',
       webglEnabled: 'boolean',
+      performanceMode: 'string',
     };
 
     // Validate each key

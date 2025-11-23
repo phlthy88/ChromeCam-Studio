@@ -64,12 +64,12 @@ export function useBodySegmentation({
             document.head.appendChild(script);
           });
         }
-        // Load MediaPipe
+        // Load MediaPipe Selfie Segmentation
         if (!(window as any).bodySegmentation) {
           await new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src =
-              'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.min.js';
+              'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js';
             script.onload = resolve;
             script.onerror = reject;
             document.head.appendChild(script);

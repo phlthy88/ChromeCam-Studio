@@ -90,17 +90,11 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // In production, use locally bundled scripts
     const cdnPath = modelPath || '/mediapipe/';
 
-    // Load scripts using importScripts (classic worker)
-    importScripts(
-      'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js',
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.min.js'
-    );
-
-    console.log('[Worker] Scripts loaded successfully');
-
-    // Access the globally loaded libraries
+    // Scripts are loaded in main thread, access globally
     const bodySegmentation = (self as any).bodySegmentation;
     const FaceMesh = (self as any).FaceMesh;
+
+    console.log('[Worker] Libraries accessed:', !!bodySegmentation, !!FaceMesh);
 
     // Create segmenter
     const model = (

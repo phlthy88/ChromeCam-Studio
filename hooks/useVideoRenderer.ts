@@ -401,7 +401,13 @@ export function useVideoRenderer({
 
   // Frame rate limiting for performance
   const frameSkipRef = useRef(0);
-  const shouldSkipFrame = adaptiveQuality && frameSkipRef.current++ % 2 !== 0; // Skip every other frame in low perf
+  const skipFactor =
+    settings.performanceMode === 'performance'
+      ? 3
+      : settings.performanceMode === 'balanced'
+        ? 2
+        : 1;
+  const shouldSkipFrame = adaptiveQuality && frameSkipRef.current++ % skipFactor !== 0;
 
   // Keep settings ref updated
   useEffect(() => {
