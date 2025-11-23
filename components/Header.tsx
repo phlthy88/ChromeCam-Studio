@@ -15,6 +15,7 @@ interface HeaderProps {
     isSidebarOpen?: boolean;
     theme?: Theme;
     onThemeChange?: (theme: Theme) => void;
+    audioEnabled?: boolean;
 }
 
 /**
@@ -33,7 +34,8 @@ const Header: React.FC<HeaderProps> = ({
     onDeviceChange,
     onToggleSidebar,
     theme = 'system',
-    onThemeChange
+    onThemeChange,
+    audioEnabled = false,
 }) => {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [isInstalled, setIsInstalled] = useState(false);
@@ -191,8 +193,8 @@ const Header: React.FC<HeaderProps> = ({
                         </button>
                     )}
 
-                    {/* VU Meter */}
-                    <VUMeter />
+                    {/* VU Meter - only show when audio is enabled */}
+                    {audioEnabled && <VUMeter />}
 
                     {/* Camera Selector - M3 Filled Select / Dropdown style */}
                     <div className="relative group">
