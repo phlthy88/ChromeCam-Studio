@@ -248,6 +248,10 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
       softwareSharpness: 'number',
       cinematicLut: 'string',
       cinematicLutIntensity: 'number',
+      jawSlimming: 'number',
+      eyeEnlargement: 'number',
+      noseSlimming: 'number',
+      mouthScaling: 'number',
       autoFrame: 'boolean',
       denoise: 'boolean',
       autoLowLight: 'boolean',
@@ -1581,6 +1585,43 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
 
             <p className="md-body-small text-on-surface-variant ml-1">
               Control OBS Studio recording and streaming from ChromeCam.
+            </p>
+          </div>
+        </ControlSection>
+
+        {/* Beauty Filters */}
+        <ControlSection title="Beauty Filters">
+          <div className="space-y-5">
+            <Slider
+              label="Eye Enlargement"
+              value={settings.eyeEnlargement}
+              min={0}
+              max={100}
+              onChange={(v) => update('eyeEnlargement', v)}
+            />
+            <Slider
+              label="Nose Slimming"
+              value={settings.noseSlimming}
+              min={0}
+              max={100}
+              onChange={(v) => update('noseSlimming', v)}
+            />
+            <Slider
+              label="Jaw Slimming"
+              value={settings.jawSlimming}
+              min={0}
+              max={100}
+              onChange={(v) => update('jawSlimming', v)}
+            />
+            <Slider
+              label="Mouth Scaling"
+              value={settings.mouthScaling}
+              min={0}
+              max={100}
+              onChange={(v) => update('mouthScaling', v)}
+            />
+            <p className="md-body-small text-on-surface-variant ml-1">
+              AI-powered facial reshaping using real-time landmark detection.
             </p>
           </div>
         </ControlSection>

@@ -21,6 +21,7 @@ export interface UseBodySegmentationOptions {
 export interface UseBodySegmentationReturn {
   segmentationMaskRef: React.RefObject<ImageData | null>;
   targetTransformRef: React.RefObject<AutoFrameTransform>;
+  faceLandmarks: any[] | null;
   isAiActive: boolean;
   loadingStatus: string;
   loadingError: string | null;
@@ -55,6 +56,7 @@ export function useBodySegmentation({
   const [isAiActive, setIsAiActive] = useState(false);
   const [qrResult, setQrResult] = useState<string | null>(null);
   const [segmentationMode, setSegmentationMode] = useState<SegmentationMode>('disabled');
+  const [faceLandmarks, setFaceLandmarks] = useState<any[] | null>(null);
 
   const settingsRef = useRef(settings);
   useEffect(() => {
@@ -95,6 +97,14 @@ export function useBodySegmentation({
           setLoadingStatus('AI Ready (Worker)');
           setLoadingError(null);
           console.log('[AI] Using Web Worker for segmentation');
+
+          // Set up face landmarks callback
+          segmentationManager.setFaceLandmarksCallback((landmarks) => {
+            if (isMounted) {
+              setFaceLandmarks(landmarks);
+            }
+          });
+
           return true;
         }
         return false;
@@ -294,6 +304,7 @@ export function useBodySegmentation({
   return {
     segmentationMaskRef,
     targetTransformRef,
+    faceLandmarks,
     isAiActive,
     loadingStatus,
     loadingError,

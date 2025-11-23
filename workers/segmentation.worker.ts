@@ -23,6 +23,13 @@
 // Declare worker globals
 declare const importScripts: (...urls: string[]) => void;
 
+// Face mesh types
+interface FaceLandmark {
+  x: number;
+  y: number;
+  z: number;
+}
+
 // Worker message types
 interface WorkerMessageInit {
   type: 'init';
@@ -65,6 +72,7 @@ type WorkerResponse = WorkerResponseReady | WorkerResponseMask | WorkerResponseE
 
 // Global state
 let segmenter: unknown = null;
+let faceMesh: unknown = null;
 let offscreenCanvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let isInitialized = false;
@@ -97,7 +105,8 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core',
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter',
         'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl',
-        'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation'
+        'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation',
+        'https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection'
       );
     } catch (e) {
       console.warn('[Worker] Failed to load TensorFlow scripts:', e);
@@ -124,6 +133,29 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     segmenter = await (
       bodySegmentation as { createSegmenter: (model: unknown, config: unknown) => Promise<unknown> }
     ).createSegmenter(model, segmenterConfig);
+
+    // Initialize Face Mesh
+    try {
+      const faceLandmarksDetection = (self as unknown as { faceLandmarksDetection: unknown })
+        .faceLandmarksDetection;
+      if (faceLandmarksDetection) {
+        const faceModel = (
+          faceLandmarksDetection as { SupportedModels: { MediaPipeFaceMesh: unknown } }
+        ).SupportedModels.MediaPipeFaceMesh;
+        faceMesh = await (
+          faceLandmarksDetection as {
+            createDetector: (model: unknown, config: unknown) => Promise<unknown>;
+          }
+        ).createDetector(faceModel, {
+          runtime: 'mediapipe',
+          refineLandmarks: true,
+          solutionPath: cdnPath,
+        });
+        console.log('[Worker] Face mesh initialized');
+      }
+    } catch (e) {
+      console.warn('[Worker] Face mesh initialization failed:', e);
+    }
 
     // Create offscreen canvas for processing
     offscreenCanvas = new OffscreenCanvas(640, 480);
@@ -171,6 +203,25 @@ async function processFrame(
         toBinaryMask: (seg: unknown[], fg: unknown, bg: unknown) => Promise<ImageData>;
       }
     ).toBinaryMask(segmentation, FOREGROUND_COLOR, BACKGROUND_COLOR);
+
+    // Run face detection if available
+    if (faceMesh) {
+      try {
+        const faces = await (
+          faceMesh as { estimateFaces: (source: OffscreenCanvas) => Promise<unknown[]> }
+        ).estimateFaces(offscreenCanvas);
+        if (faces.length > 0) {
+          const face = faces[0] as { keypoints: FaceLandmark[] };
+          // Post face landmarks
+          self.postMessage({
+            type: 'face-landmarks',
+            data: face.keypoints,
+          });
+        }
+      } catch (e) {
+        console.warn('[Worker] Face detection error:', e);
+      }
+    }
 
     // Clean up the ImageBitmap
     imageBitmap.close();

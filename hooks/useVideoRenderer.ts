@@ -289,6 +289,7 @@ export interface UseVideoRendererOptions {
   isAiActive: boolean;
   isCompareActive: boolean;
   autoGain: number;
+  faceLandmarks?: any[] | null;
 }
 
 export interface UseVideoRendererReturn {
@@ -329,6 +330,7 @@ export function useVideoRenderer({
   isAiActive,
   isCompareActive,
   autoGain,
+  faceLandmarks,
 }: UseVideoRendererOptions): UseVideoRendererReturn {
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskCtxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -363,11 +365,23 @@ export function useVideoRenderer({
 
   const { drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking } = useProOverlays();
 
-  // Initialize WebGL LUT renderer
+  // Initialize WebGL renderer with LUT and face warping
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
-    enabled: settingsRef.current.cinematicLut !== 'none',
+    enabled:
+      settingsRef.current.cinematicLut !== 'none' ||
+      settingsRef.current.eyeEnlargement > 0 ||
+      settingsRef.current.noseSlimming > 0 ||
+      settingsRef.current.jawSlimming > 0 ||
+      settingsRef.current.mouthScaling > 0,
     lutPreset: settings.cinematicLut,
     lutIntensity: settings.cinematicLutIntensity,
+    faceLandmarks,
+    beautySettings: {
+      eyeEnlargement: settings.eyeEnlargement,
+      noseSlimming: settings.noseSlimming,
+      jawSlimming: settings.jawSlimming,
+      mouthScaling: settings.mouthScaling,
+    },
   });
 
   // Performance monitoring

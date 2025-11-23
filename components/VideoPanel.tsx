@@ -181,6 +181,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   const {
     segmentationMaskRef,
     targetTransformRef,
+    faceLandmarks,
     isAiActive,
     loadingStatus,
     loadingError,
@@ -202,6 +203,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     isAiActive,
     isCompareActive,
     autoGain,
+    faceLandmarks,
   });
 
   // Recording and snapshots

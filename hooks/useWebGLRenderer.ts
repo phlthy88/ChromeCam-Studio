@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { WebGLLutRenderer, applyLutSoftware } from '../utils/webglLut';
+import { WebGLLutRenderer, WebGLFaceWarpRenderer, applyLutSoftware } from '../utils/webglLut';
 import { getCinematicLut } from '../data/cinematicLuts';
 
 export interface UseWebGLRendererOptions {
@@ -22,6 +22,15 @@ export interface UseWebGLRendererOptions {
   lutPreset: string;
   /** LUT intensity (0-100) */
   lutIntensity: number;
+  /** Face landmarks for beauty filters */
+  faceLandmarks?: any[] | null;
+  /** Beauty filter settings */
+  beautySettings?: {
+    eyeEnlargement: number;
+    noseSlimming: number;
+    jawSlimming: number;
+    mouthScaling: number;
+  };
 }
 
 export interface UseWebGLRendererReturn {
@@ -44,8 +53,11 @@ export function useWebGLRenderer({
   enabled,
   lutPreset,
   lutIntensity,
+  faceLandmarks,
+  beautySettings,
 }: UseWebGLRendererOptions): UseWebGLRendererReturn {
   const rendererRef = useRef<WebGLLutRenderer | null>(null);
+  const faceWarpRendererRef = useRef<WebGLFaceWarpRenderer | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentLutRef = useRef<string>('');
   const [isWebGLSupported, setIsWebGLSupported] = useState(false);
@@ -80,15 +92,18 @@ export function useWebGLRenderer({
     }
 
     const renderer = new WebGLLutRenderer();
-    console.log('[useWebGLRenderer] Initializing WebGL renderer...');
+    const faceWarpRenderer = new WebGLFaceWarpRenderer();
+    console.log('[useWebGLRenderer] Initializing WebGL renderers...');
     const initialized = renderer.initialize(webglCanvasRef.current);
+    const faceWarpInitialized = faceWarpRenderer.initialize(webglCanvasRef.current);
 
-    if (initialized) {
+    if (initialized && faceWarpInitialized) {
       rendererRef.current = renderer;
+      faceWarpRendererRef.current = faceWarpRenderer;
       setIsReady(true);
-      console.log('[useWebGLRenderer] WebGL renderer initialized successfully');
+      console.log('[useWebGLRenderer] WebGL renderers initialized successfully');
     } else {
-      console.error('[useWebGLRenderer] Failed to initialize WebGL renderer');
+      console.error('[useWebGLRenderer] Failed to initialize WebGL renderers');
       setIsWebGLSupported(false);
     }
 
@@ -146,8 +161,22 @@ export function useWebGLRenderer({
       // Try WebGL first
       if (isReady && rendererRef.current && webglCanvasRef.current) {
         try {
-          console.log('[useWebGLRenderer] Applying LUT with WebGL');
-          rendererRef.current.render(source, normalizedIntensity);
+          console.log('[useWebGLRenderer] Applying effects with WebGL');
+
+          // Apply face warping first if enabled
+          if (faceWarpRendererRef.current && beautySettings && faceLandmarks) {
+            faceWarpRendererRef.current.updateLandmarks(faceLandmarks);
+            faceWarpRendererRef.current.render(source, beautySettings);
+          } else {
+            // Copy source to canvas
+            const ctx = webglCanvasRef.current.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(source, 0, 0);
+            }
+          }
+
+          // Then apply LUT
+          rendererRef.current.render(webglCanvasRef.current, normalizedIntensity);
           return webglCanvasRef.current;
         } catch (error) {
           console.warn('[useWebGLRenderer] WebGL render failed, falling back to software:', error);
@@ -195,7 +224,7 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [enabled, isReady, lutPreset, lutIntensity]
+    [enabled, isReady, lutPreset, lutIntensity, faceLandmarks, beautySettings]
   );
 
   return {
