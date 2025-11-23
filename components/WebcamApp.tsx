@@ -166,6 +166,7 @@ const WebcamAppInner: React.FC = () => {
                     isSidebarOpen={isSidebarOpen}
                     theme={theme}
                     onThemeChange={setTheme}
+                    audioEnabled={settings.enableAudio}
                 />
             </div>
 

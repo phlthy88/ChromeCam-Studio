@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { CameraSettings } from '../components/settings';
+import { ASPECT_RATIO_PRESETS } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
 import type { AutoFrameTransform } from './useBodySegmentation';
 import { useProOverlays } from './useProOverlays';
@@ -212,6 +213,48 @@ function applySoftwareSharpness(
 
 const lerp = (start: number, end: number, factor: number) => start + (end - start) * factor;
 
+/**
+ * Calculate letterbox/pillarbox dimensions for a target aspect ratio
+ * Returns the source and destination rectangles for drawing with proper cropping
+ */
+function calculateAspectRatioCrop(
+    videoWidth: number,
+    videoHeight: number,
+    targetRatio: number | null
+): { sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number } | null {
+    if (!targetRatio || videoWidth === 0 || videoHeight === 0) {
+        return null; // No cropping needed
+    }
+
+    const videoRatio = videoWidth / videoHeight;
+
+    // If ratios are close enough, no adjustment needed
+    if (Math.abs(videoRatio - targetRatio) < 0.01) {
+        return null;
+    }
+
+    let sx = 0, sy = 0, sw = videoWidth, sh = videoHeight;
+    let dx = 0, dy = 0, dw = videoWidth, dh = videoHeight;
+
+    if (videoRatio > targetRatio) {
+        // Video is wider than target - crop sides (pillarbox style crop)
+        const targetWidth = videoHeight * targetRatio;
+        sx = (videoWidth - targetWidth) / 2;
+        sw = targetWidth;
+        dw = targetWidth;
+        dx = (videoWidth - targetWidth) / 2;
+    } else {
+        // Video is taller than target - crop top/bottom (letterbox style crop)
+        const targetHeight = videoWidth / targetRatio;
+        sy = (videoHeight - targetHeight) / 2;
+        sh = targetHeight;
+        dh = targetHeight;
+        dy = (videoHeight - targetHeight) / 2;
+    }
+
+    return { sx, sy, sw, sh, dx, dy, dw, dh };
+}
+
 export interface UseVideoRendererOptions {
     videoRef: React.RefObject<HTMLVideoElement | null>;
     canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -361,9 +404,14 @@ export function useVideoRenderer({
                 zebraThreshold,
                 showFocusPeaking,
                 focusPeakingColor,
+                aspectRatioLock,
             } = settingsRef.current;
 
             const filterPreset = FILTER_PRESETS[activeFilter] || FILTER_PRESETS['none'];
+
+            // Get target aspect ratio from presets
+            const aspectPreset = ASPECT_RATIO_PRESETS.find(p => p.id === aspectRatioLock);
+            const targetAspectRatio = aspectPreset?.ratio ?? null;
 
             // Calculate current transform with smooth interpolation
             if (autoFrame) {
@@ -537,6 +585,23 @@ export function useVideoRenderer({
 
                     // Reset transform for post-processing effects
                     ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+                    // Apply aspect ratio letterbox/pillarbox
+                    const aspectCrop = calculateAspectRatioCrop(canvas.width, canvas.height, targetAspectRatio);
+                    if (aspectCrop) {
+                        ctx.fillStyle = '#000000';
+                        // Draw black bars based on aspect ratio
+                        if (aspectCrop.dx > 0) {
+                            // Pillarbox - black bars on left and right
+                            ctx.fillRect(0, 0, aspectCrop.dx, canvas.height);
+                            ctx.fillRect(canvas.width - aspectCrop.dx, 0, aspectCrop.dx, canvas.height);
+                        }
+                        if (aspectCrop.dy > 0) {
+                            // Letterbox - black bars on top and bottom
+                            ctx.fillRect(0, 0, canvas.width, aspectCrop.dy);
+                            ctx.fillRect(0, canvas.height - aspectCrop.dy, canvas.width, aspectCrop.dy);
+                        }
+                    }
 
                     // Apply software sharpness effect
                     if (softwareSharpness > 0) {

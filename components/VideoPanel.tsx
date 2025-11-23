@@ -64,7 +64,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
         videoRef,
         enabled: settings.autoLowLight,
         targetBrightness: 120,
-        smoothingFactor: 0.08,
+        smoothingFactor: 0.3, // Increased from 0.08 for more responsive adjustments
+        sampleInterval: 200, // Faster sampling for quicker response
     });
 
     // Audio processing (compressor + noise gate)
