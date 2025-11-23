@@ -1,78 +1,237 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+<img width="1200" height="475" alt="ChromeCam Studio Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# 🎥 ChromeCam Studio
+
+### *Professional webcam studio with AI-powered effects*
+
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+**[Features](#-features)** • **[Installation](#-quick-start)** • **[Architecture](#-architecture)** • **[PWA](#-progressive-web-app)**
+
+---
+
+*A feature-rich webcam application with real-time AI background effects, professional camera controls, and Material 3 design — built for ChromeOS, macOS, and Windows.*
+
 </div>
 
-# ChromeCam Studio
+---
 
-Advanced webcam studio with local AI effects, styled with Material 3 design system for ChromeOS, macOS, and Windows.
+## ✨ Features
 
-## Features
+<table>
+<tr>
+<td width="50%">
 
-- Real-time video processing with AI-powered background blur
-- Professional camera controls (exposure, white balance, filters)
-- Material 3 (Material You) design with light/dark theme support
-- Fully installable Progressive Web App (PWA)
-- Window Controls Overlay for native app experience
+### 🤖 AI-Powered Effects
+- **Background Blur** — Real-time bokeh effect using MediaPipe
+- **Body Segmentation** — TensorFlow.js powered person detection
+- **Face Detection** — Smart focal point targeting
+- **Low-Light Enhancement** — Automatic brightness compensation
 
-## Run Locally
+</td>
+<td width="50%">
 
-**Prerequisites:** Node.js 18+
+### 🎛️ Professional Camera Controls
+- **Exposure** — Manual ISO, shutter speed, and compensation
+- **White Balance** — Color temperature and tint adjustments
+- **Focus** — Manual focus distance with peaking overlay
+- **PTZ Controls** — Pan, Tilt, and Zoom support
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Set the `GEMINI_API_KEY` in `.env.local` to your Gemini API key
-3. Run the app:
-   ```bash
-   npm run dev
-   ```
-4. Open http://localhost:3000 in your browser
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-## Build for Production
+### 🎨 Material 3 Design
+- **Dynamic Theming** — Automatic accent color from ChromeOS/Windows
+- **OKLCH Color Science** — Perceptually uniform tonal palettes
+- **Light/Dark Modes** — Seamless theme switching
+- **32+ Design Tokens** — Full M3 specification compliance
 
-```bash
-npm run build
-npm run preview
-```
+</td>
+<td width="50%">
 
-## Progressive Web App (PWA) Support
+### 📊 Pro Overlays
+- **Zebra Stripes** — Highlight overexposed areas
+- **Focus Peaking** — Sharp edge detection visualization
+- **RGB Histogram** — Real-time exposure analysis
+- **Grid Overlays** — Rule of thirds composition guides
 
-ChromeCam Studio is fully installable on ChromeOS, macOS, and Windows as a Progressive Web App.
+</td>
+</tr>
+</table>
 
-### Features
+---
 
-- **Offline Capable:** The app shell and CDN assets cache locally for offline access
-- **Window Controls Overlay:** Uses custom title bar area for native app feel on supported platforms
-- **Hardware Access:** Persists camera/microphone permissions when installed
-- **Auto-Update:** Service worker automatically updates when new versions are deployed
+## 🚀 Quick Start
+
+### Prerequisites
+- **Node.js 18+** and npm 9+
+- A webcam-equipped device
+- Modern browser (Chrome, Edge, Firefox, Safari)
 
 ### Installation
 
-1. Open ChromeCam Studio in Chrome or Edge
-2. Click the "Install" button in the header, or use the browser's install icon in the address bar
-3. The app will open in its own window with native-like experience
+```bash
+# Clone the repository
+git clone https://github.com/phlthy88/ChromeCam-Studio.git
+cd ChromeCam-Studio
 
-### PWA Icon Assets
+# Install dependencies
+npm install
 
-The project includes SVG icons in `public/`:
-- `pwa-192x192.svg` - Standard app icon
-- `pwa-512x512.svg` - High-resolution app icon
-- `masked-icon.svg` - Maskable icon for adaptive icon systems
-- `apple-touch-icon.svg` - iOS home screen icon
-- `favicon.ico` - Browser tab icon
+# Set up environment (optional - for Gemini AI features)
+echo "GEMINI_API_KEY=your_key_here" > .env.local
 
-For production deployment, consider converting these to PNG format for maximum browser compatibility using tools like [pwa-asset-generator](https://github.com/nicholasadamou/pwa-asset-generator).
+# Start development server
+npm run dev
+```
 
-## Architecture
+Open **http://localhost:3000** in your browser 🎉
 
-- **React 19** with TypeScript
-- **Vite 6** for fast development and optimized builds
-- **vite-plugin-pwa** for PWA/Service Worker generation
-- **Material 3 Design Tokens** via CSS custom properties
-- **Tailwind CSS** for utility styling
-- **TensorFlow.js + MediaPipe** for AI-powered video processing
+### Production Build
 
-## License
+```bash
+npm run build    # Build optimized bundle
+npm run preview  # Preview production build
+```
 
-MIT
+---
+
+## 🏗️ Architecture
+
+ChromeCam Studio follows a **modern React architecture** with custom hooks for separation of concerns.
+
+```
+src/
+├── components/
+│   ├── VideoPanel.tsx      # Main video display component
+│   ├── Slider.tsx          # M3 slider control
+│   ├── Toggle.tsx          # M3 toggle switch
+│   └── Chip.tsx            # M3 chip component
+├── hooks/
+│   ├── useCameraStream.ts       # Camera lifecycle management
+│   ├── useMediaRecorder.ts      # Video recording logic
+│   ├── useBodySegmentation.ts   # AI segmentation
+│   ├── useCanvasRenderer.ts     # Render loop management
+│   ├── useProOverlays.ts        # Histogram/zebra/peaking
+│   └── useSystemAccentColor.ts  # Dynamic M3 theming
+└── types/
+    └── media.d.ts          # Extended browser API types
+```
+
+### 🔧 Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Framework** | React 19 with TypeScript |
+| **Build Tool** | Vite 6 with HMR |
+| **Styling** | Tailwind CSS + M3 Design Tokens |
+| **AI/ML** | TensorFlow.js + MediaPipe |
+| **PWA** | vite-plugin-pwa + Workbox |
+| **Testing** | Vitest + React Testing Library |
+
+### 🎯 Key Highlights
+
+- **🔒 Type-Safe Browser APIs** — Custom TypeScript definitions for experimental APIs (MediaPipe, BarcodeDetector, WakeLock, FileSystem Access)
+- **⚡ Optimized Canvas Rendering** — `willReadFrequently` hints for GPU readback performance
+- **🎨 Mathematical Color System** — OKLCH-based tonal palette generation for Material 3
+- **📦 Smart Caching** — CacheFirst for ML models, StaleWhileRevalidate for styles
+
+---
+
+## 📱 Progressive Web App
+
+ChromeCam Studio is a **fully installable PWA** with native-like experience.
+
+### ✅ PWA Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔌 **Offline Capable** | App shell and CDN assets cached locally |
+| 🪟 **Window Controls Overlay** | Custom titlebar for native feel |
+| 🔐 **Hardware Access** | Persisted camera/mic permissions |
+| 🔄 **Auto-Update** | Service worker updates on new deployments |
+
+### 📥 Installation
+
+1. Open ChromeCam Studio in **Chrome** or **Edge**
+2. Click the **Install** button in the header (or browser address bar icon)
+3. The app launches in its own window with native controls
+
+### 🖼️ PWA Assets
+
+```
+public/
+├── pwa-192x192.svg     # Standard app icon
+├── pwa-512x512.svg     # High-resolution icon
+├── masked-icon.svg     # Adaptive icon systems
+├── apple-touch-icon.svg # iOS home screen
+└── favicon.ico         # Browser tab icon
+```
+
+> 💡 **Tip:** For maximum compatibility, convert SVGs to PNG using [pwa-asset-generator](https://github.com/nicholasadamou/pwa-asset-generator)
+
+---
+
+## 🧪 Development
+
+### Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server |
+| `npm run dev:host` | Dev server with network access |
+| `npm run build` | Production build with type checking |
+| `npm run build:analyze` | Build + bundle visualization |
+| `npm run test` | Run tests in watch mode |
+| `npm run test:coverage` | Generate coverage report |
+| `npm run lint` | ESLint check |
+| `npm run format` | Prettier formatting |
+
+### Type Checking
+
+```bash
+npm run typecheck        # Single check
+npm run typecheck:watch  # Watch mode
+```
+
+---
+
+## 📄 Documentation
+
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Detailed architectural analysis, code patterns, and performance considerations
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📜 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Built with ❤️ for creators, streamers, and video professionals**
+
+⭐ Star this repo if you find it useful!
+
+</div>
