@@ -90,11 +90,13 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // In production, use locally bundled scripts
     const cdnPath = modelPath || '/mediapipe/';
 
-    // Scripts are loaded in main thread, access globally
-    const bodySegmentation = (self as any).bodySegmentation;
-    const FaceMesh = (self as any).FaceMesh;
+    // Import libraries dynamically
+    await import('@tensorflow/tfjs-core');
+    await import('@tensorflow/tfjs-backend-webgl');
+    const bodySegmentation = await import('@tensorflow-models/body-segmentation');
+    const { FaceMesh } = await import('@mediapipe/face_mesh');
 
-    console.log('[Worker] Libraries accessed:', !!bodySegmentation, !!FaceMesh);
+    console.log('[Worker] Libraries loaded successfully');
 
     // Create segmenter
     const model = (

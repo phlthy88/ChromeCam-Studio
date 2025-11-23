@@ -128,7 +128,7 @@ class SegmentationManager {
 
         // Check if the worker module is available
         const workerUrl = new URL('../workers/segmentation.worker.ts', import.meta.url);
-        this.worker = new Worker(workerUrl);
+        this.worker = new Worker(workerUrl, { type: 'module' });
 
         const timeoutId = setTimeout(() => {
           console.warn('[SegmentationManager] Worker init timeout');
