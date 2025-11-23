@@ -90,20 +90,17 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // In production, use locally bundled scripts
     const cdnPath = modelPath || '/mediapipe/';
 
-    // Import required libraries
-    const tf = await import('@tensorflow/tfjs-core');
-    await import('@tensorflow/tfjs-backend-webgl');
-    const { FaceMesh } = await import('@mediapipe/face_mesh');
+    // Load scripts using importScripts (classic worker)
+    importScripts(
+      'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.min.js'
+    );
 
-    // For body segmentation, use the face-landmarks-detection which includes tfjs
-    const bodySegmentation = await import('@tensorflow-models/body-segmentation');
+    console.log('[Worker] Scripts loaded successfully');
 
-    console.log('[Worker] Libraries loaded successfully');
-
-    // Make available globally for compatibility
-    (self as any).FaceMesh = FaceMesh;
-    (self as any).tf = tf;
-    (self as any).bodySegmentation = bodySegmentation;
+    // Access the globally loaded libraries
+    const bodySegmentation = (self as any).bodySegmentation;
+    const FaceMesh = (self as any).FaceMesh;
 
     // Create segmenter
     const model = (
