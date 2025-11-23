@@ -155,7 +155,7 @@ const WebcamAppInner: React.FC = () => {
     }, []);
 
     return (
-        <div className="flex flex-col h-full w-full bg-background text-on-background font-sans overflow-hidden md:p-3 gap-3">
+        <div className="flex flex-col h-full w-full bg-background text-on-background font-sans overflow-hidden p-1 sm:p-2 md:p-3 gap-2 sm:gap-3">
             {/* Header - Floating on Desktop, standard on Mobile */}
             <div className="rounded-xl overflow-hidden shadow-elevation-0 shrink-0">
                 <Header
@@ -171,9 +171,9 @@ const WebcamAppInner: React.FC = () => {
             </div>
 
             {/* Main Content Area */}
-            <main className="flex flex-1 overflow-hidden relative gap-3">
+            <main className="flex flex-1 overflow-hidden relative gap-2 sm:gap-3">
 
-                {/* Mobile Scrim - Softer blur and transparency */}
+                {/* Mobile/Tablet Scrim - Softer blur and transparency */}
                 <div
                     className={`
                         fixed inset-0 z-20 lg:hidden
@@ -185,9 +185,9 @@ const WebcamAppInner: React.FC = () => {
                     aria-hidden="true"
                 />
 
-                <div className="flex flex-col lg:flex-row flex-1 h-full relative w-full gap-3">
+                <div className="flex flex-col lg:flex-row flex-1 h-full relative w-full gap-2 sm:gap-3">
 
-                    {/* Sidebar / Settings Panel - Softer appearance */}
+                    {/* Sidebar / Settings Panel - Responsive for mobile/tablet/desktop */}
                     <aside
                         className={`
                             z-30 flex-shrink-0
@@ -196,21 +196,21 @@ const WebcamAppInner: React.FC = () => {
                             transition-all duration-long1 ease-emphasized
 
                             /* Shape: Gentler rounded corners */
-                            rounded-t-2xl lg:rounded-xl
+                            rounded-t-2xl sm:rounded-t-3xl lg:rounded-xl
 
-                            /* Mobile: Bottom Sheet with softer shadow */
+                            /* Mobile: Bottom Sheet - taller on tablets for more content */
                             fixed bottom-0 left-0 right-0
-                            h-[75vh] w-full
+                            h-[70vh] sm:h-[65vh] md:h-[60vh] w-full
                             shadow-elevation-2
                             ${isSidebarOpen ? 'translate-y-0' : 'translate-y-full'}
 
-                            /* Desktop: Side Panel */
-                            lg:relative lg:h-full lg:w-80 xl:w-96
+                            /* Desktop: Side Panel with responsive width */
+                            lg:relative lg:h-full lg:w-72 xl:w-80 2xl:w-96
                             lg:translate-y-0 lg:shadow-elevation-1
                             border border-outline-variant/10
                         `}
                     >
-                        <div className="h-full overflow-hidden flex flex-col rounded-t-2xl lg:rounded-xl">
+                        <div className="h-full overflow-hidden flex flex-col rounded-t-2xl sm:rounded-t-3xl lg:rounded-xl">
                             <ControlsPanel
                                 settings={settings}
                                 onSettingsChange={handleSettingsChange}
@@ -221,15 +221,15 @@ const WebcamAppInner: React.FC = () => {
                         </div>
                     </aside>
 
-                    {/* Video Panel - Softer border and shadow */}
+                    {/* Video Panel - Responsive height when sidebar open */}
                     <div
                         className={`
-                            bg-black rounded-xl overflow-hidden relative w-full
+                            bg-black rounded-lg sm:rounded-xl overflow-hidden relative w-full
                             shadow-elevation-1 ring-1 ring-outline-variant/5
                             transition-all duration-long1 ease-emphasized
 
-                            /* Mobile: Shrink when sheet open */
-                            ${isSidebarOpen ? 'h-[25vh] flex-none' : 'h-full flex-1'}
+                            /* Mobile/Tablet: Responsive shrink when sheet open */
+                            ${isSidebarOpen ? 'h-[30vh] sm:h-[35vh] md:h-[40vh] flex-none' : 'h-full flex-1'}
                             lg:h-full lg:flex-1
                         `}
                     >
