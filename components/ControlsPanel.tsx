@@ -329,38 +329,38 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
     return (
         <div className="flex flex-col h-full bg-surface-low overflow-x-hidden relative">
 
-            {/* Mobile Drag Handle - Softer styling */}
-            <div className="lg:hidden flex justify-center pt-2.5 pb-1 cursor-pointer" onClick={onCloseMobile}>
-                <div className="w-9 h-1 rounded-full bg-outline-variant/60" />
+            {/* Mobile/Tablet Drag Handle - Softer styling */}
+            <div className="lg:hidden flex justify-center pt-2 sm:pt-2.5 pb-1 cursor-pointer" onClick={onCloseMobile}>
+                <div className="w-10 sm:w-9 h-1.5 sm:h-1 rounded-full bg-outline-variant/60" />
             </div>
 
-            {/* Header & Global Actions */}
-            <div className="px-4 pt-3 pb-2 shrink-0">
+            {/* Header & Global Actions - Responsive padding */}
+            <div className="px-3 sm:px-4 pt-2 sm:pt-3 pb-2 shrink-0">
                 <div className="flex justify-between items-center">
-                    <h2 className="md-title-large text-on-surface">Settings</h2>
+                    <h2 className="md-title-medium sm:md-title-large text-on-surface">Settings</h2>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <button
                             onClick={handleMasterReset}
                             className={`
-                                md-label-medium transition-colors duration-short2 ease-standard
-                                px-3 py-1.5 rounded-lg
+                                md-label-small sm:md-label-medium transition-colors duration-short2 ease-standard
+                                px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg
                                 ${resetConfirm
                                     ? 'text-error bg-error/10'
                                     : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]'
                                 }
                             `}
                         >
-                            {resetConfirm ? 'Confirm Reset' : 'Reset All'}
+                            {resetConfirm ? 'Confirm' : 'Reset All'}
                         </button>
 
-                        {/* Mobile Close Button - Softer */}
+                        {/* Mobile/Tablet Close Button - Touch-friendly */}
                         <button
                             onClick={onCloseMobile}
-                            className="lg:hidden p-2 -mr-1 rounded-lg hover:bg-on-surface/[0.05] text-on-surface-variant transition-colors duration-short2 ease-standard"
+                            className="lg:hidden p-2.5 sm:p-2 -mr-1 rounded-lg hover:bg-on-surface/[0.05] active:bg-on-surface/[0.08] text-on-surface-variant transition-colors duration-short2 ease-standard"
                             aria-label="Close settings"
                         >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="w-5 h-5 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
@@ -368,8 +368,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 </div>
             </div>
 
-            {/* Controls Scroll Area - Softer spacing */}
-            <div className="flex-1 overflow-y-auto md-scrollbar px-3 pb-6 space-y-3">
+            {/* Controls Scroll Area - Responsive spacing */}
+            <div className="flex-1 overflow-y-auto md-scrollbar px-2 sm:px-3 pb-6 space-y-2 sm:space-y-3">
 
                 {/* Conferencing / Audio */}
                 <ControlSection title="Audio" defaultOpen={true} onReset={resetConferencing}>
@@ -516,7 +516,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                     step={1}
                                     onChange={(v) => update('audioCompressorKnee', v)}
                                 />
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                     <Slider
                                         label="Attack (ms)"
                                         value={Math.round(settings.audioCompressorAttack * 1000)}
@@ -559,7 +559,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                     step={1}
                                     onChange={(v) => update('audioNoiseGateThreshold', v)}
                                 />
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                     <Slider
                                         label="Attack (ms)"
                                         value={Math.round(settings.audioNoiseGateAttack * 1000)}
@@ -884,7 +884,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
 
                         {/* Custom Resolution */}
                         {settings.resolution === 'custom' && (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <Slider
                                     label="Width"
                                     value={settings.customWidth}
@@ -1108,7 +1108,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                             min={1} max={3} step={0.1}
                             onChange={(v) => update('zoom', v)}
                         />
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <Slider
                                 label="Pan X"
                                 value={settings.panX}
