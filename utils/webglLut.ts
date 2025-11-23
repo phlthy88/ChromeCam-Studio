@@ -30,11 +30,14 @@ uniform vec2 u_rightEye;
 uniform vec2 u_noseTip;
 uniform vec2 u_jawLeft;
 uniform vec2 u_jawRight;
+uniform vec2 u_mouthLeft;
+uniform vec2 u_mouthRight;
 
 // Strength settings (0.0 to 1.0)
 uniform float u_eyeEnlargement;
 uniform float u_noseSlimming;
 uniform float u_jawSlimming;
+uniform float u_mouthScaling;
 
 in vec2 v_texCoord;
 out vec4 fragColor;
@@ -78,6 +81,21 @@ void main() {
     if (u_jawSlimming > 0.0) {
         uv = warp(uv, u_jawLeft, 0.15, u_jawSlimming, 0);
         uv = warp(uv, u_jawRight, 0.15, u_jawSlimming, 0);
+    }
+
+    // 4. Mouth Scaling (Bulge for enlargement, pinch for reduction)
+    if (u_mouthScaling > 0.0) {
+        // For scaling > 0.5, enlarge; for < 0.5, reduce
+        float mouthEffect = (u_mouthScaling - 0.5) * 2.0;
+        if (mouthEffect > 0.0) {
+            // Enlarge mouth
+            uv = warp(uv, u_mouthLeft, 0.05, mouthEffect, 1);
+            uv = warp(uv, u_mouthRight, 0.05, mouthEffect, 1);
+        } else {
+            // Reduce mouth
+            uv = warp(uv, u_mouthLeft, 0.05, -mouthEffect, 0);
+            uv = warp(uv, u_mouthRight, 0.05, -mouthEffect, 0);
+        }
     }
 
     fragColor = texture(u_texture, uv);
@@ -330,35 +348,45 @@ export class WebGLFaceWarpRenderer {
     const eyeEnlargementLocation = gl.getUniformLocation(this.program, 'u_eyeEnlargement');
     const noseSlimmingLocation = gl.getUniformLocation(this.program, 'u_noseSlimming');
     const jawSlimmingLocation = gl.getUniformLocation(this.program, 'u_jawSlimming');
+    const mouthScalingLocation = gl.getUniformLocation(this.program, 'u_mouthScaling');
 
     gl.uniform1i(textureLocation, 0);
     gl.uniform2f(resolutionLocation, sourceWidth, sourceHeight);
     gl.uniform1f(eyeEnlargementLocation, settings.eyeEnlargement / 100);
     gl.uniform1f(noseSlimmingLocation, settings.noseSlimming / 100);
     gl.uniform1f(jawSlimmingLocation, settings.jawSlimming / 100);
+    gl.uniform1f(mouthScalingLocation, settings.mouthScaling / 100);
 
     // Set landmark uniforms if available
     if (this.landmarks) {
       // MediaPipe Face Mesh landmarks
       // Left Eye: 468, Right Eye: 473, Nose: 1, Jaw Left: 172, Jaw Right: 397
+      // Mouth Left: 61, Mouth Right: 291
       const leftEye = this.landmarks[468];
       const rightEye = this.landmarks[473];
       const noseTip = this.landmarks[1];
       const jawLeft = this.landmarks[172];
       const jawRight = this.landmarks[397];
+      const mouthLeft = this.landmarks[61];
+      const mouthRight = this.landmarks[291];
 
-      if (leftEye && rightEye && noseTip && jawLeft && jawRight) {
+      if (leftEye && rightEye && noseTip && jawLeft && jawRight && mouthLeft && mouthRight) {
         const leftEyeLocation = gl.getUniformLocation(this.program, 'u_leftEye');
         const rightEyeLocation = gl.getUniformLocation(this.program, 'u_rightEye');
         const noseTipLocation = gl.getUniformLocation(this.program, 'u_noseTip');
         const jawLeftLocation = gl.getUniformLocation(this.program, 'u_jawLeft');
         const jawRightLocation = gl.getUniformLocation(this.program, 'u_jawRight');
+        const mouthLeftLocation = gl.getUniformLocation(this.program, 'u_mouthLeft');
+        const mouthRightLocation = gl.getUniformLocation(this.program, 'u_mouthRight');
 
+        // Coordinates are already normalized 0-1 from MediaPipe
         gl.uniform2f(leftEyeLocation, leftEye.x, leftEye.y);
         gl.uniform2f(rightEyeLocation, rightEye.x, rightEye.y);
         gl.uniform2f(noseTipLocation, noseTip.x, noseTip.y);
         gl.uniform2f(jawLeftLocation, jawLeft.x, jawLeft.y);
         gl.uniform2f(jawRightLocation, jawRight.x, jawRight.y);
+        gl.uniform2f(mouthLeftLocation, mouthLeft.x, mouthLeft.y);
+        gl.uniform2f(mouthRightLocation, mouthRight.x, mouthRight.y);
       }
     }
 

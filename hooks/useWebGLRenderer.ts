@@ -149,10 +149,10 @@ export function useWebGLRenderer({
     }
   }, [isReady, lutPreset]);
 
-  // Apply LUT grading to source
+  // Apply LUT grading and beauty effects to source
   const applyLutGrading = useCallback(
     (source: HTMLVideoElement | HTMLCanvasElement): HTMLCanvasElement | null => {
-      if (!enabled || lutPreset === 'none') {
+      if (!enabled) {
         return null;
       }
 

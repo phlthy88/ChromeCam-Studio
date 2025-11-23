@@ -79,12 +79,17 @@ export function useAudioProcessor({
   const [noiseGateOpen, setNoiseGateOpen] = useState(true);
   const [audioError, setAudioError] = useState<string | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup function
   const cleanup = useCallback(() => {
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
+    }
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
     if (chainRef.current) {
@@ -152,7 +157,7 @@ export function useAudioProcessor({
       setIsProcessing(true);
       setAudioError(null); // Clear any previous error on successful initialization
 
-      // Start monitoring compressor reduction and gate state
+      // Start monitoring compressor reduction and gate state (throttled to 10fps)
       const monitor = () => {
         if (chain.compressor) {
           setCompressorReduction(chain.compressor.reduction);
@@ -162,10 +167,10 @@ export function useAudioProcessor({
           setNoiseGateOpen(chain.noiseGate.gateOpen);
         }
 
-        animationFrameRef.current = requestAnimationFrame(monitor);
+        timeoutRef.current = setTimeout(monitor, 100); // 10fps monitoring
       };
 
-      animationFrameRef.current = requestAnimationFrame(monitor);
+      timeoutRef.current = setTimeout(monitor, 100);
     } catch (error) {
       console.error('Failed to create audio processing chain:', error);
       const errorMessage =
