@@ -338,13 +338,6 @@ export class WebGLLutRenderer {
   }
 
   /**
-   * Get the output canvas
-   */
-  getCanvas(): HTMLCanvasElement | null {
-    return this.canvas;
-  }
-
-  /**
    * Clean up resources
    */
   dispose(): void {
@@ -360,6 +353,45 @@ export class WebGLLutRenderer {
     this.program = null;
     this.canvas = null;
   }
+}
+
+/**
+ * Apply LUT transformation to image data (software fallback)
+ */
+export function applyLutSoftware(imageData: ImageData, lutData: LutData): ImageData {
+  const result = new ImageData(imageData.width, imageData.height);
+  const data = imageData.data;
+  const resultData = result.data;
+  const lutSize = lutData.size;
+  const lut = lutData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i] / 255;
+    const g = data[i + 1] / 255;
+    const b = data[i + 2] / 255;
+
+    // Find nearest LUT indices (simplified, no interpolation for performance)
+    const rIndex = Math.min(Math.floor(r * (lutSize - 1)), lutSize - 1);
+    const gIndex = Math.min(Math.floor(g * (lutSize - 1)), lutSize - 1);
+    const bIndex = Math.min(Math.floor(b * (lutSize - 1)), lutSize - 1);
+
+    const index = (bIndex * lutSize * lutSize + gIndex * lutSize + rIndex) * 3;
+
+    const lutR = lut[index] ?? r;
+    const lutG = lut[index + 1] ?? g;
+    const lutB = lut[index + 2] ?? b;
+
+    const newR = lutR * 255;
+    const newG = lutG * 255;
+    const newB = lutB * 255;
+
+    resultData[i] = Math.round(newR);
+    resultData[i + 1] = Math.round(newG);
+    resultData[i + 2] = Math.round(newB);
+    resultData[i + 3] = data[i + 3];
+  }
+
+  return result;
 }
 
 /**

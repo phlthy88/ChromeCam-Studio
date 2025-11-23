@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { WebGLLutRenderer } from '../utils/webglLut';
+import { WebGLLutRenderer, applyLutSoftware } from '../utils/webglLut';
 import { getCinematicLut } from '../data/cinematicLuts';
 
 export interface UseWebGLRendererOptions {
@@ -130,17 +130,70 @@ export function useWebGLRenderer({
   // Apply LUT grading to source
   const applyLutGrading = useCallback(
     (source: HTMLVideoElement | HTMLCanvasElement): HTMLCanvasElement | null => {
-      if (!enabled || !isReady || !rendererRef.current || lutPreset === 'none') {
+      if (!enabled || lutPreset === 'none') {
+        return null;
+      }
+
+      const lutData = getCinematicLut(lutPreset);
+      if (!lutData) {
+        console.warn('[useWebGLRenderer] No LUT data available');
         return null;
       }
 
       // Normalize intensity from 0-100 to 0-1
       const normalizedIntensity = lutIntensity / 100;
 
-      // Render with LUT
-      rendererRef.current.render(source, normalizedIntensity);
+      // Try WebGL first
+      if (isReady && rendererRef.current && webglCanvasRef.current) {
+        try {
+          console.log('[useWebGLRenderer] Applying LUT with WebGL');
+          rendererRef.current.render(source, normalizedIntensity);
+          return webglCanvasRef.current;
+        } catch (error) {
+          console.warn('[useWebGLRenderer] WebGL render failed, falling back to software:', error);
+        }
+      }
 
-      return webglCanvasRef.current;
+      // Software fallback
+      console.log('[useWebGLRenderer] Using software LUT fallback');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+
+      canvas.width = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
+      canvas.height = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
+
+      ctx.drawImage(source, 0, 0);
+
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const processedData = applyLutSoftware(imageData, lutData);
+
+        // Apply intensity
+        for (let i = 0; i < processedData.data.length; i += 4) {
+          const originalR = imageData.data[i] / 255;
+          const originalG = imageData.data[i + 1] / 255;
+          const originalB = imageData.data[i + 2] / 255;
+
+          const lutR = processedData.data[i] / 255;
+          const lutG = processedData.data[i + 1] / 255;
+          const lutB = processedData.data[i + 2] / 255;
+
+          const finalR = originalR * (1 - normalizedIntensity) + lutR * normalizedIntensity;
+          const finalG = originalG * (1 - normalizedIntensity) + lutG * normalizedIntensity;
+          const finalB = originalB * (1 - normalizedIntensity) + lutB * normalizedIntensity;
+
+          processedData.data[i] = Math.round(finalR * 255);
+          processedData.data[i + 1] = Math.round(finalG * 255);
+          processedData.data[i + 2] = Math.round(finalB * 255);
+        }
+
+        ctx.putImageData(processedData, 0, 0);
+        return canvas;
+      } catch (error) {
+        console.error('[useWebGLRenderer] Software LUT processing failed:', error);
+        return null;
+      }
     },
     [enabled, isReady, lutPreset, lutIntensity]
   );
