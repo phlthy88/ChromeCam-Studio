@@ -542,38 +542,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 10h.01M11 10h.01" />
-              </svg>
-            </button>
-
-            <button
-              onClick={
-                isVirtualCameraActive
-                  ? stopVirtualCamera
-                  : () => canvasRef.current && startVirtualCamera(canvasRef.current)
-              }
-              className="
-                                p-2 sm:p-2.5 md:p-3 rounded-full
-                                text-on-surface-variant hover:bg-on-surface-variant/10
-                                active:bg-on-surface-variant/20 transition-colors
-                            "
-              title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
-              aria-label={isVirtualCameraActive ? 'Stop virtual camera' : 'Start virtual camera'}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 md:h-6 md:w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
                   d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
                 />
               </svg>

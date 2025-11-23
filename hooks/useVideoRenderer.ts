@@ -376,7 +376,7 @@ export function useVideoRenderer({
     '[useVideoRenderer] Beauty enabled:',
     beautyEnabled,
     'faceLandmarks:',
-    !!faceLandmarks
+    faceLandmarks?.length || 0
   );
 
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
