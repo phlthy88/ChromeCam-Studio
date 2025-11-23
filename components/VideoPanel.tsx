@@ -53,7 +53,12 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   const bgImageRef = useRef<HTMLImageElement | null>(null);
 
   // Force canvas recreation when switching rendering modes
-  const canvasKey = 'canvas';
+  const hasBeautyFilters =
+    settings.eyeEnlargement > 0 ||
+    settings.noseSlimming > 0 ||
+    settings.jawSlimming > 0 ||
+    settings.mouthScaling > 0;
+  const canvasKey = hasBeautyFilters ? 'beauty-mode' : 'normal-mode';
 
   // UI state
   const [isCompareActive, setIsCompareActive] = useState(false);
@@ -208,7 +213,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     isAiActive,
     isCompareActive,
     autoGain,
-    // faceLandmarks, // Temporarily disable
+    faceLandmarks,
   });
 
   // Recording and snapshots
