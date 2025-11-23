@@ -156,6 +156,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   const [resetConfirm, setResetConfirm] = useState(false);
   const [showCameraInfo, setShowCameraInfo] = useState(false);
   const [supportedCodecs, setSupportedCodecs] = useState<string[]>([]);
+  const [isProMode, setIsProMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check supported codecs on mount
@@ -402,6 +403,13 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
 
           <div className="flex items-center gap-2 sm:gap-3">
             <button
+              onClick={() => setIsProMode(!isProMode)}
+              className="md-label-small sm:md-label-medium transition-colors duration-short2 ease-standard px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]"
+              title={isProMode ? 'Switch to Basic Mode' : 'Switch to Pro Mode'}
+            >
+              {isProMode ? 'Basic' : 'Pro'}
+            </button>
+            <button
               onClick={handleMasterReset}
               className={`
                                 md-label-small sm:md-label-medium transition-colors duration-short2 ease-standard
@@ -438,8 +446,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
 
       {/* Controls Scroll Area - Responsive spacing */}
       <div className="flex-1 overflow-y-auto md-scrollbar px-2 sm:px-3 pb-6 space-y-2 sm:space-y-3">
-        {/* Conferencing / Audio */}
-        <ControlSection title="Audio" defaultOpen={true} onReset={resetConferencing}>
+        {/* Basic Settings - Always Visible */}
+        {/* Camera Hardware */}
+        <ControlSection title="Camera Hardware" onReset={resetCameraHardware}>
           <div className="space-y-5">
             <Toggle
               label="Enable Microphone"
@@ -968,6 +977,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
           </ControlSection>
         )}
 
+        {/* Basic Settings - Always Visible */}
         {/* Resolution & Stream */}
         <ControlSection title="Resolution & Stream" onReset={resetStream}>
           <div className="space-y-5">
@@ -1103,283 +1113,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
           </div>
         </ControlSection>
 
-        {/* Cinematic Color Grading */}
-        <ControlSection title="Cinematic Color" onReset={resetCinematic}>
-          <div className="space-y-5">
-            {/* Info Banner */}
-            <div className="bg-secondary-container p-4 rounded-md flex items-start gap-3">
-              <svg
-                className="w-5 h-5 shrink-0 mt-0.5 text-on-secondary-container"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
-                />
-              </svg>
-              <p className="md-body-small text-on-secondary-container">
-                GPU-accelerated color grading using 3D LUTs. Applies cinematic film looks in
-                real-time.
-              </p>
-            </div>
-
-            {/* LUT Presets by Category */}
-            <div>
-              <label className="md-label-large text-on-surface mb-3 block">Film Looks</label>
-              <div className="flex gap-2 flex-wrap">
-                {CINEMATIC_LUT_PRESETS.filter((lut) => lut.category === 'film').map((lut) => (
-                  <Chip
-                    key={lut.id}
-                    label={lut.name}
-                    selected={settings.cinematicLut === lut.id}
-                    onClick={() => update('cinematicLut', lut.id)}
-                    variant="filter"
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-outline-variant">
-              <label className="md-label-large text-on-surface mb-3 block">Mood</label>
-              <div className="flex gap-2 flex-wrap">
-                {CINEMATIC_LUT_PRESETS.filter((lut) => lut.category === 'mood').map((lut) => (
-                  <Chip
-                    key={lut.id}
-                    label={lut.name}
-                    selected={settings.cinematicLut === lut.id}
-                    onClick={() => update('cinematicLut', lut.id)}
-                    variant="filter"
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-outline-variant">
-              <label className="md-label-large text-on-surface mb-3 block">Creative</label>
-              <div className="flex gap-2 flex-wrap">
-                {CINEMATIC_LUT_PRESETS.filter(
-                  (lut) => lut.category === 'creative' || lut.category === 'vintage'
-                ).map((lut) => (
-                  <Chip
-                    key={lut.id}
-                    label={lut.name}
-                    selected={settings.cinematicLut === lut.id}
-                    onClick={() => update('cinematicLut', lut.id)}
-                    variant="filter"
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Intensity Slider */}
-            {settings.cinematicLut !== 'none' && (
-              <div className="pt-4 border-t border-outline-variant">
-                <Slider
-                  label="Intensity"
-                  value={settings.cinematicLutIntensity}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('cinematicLutIntensity', v)}
-                />
-                <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-                  Blend between original and graded look.
-                </p>
-              </div>
-            )}
-          </div>
-        </ControlSection>
-
-        {/* Color Adjustments */}
-        <ControlSection title="Color Adjustments" onReset={resetColor}>
-          <div className="space-y-5">
-            <Slider
-              label="Saturation"
-              value={settings.saturation}
-              min={0}
-              max={200}
-              onChange={(v) => update('saturation', v)}
-            />
-            <Slider
-              label="Hue"
-              value={settings.hue}
-              min={0}
-              max={360}
-              onChange={(v) => update('hue', v)}
-            />
-            <Slider
-              label="Sepia"
-              value={settings.sepia}
-              min={0}
-              max={100}
-              onChange={(v) => update('sepia', v)}
-            />
-            <Slider
-              label="Grayscale"
-              value={settings.grayscale}
-              min={0}
-              max={100}
-              onChange={(v) => update('grayscale', v)}
-            />
-          </div>
-        </ControlSection>
-
-        {/* Geometry */}
-        <ControlSection title="Geometry" onReset={resetGeometry}>
-          <div className="space-y-5">
-            <Slider
-              label="Zoom"
-              value={settings.zoom}
-              min={1}
-              max={3}
-              step={0.1}
-              onChange={(v) => update('zoom', v)}
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <Slider
-                label="Pan X"
-                value={settings.panX}
-                min={-50}
-                max={50}
-                onChange={(v) => update('panX', v)}
-                disabled={!capabilities?.pan}
-              />
-              <Slider
-                label="Pan Y"
-                value={settings.panY}
-                min={-50}
-                max={50}
-                onChange={(v) => update('panY', v)}
-                disabled={!capabilities?.tilt}
-              />
-            </div>
-            <Slider
-              label="Rotation"
-              value={settings.rotation}
-              min={-180}
-              max={180}
-              onChange={(v) => update('rotation', v)}
-            />
-            <Toggle
-              label="Mirror Video"
-              enabled={settings.mirror}
-              onChange={(v) => update('mirror', v)}
-            />
-          </div>
-        </ControlSection>
-
-        {/* Effects (AI) */}
-        <ControlSection title="AI Effects" onReset={resetEffects}>
-          <div className="space-y-5">
-            {/* Info Banner - M3 style */}
-            <div className="bg-tertiary-container p-4 rounded-md flex items-start gap-3">
-              <svg
-                className="w-5 h-5 shrink-0 mt-0.5 text-on-tertiary-container"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <p className="md-body-small text-on-tertiary-container">
-                AI features run locally on your device. No video data is sent to the cloud.
-              </p>
-            </div>
-
-            <Toggle
-              label="Auto Frame"
-              enabled={settings.autoFrame}
-              onChange={(v) => update('autoFrame', v)}
-            />
-
-            <Toggle
-              label="Noise Reduction"
-              enabled={settings.denoise}
-              onChange={(v) => update('denoise', v)}
-            />
-
-            <div className="pt-4 border-t border-outline-variant">
-              <Toggle
-                label="Virtual Background"
-                enabled={settings.virtualBackground}
-                onChange={(v) => update('virtualBackground', v)}
-              />
-              {settings.virtualBackground && (
-                <div className="mt-4">
-                  <label className="md-label-large text-on-surface mb-2 block">Select Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="
-                                            block w-full md-body-small text-on-surface-variant
-                                            file:mr-3 file:py-2 file:px-4
-                                            file:rounded-full file:border-0
-                                            file:md-label-large
-                                            file:bg-secondary-container file:text-on-secondary-container
-                                            file:cursor-pointer
-                                            hover:file:bg-secondary
-                                            transition-colors duration-short2 ease-standard
-                                        "
-                  />
-                </div>
-              )}
-            </div>
-
-            <Slider
-              label="Background Blur"
-              value={settings.blur}
-              min={0}
-              max={20}
-              onChange={(v) => update('blur', v)}
-            />
-            <Slider
-              label="Portrait Lighting"
-              value={settings.portraitLighting}
-              min={0}
-              max={100}
-              onChange={(v) => update('portraitLighting', v)}
-            />
-            <Slider
-              label="Face Smoothing"
-              value={settings.faceSmoothing}
-              min={0}
-              max={100}
-              onChange={(v) => update('faceSmoothing', v)}
-            />
-
-            <div className="pt-4 border-t border-outline-variant">
-              <label className="md-label-large text-on-surface mb-3 block">Post-Processing</label>
-              <div className="space-y-5">
-                <Slider
-                  label="Software Sharpness"
-                  value={settings.softwareSharpness}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('softwareSharpness', v)}
-                />
-                <p className="md-body-small text-on-surface-variant -mt-2 ml-1">
-                  Enhance edge definition (use when hardware sharpness unavailable).
-                </p>
-                <Slider
-                  label="Vignette"
-                  value={settings.vignette}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('vignette', v)}
-                />
-                <p className="md-body-small text-on-surface-variant -mt-2 ml-1">
-                  Add a subtle darkening around the edges for a cinematic look.
-                </p>
-              </div>
-            </div>
-          </div>
-        </ControlSection>
-
         {/* Recording */}
         <ControlSection title="Recording" onReset={resetRecording}>
           <div className="space-y-5">
@@ -1444,299 +1177,591 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
           </div>
         </ControlSection>
 
-        {/* Overlays */}
-        <ControlSection title="Overlays" onReset={resetOverlays}>
-          <div className="space-y-5">
-            {/* Grid Overlay */}
-            <div>
-              <label className="md-label-large text-on-surface mb-3 block">Grid Overlay</label>
-              <div className="flex gap-2 flex-wrap">
-                {GRID_OVERLAYS.map((grid) => (
-                  <Chip
-                    key={grid.id}
-                    label={grid.label}
-                    selected={settings.gridOverlay === grid.id}
-                    onClick={() => update('gridOverlay', grid.id)}
-                    variant="filter"
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Histogram */}
-            <div className="pt-4 border-t border-outline-variant">
-              <Toggle
-                label="Histogram"
-                enabled={settings.showHistogram}
-                onChange={(v) => update('showHistogram', v)}
-              />
-              <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-                Shows real-time RGB/luminance distribution.
-              </p>
-            </div>
-
-            {/* Zebra Stripes */}
-            <div className="pt-4 border-t border-outline-variant">
-              <Toggle
-                label="Zebra Stripes"
-                enabled={settings.showZebraStripes}
-                onChange={(v) => update('showZebraStripes', v)}
-              />
-              {settings.showZebraStripes && (
-                <div className="mt-3">
-                  <Slider
-                    label="Threshold (%)"
-                    value={settings.zebraThreshold}
-                    min={85}
-                    max={100}
-                    onChange={(v) => update('zebraThreshold', v)}
-                  />
+        {/* Pro Mode Advanced Settings */}
+        {isProMode && (
+          <>
+            {/* Cinematic Color Grading */}
+            <ControlSection title="Cinematic Color" onReset={resetCinematic}>
+              <div className="space-y-5">
+                {/* Info Banner */}
+                <div className="bg-secondary-container p-4 rounded-md flex items-start gap-3">
+                  <svg
+                    className="w-5 h-5 shrink-0 mt-0.5 text-on-secondary-container"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
+                    />
+                  </svg>
+                  <p className="md-body-small text-on-secondary-container">
+                    GPU-accelerated color grading using 3D LUTs. Applies cinematic film looks in
+                    real-time.
+                  </p>
                 </div>
-              )}
-              <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-                Highlights overexposed areas.
-              </p>
-            </div>
 
-            {/* Focus Peaking */}
-            <div className="pt-4 border-t border-outline-variant">
-              <Toggle
-                label="Focus Peaking"
-                enabled={settings.showFocusPeaking}
-                onChange={(v) => update('showFocusPeaking', v)}
-              />
-              {settings.showFocusPeaking && (
-                <div className="mt-3">
-                  <label className="md-label-large text-on-surface mb-2 block">Color</label>
-                  <div className="flex gap-2">
-                    {['red', 'green', 'blue', 'white'].map((color) => (
+                {/* LUT Presets by Category */}
+                <div>
+                  <label className="md-label-large text-on-surface mb-3 block">Film Looks</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {CINEMATIC_LUT_PRESETS.filter((lut) => lut.category === 'film').map((lut) => (
                       <Chip
-                        key={color}
-                        label={color.charAt(0).toUpperCase() + color.slice(1)}
-                        selected={settings.focusPeakingColor === color}
-                        onClick={() => update('focusPeakingColor', color)}
+                        key={lut.id}
+                        label={lut.name}
+                        selected={settings.cinematicLut === lut.id}
+                        onClick={() => update('cinematicLut', lut.id)}
                         variant="filter"
                       />
                     ))}
                   </div>
                 </div>
-              )}
-              <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-                Highlights in-focus edges for manual focus assistance.
-              </p>
-            </div>
-          </div>
-        </ControlSection>
 
-        {/* OBS Studio Integration */}
-        <ControlSection title="OBS Studio">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={connected ? disconnect : () => connect()}
-                disabled={connecting}
-                className="px-4 py-2 bg-primary text-on-primary rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all disabled:opacity-50"
-              >
-                {connecting ? 'Connecting...' : connected ? 'Disconnect' : 'Connect to OBS'}
-              </button>
-              <div
-                className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-error'}`}
-              ></div>
-              <span className="text-sm text-on-surface-variant">
-                {connected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-
-            {connected && (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={startRecording}
-                  className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
-                >
-                  Start Recording
-                </button>
-                <button
-                  onClick={startStreaming}
-                  className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
-                >
-                  Start Streaming
-                </button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  /* TODO: Start recording */
-                }}
-                className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
-              >
-                Start Recording
-              </button>
-              <button
-                onClick={() => {
-                  /* TODO: Start streaming */
-                }}
-                className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
-              >
-                Start Streaming
-              </button>
-            </div>
-
-            <p className="md-body-small text-on-surface-variant ml-1">
-              Control OBS Studio recording and streaming from ChromeCam.
-            </p>
-          </div>
-        </ControlSection>
-
-        {/* Beauty Filters */}
-        <ControlSection title="Beauty Filters">
-          <div className="space-y-5">
-            <Slider
-              label="Eye Enlargement"
-              value={settings.eyeEnlargement}
-              min={0}
-              max={100}
-              onChange={(v) => update('eyeEnlargement', v)}
-            />
-            <Slider
-              label="Nose Slimming"
-              value={settings.noseSlimming}
-              min={0}
-              max={100}
-              onChange={(v) => update('noseSlimming', v)}
-            />
-            <Slider
-              label="Jaw Slimming"
-              value={settings.jawSlimming}
-              min={0}
-              max={100}
-              onChange={(v) => update('jawSlimming', v)}
-            />
-            <Slider
-              label="Mouth Scaling"
-              value={settings.mouthScaling}
-              min={0}
-              max={100}
-              onChange={(v) => update('mouthScaling', v)}
-            />
-            <p className="md-body-small text-on-surface-variant ml-1">
-              AI-powered facial reshaping using real-time landmark detection.
-            </p>
-          </div>
-        </ControlSection>
-
-        {/* Tools & Utilities */}
-        <ControlSection title="Tools">
-          <div className="space-y-5">
-            <Toggle
-              label="QR Code Scanner"
-              enabled={settings.qrMode}
-              onChange={(v) => update('qrMode', v)}
-            />
-            <p className="md-body-small text-on-surface-variant ml-1">
-              Detects QR codes and barcodes using native browser APIs.
-            </p>
-
-            {/* Camera Info Panel */}
-            <div className="pt-4 border-t border-outline-variant">
-              <button
-                onClick={() => setShowCameraInfo(!showCameraInfo)}
-                className="w-full flex items-center justify-between py-2 text-on-surface hover:text-primary transition-colors"
-              >
-                <span className="md-label-large">Camera Info</span>
-                <svg
-                  className={`w-5 h-5 transition-transform ${showCameraInfo ? 'rotate-180' : ''}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showCameraInfo && capabilities && (
-                <div className="mt-3 p-3 bg-surface-container rounded-lg space-y-2 text-sm">
-                  {Object.entries(capabilities).map(([key, value]) => (
-                    <div key={key} className="flex justify-between gap-2">
-                      <span className="text-on-surface-variant">{key}:</span>
-                      <span className="text-on-surface font-mono text-right truncate max-w-[60%]">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                      </span>
-                    </div>
-                  ))}
+                <div className="pt-4 border-t border-outline-variant">
+                  <label className="md-label-large text-on-surface mb-3 block">Mood</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {CINEMATIC_LUT_PRESETS.filter((lut) => lut.category === 'mood').map((lut) => (
+                      <Chip
+                        key={lut.id}
+                        label={lut.name}
+                        selected={settings.cinematicLut === lut.id}
+                        onClick={() => update('cinematicLut', lut.id)}
+                        variant="filter"
+                      />
+                    ))}
+                  </div>
                 </div>
-              )}
-              {showCameraInfo && !capabilities && (
-                <p className="mt-3 md-body-small text-on-surface-variant">
-                  No camera capabilities available.
-                </p>
-              )}
-            </div>
 
-            {/* Settings Import/Export */}
-            <div className="pt-4 border-t border-outline-variant">
-              <label className="md-label-large text-on-surface mb-3 block">Settings Backup</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={exportSettings}
-                  className="flex-1 py-2 px-4 bg-secondary-container text-on-secondary-container rounded-full md-label-large hover:bg-secondary transition-colors"
-                >
-                  Export
-                </button>
-                <label className="flex-1 py-2 px-4 bg-secondary-container text-on-secondary-container rounded-full md-label-large hover:bg-secondary transition-colors text-center cursor-pointer">
-                  Import
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={importSettings}
-                    className="hidden"
-                    ref={fileInputRef}
+                <div className="pt-4 border-t border-outline-variant">
+                  <label className="md-label-large text-on-surface mb-3 block">Creative</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {CINEMATIC_LUT_PRESETS.filter(
+                      (lut) => lut.category === 'creative' || lut.category === 'vintage'
+                    ).map((lut) => (
+                      <Chip
+                        key={lut.id}
+                        label={lut.name}
+                        selected={settings.cinematicLut === lut.id}
+                        onClick={() => update('cinematicLut', lut.id)}
+                        variant="filter"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Intensity Slider */}
+                {settings.cinematicLut !== 'none' && (
+                  <div className="pt-4 border-t border-outline-variant">
+                    <Slider
+                      label="Intensity"
+                      value={settings.cinematicLutIntensity}
+                      min={0}
+                      max={100}
+                      onChange={(v) => update('cinematicLutIntensity', v)}
+                    />
+                    <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                      Blend between original and graded look.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </ControlSection>
+
+            {/* Color Adjustments */}
+            <ControlSection title="Color Adjustments" onReset={resetColor}>
+              <div className="space-y-5">
+                <Slider
+                  label="Saturation"
+                  value={settings.saturation}
+                  min={0}
+                  max={200}
+                  onChange={(v) => update('saturation', v)}
+                />
+                <Slider
+                  label="Hue"
+                  value={settings.hue}
+                  min={0}
+                  max={360}
+                  onChange={(v) => update('hue', v)}
+                />
+                <Slider
+                  label="Sepia"
+                  value={settings.sepia}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('sepia', v)}
+                />
+                <Slider
+                  label="Grayscale"
+                  value={settings.grayscale}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('grayscale', v)}
+                />
+              </div>
+            </ControlSection>
+
+            {/* Geometry */}
+            <ControlSection title="Geometry" onReset={resetGeometry}>
+              <div className="space-y-5">
+                <Slider
+                  label="Zoom"
+                  value={settings.zoom}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  onChange={(v) => update('zoom', v)}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <Slider
+                    label="Pan X"
+                    value={settings.panX}
+                    min={-50}
+                    max={50}
+                    onChange={(v) => update('panX', v)}
+                    disabled={!capabilities?.pan}
                   />
-                </label>
+                  <Slider
+                    label="Pan Y"
+                    value={settings.panY}
+                    min={-50}
+                    max={50}
+                    onChange={(v) => update('panY', v)}
+                    disabled={!capabilities?.tilt}
+                  />
+                </div>
+                <Slider
+                  label="Rotation"
+                  value={settings.rotation}
+                  min={-180}
+                  max={180}
+                  onChange={(v) => update('rotation', v)}
+                />
+                <Toggle
+                  label="Mirror Video"
+                  enabled={settings.mirror}
+                  onChange={(v) => update('mirror', v)}
+                />
               </div>
-            </div>
+            </ControlSection>
 
-            {/* Keyboard Shortcuts */}
-            <div className="pt-4 border-t border-outline-variant">
-              <label className="md-label-large text-on-surface mb-3 block">
-                Keyboard Shortcuts
-              </label>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Take Snapshot</span>
-                  <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
-                    Space
-                  </kbd>
+            {/* Effects (AI) */}
+            <ControlSection title="AI Effects" onReset={resetEffects}>
+              <div className="space-y-5">
+                {/* Info Banner - M3 style */}
+                <div className="bg-tertiary-container p-4 rounded-md flex items-start gap-3">
+                  <svg
+                    className="w-5 h-5 shrink-0 mt-0.5 text-on-tertiary-container"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  <p className="md-body-small text-on-tertiary-container">
+                    AI features run locally on your device. No video data is sent to the cloud.
+                  </p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Record</span>
-                  <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
-                    R
-                  </kbd>
+
+                <Toggle
+                  label="Auto Frame"
+                  enabled={settings.autoFrame}
+                  onChange={(v) => update('autoFrame', v)}
+                />
+
+                <Toggle
+                  label="Noise Reduction"
+                  enabled={settings.denoise}
+                  onChange={(v) => update('denoise', v)}
+                />
+
+                <div className="pt-4 border-t border-outline-variant">
+                  <Toggle
+                    label="Virtual Background"
+                    enabled={settings.virtualBackground}
+                    onChange={(v) => update('virtualBackground', v)}
+                  />
+                  {settings.virtualBackground && (
+                    <div className="mt-4">
+                      <label className="md-label-large text-on-surface mb-2 block">
+                        Select Image
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="
+                                            block w-full md-body-small text-on-surface-variant
+                                            file:mr-3 file:py-2 file:px-4
+                                            file:rounded-full file:border-0
+                                            file:md-label-large
+                                            file:bg-secondary-container file:text-on-secondary-container
+                                            file:cursor-pointer
+                                            hover:file:bg-secondary
+                                            transition-colors duration-short2 ease-standard
+                                        "
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Fullscreen</span>
-                  <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
-                    F
-                  </kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Mirror</span>
-                  <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
-                    M
-                  </kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Compare</span>
-                  <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
-                    C
-                  </kbd>
+
+                <Slider
+                  label="Background Blur"
+                  value={settings.blur}
+                  min={0}
+                  max={20}
+                  onChange={(v) => update('blur', v)}
+                />
+                <Slider
+                  label="Portrait Lighting"
+                  value={settings.portraitLighting}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('portraitLighting', v)}
+                />
+                <Slider
+                  label="Face Smoothing"
+                  value={settings.faceSmoothing}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('faceSmoothing', v)}
+                />
+
+                <div className="pt-4 border-t border-outline-variant">
+                  <label className="md-label-large text-on-surface mb-3 block">
+                    Post-Processing
+                  </label>
+                  <div className="space-y-5">
+                    <Slider
+                      label="Software Sharpness"
+                      value={settings.softwareSharpness}
+                      min={0}
+                      max={100}
+                      onChange={(v) => update('softwareSharpness', v)}
+                    />
+                    <p className="md-body-small text-on-surface-variant -mt-2 ml-1">
+                      Enhance edge definition (use when hardware sharpness unavailable).
+                    </p>
+                    <Slider
+                      label="Vignette"
+                      value={settings.vignette}
+                      min={0}
+                      max={100}
+                      onChange={(v) => update('vignette', v)}
+                    />
+                    <p className="md-body-small text-on-surface-variant -mt-2 ml-1">
+                      Add a subtle darkening around the edges for a cinematic look.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </ControlSection>
+            </ControlSection>
+
+            {/* Overlays */}
+            <ControlSection title="Overlays" onReset={resetOverlays}>
+              <div className="space-y-5">
+                {/* Grid Overlay */}
+                <div>
+                  <label className="md-label-large text-on-surface mb-3 block">Grid Overlay</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {GRID_OVERLAYS.map((grid) => (
+                      <Chip
+                        key={grid.id}
+                        label={grid.label}
+                        selected={settings.gridOverlay === grid.id}
+                        onClick={() => update('gridOverlay', grid.id)}
+                        variant="filter"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Histogram */}
+                <div className="pt-4 border-t border-outline-variant">
+                  <Toggle
+                    label="Histogram"
+                    enabled={settings.showHistogram}
+                    onChange={(v) => update('showHistogram', v)}
+                  />
+                  <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                    Shows real-time RGB/luminance distribution.
+                  </p>
+                </div>
+
+                {/* Zebra Stripes */}
+                <div className="pt-4 border-t border-outline-variant">
+                  <Toggle
+                    label="Zebra Stripes"
+                    enabled={settings.showZebraStripes}
+                    onChange={(v) => update('showZebraStripes', v)}
+                  />
+                  {settings.showZebraStripes && (
+                    <div className="mt-3">
+                      <Slider
+                        label="Threshold (%)"
+                        value={settings.zebraThreshold}
+                        min={85}
+                        max={100}
+                        onChange={(v) => update('zebraThreshold', v)}
+                      />
+                    </div>
+                  )}
+                  <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                    Highlights overexposed areas.
+                  </p>
+                </div>
+
+                {/* Focus Peaking */}
+                <div className="pt-4 border-t border-outline-variant">
+                  <Toggle
+                    label="Focus Peaking"
+                    enabled={settings.showFocusPeaking}
+                    onChange={(v) => update('showFocusPeaking', v)}
+                  />
+                  {settings.showFocusPeaking && (
+                    <div className="mt-3">
+                      <label className="md-label-large text-on-surface mb-2 block">Color</label>
+                      <div className="flex gap-2">
+                        {['red', 'green', 'blue', 'white'].map((color) => (
+                          <Chip
+                            key={color}
+                            label={color.charAt(0).toUpperCase() + color.slice(1)}
+                            selected={settings.focusPeakingColor === color}
+                            onClick={() => update('focusPeakingColor', color)}
+                            variant="filter"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                    Highlights in-focus edges for manual focus assistance.
+                  </p>
+                </div>
+              </div>
+            </ControlSection>
+
+            {/* OBS Studio Integration */}
+            <ControlSection title="OBS Studio">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={connected ? disconnect : () => connect()}
+                    disabled={connecting}
+                    className="px-4 py-2 bg-primary text-on-primary rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {connecting ? 'Connecting...' : connected ? 'Disconnect' : 'Connect to OBS'}
+                  </button>
+                  <div
+                    className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-error'}`}
+                  ></div>
+                  <span className="text-sm text-on-surface-variant">
+                    {connected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+
+                {connected && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={startRecording}
+                      className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                    >
+                      Start Recording
+                    </button>
+                    <button
+                      onClick={startStreaming}
+                      className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                    >
+                      Start Streaming
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => {
+                      /* TODO: Start recording */
+                    }}
+                    className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                  >
+                    Start Recording
+                  </button>
+                  <button
+                    onClick={() => {
+                      /* TODO: Start streaming */
+                    }}
+                    className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                  >
+                    Start Streaming
+                  </button>
+                </div>
+
+                <p className="md-body-small text-on-surface-variant ml-1">
+                  Control OBS Studio recording and streaming from ChromeCam.
+                </p>
+              </div>
+            </ControlSection>
+
+            {/* Beauty Filters */}
+            <ControlSection title="Beauty Filters">
+              <div className="space-y-5">
+                <Slider
+                  label="Eye Enlargement"
+                  value={settings.eyeEnlargement}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('eyeEnlargement', v)}
+                />
+                <Slider
+                  label="Nose Slimming"
+                  value={settings.noseSlimming}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('noseSlimming', v)}
+                />
+                <Slider
+                  label="Jaw Slimming"
+                  value={settings.jawSlimming}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('jawSlimming', v)}
+                />
+                <Slider
+                  label="Mouth Scaling"
+                  value={settings.mouthScaling}
+                  min={0}
+                  max={100}
+                  onChange={(v) => update('mouthScaling', v)}
+                />
+                <p className="md-body-small text-on-surface-variant ml-1">
+                  AI-powered facial reshaping using real-time landmark detection.
+                </p>
+              </div>
+            </ControlSection>
+
+            {/* Tools & Utilities */}
+            <ControlSection title="Tools">
+              <div className="space-y-5">
+                <Toggle
+                  label="QR Code Scanner"
+                  enabled={settings.qrMode}
+                  onChange={(v) => update('qrMode', v)}
+                />
+                <p className="md-body-small text-on-surface-variant ml-1">
+                  Detects QR codes and barcodes using native browser APIs.
+                </p>
+
+                {/* Camera Info Panel */}
+                <div className="pt-4 border-t border-outline-variant">
+                  <button
+                    onClick={() => setShowCameraInfo(!showCameraInfo)}
+                    className="w-full flex items-center justify-between py-2 text-on-surface hover:text-primary transition-colors"
+                  >
+                    <span className="md-label-large">Camera Info</span>
+                    <svg
+                      className={`w-5 h-5 transition-transform ${showCameraInfo ? 'rotate-180' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showCameraInfo && capabilities && (
+                    <div className="mt-3 p-3 bg-surface-container rounded-lg space-y-2 text-sm">
+                      {Object.entries(capabilities).map(([key, value]) => (
+                        <div key={key} className="flex justify-between gap-2">
+                          <span className="text-on-surface-variant">{key}:</span>
+                          <span className="text-on-surface font-mono text-right truncate max-w-[60%]">
+                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showCameraInfo && !capabilities && (
+                    <p className="mt-3 md-body-small text-on-surface-variant">
+                      No camera capabilities available.
+                    </p>
+                  )}
+                </div>
+
+                {/* Settings Import/Export */}
+                <div className="pt-4 border-t border-outline-variant">
+                  <label className="md-label-large text-on-surface mb-3 block">
+                    Settings Backup
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={exportSettings}
+                      className="flex-1 py-2 px-4 bg-secondary-container text-on-secondary-container rounded-full md-label-large hover:bg-secondary transition-colors"
+                    >
+                      Export
+                    </button>
+                    <label className="flex-1 py-2 px-4 bg-secondary-container text-on-secondary-container rounded-full md-label-large hover:bg-secondary transition-colors text-center cursor-pointer">
+                      Import
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={importSettings}
+                        className="hidden"
+                        ref={fileInputRef}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Keyboard Shortcuts */}
+                <div className="pt-4 border-t border-outline-variant">
+                  <label className="md-label-large text-on-surface mb-3 block">
+                    Keyboard Shortcuts
+                  </label>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Take Snapshot</span>
+                      <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
+                        Space
+                      </kbd>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Record</span>
+                      <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
+                        R
+                      </kbd>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Fullscreen</span>
+                      <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
+                        F
+                      </kbd>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Mirror</span>
+                      <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
+                        M
+                      </kbd>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Compare</span>
+                      <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">
+                        C
+                      </kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ControlSection>
+          </>
+        )}
       </div>
     </div>
   );
