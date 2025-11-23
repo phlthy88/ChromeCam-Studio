@@ -373,13 +373,6 @@ export function useVideoRenderer({
     settingsRef.current.jawSlimming > 0 ||
     settingsRef.current.mouthScaling > 0;
 
-  console.log(
-    '[useVideoRenderer] Beauty enabled:',
-    beautyEnabled,
-    'faceLandmarks:',
-    faceLandmarks?.length || 0
-  );
-
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
     enabled: settingsRef.current.cinematicLut !== 'none' || beautyEnabled,
     lutPreset: settings.cinematicLut,
@@ -397,17 +390,11 @@ export function useVideoRenderer({
   const performanceMetrics = usePerformanceMonitor(true);
 
   // Adaptive quality: disable heavy effects if performance is poor
-  const adaptiveQuality = performanceMetrics.fps < 30;
+  const adaptiveQualityRef = useRef(false);
+  adaptiveQualityRef.current = performanceMetrics.fps < 30;
 
-  // Frame rate limiting for performance
+  // Frame rate limiting for performance - use ref for proper RAF handling
   const frameSkipRef = useRef(0);
-  const skipFactor =
-    settings.performanceMode === 'performance'
-      ? 3
-      : settings.performanceMode === 'balanced'
-        ? 2
-        : 1;
-  const shouldSkipFrame = adaptiveQuality && frameSkipRef.current++ % skipFactor !== 0;
 
   // Keep settings ref updated
   useEffect(() => {
@@ -435,11 +422,20 @@ export function useVideoRenderer({
 
   // Main render loop
   useEffect(() => {
-    console.log('[useVideoRenderer] Starting render loop');
     let isLoopActive = true;
 
     const processVideo = () => {
       if (!isLoopActive) return;
+
+      // Frame rate limiting for performance mode
+      const skipFactor =
+        settingsRef.current.performanceMode === 'performance'
+          ? 3
+          : settingsRef.current.performanceMode === 'balanced'
+            ? 2
+            : 1;
+      const shouldSkipFrame =
+        adaptiveQualityRef.current && frameSkipRef.current++ % skipFactor !== 0;
 
       // Skip frames in low-performance mode
       if (shouldSkipFrame) {
@@ -447,15 +443,8 @@ export function useVideoRenderer({
         return;
       }
 
-      console.log('[useVideoRenderer] Processing video frame');
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      console.log(
-        '[useVideoRenderer] Video dimensions:',
-        video?.videoWidth,
-        'x',
-        video?.videoHeight
-      );
       // Use willReadFrequently: true since we call getImageData for overlays
       const ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
       const maskCanvas = maskCanvasRef.current;
@@ -521,21 +510,6 @@ export function useVideoRenderer({
       }
 
       const { panX, panY, zoom } = currentTransformRef.current;
-
-      if (canvas && ctx && video && video.readyState >= 2) {
-        console.log('[useVideoRenderer] Video ready, rendering frame');
-      } else {
-        console.log(
-          '[useVideoRenderer] Video not ready - canvas:',
-          !!canvas,
-          'ctx:',
-          !!ctx,
-          'video:',
-          !!video,
-          'readyState:',
-          video?.readyState
-        );
-      }
 
       if (canvas && ctx && video && video.readyState >= 2) {
         // Resize canvas to match video dimensions
@@ -672,7 +646,7 @@ export function useVideoRenderer({
             tempCtx.filter = 'none';
 
             // Face smoothing effect (disabled in low-performance mode)
-            if (faceSmoothing > 0 && !adaptiveQuality) {
+            if (faceSmoothing > 0 && !adaptiveQualityRef.current) {
               tempCtx.globalCompositeOperation = 'screen';
               const smoothAmt = (faceSmoothing / 100) * 10;
               tempCtx.filter = `blur(${smoothAmt}px) brightness(1.1)`;
@@ -762,10 +736,7 @@ export function useVideoRenderer({
           if (cinematicLut !== 'none' && isWebGLReady) {
             const lutCanvas = applyLutGrading(canvas);
             if (lutCanvas) {
-              console.log('[useVideoRenderer] Applying LUT to canvas');
               ctx.drawImage(lutCanvas, 0, 0);
-            } else {
-              console.warn('[useVideoRenderer] LUT grading returned null canvas');
             }
           }
 

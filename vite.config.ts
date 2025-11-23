@@ -26,6 +26,16 @@ export default defineConfig(({ mode }) => {
       __PROD__: JSON.stringify(isProd),
     },
     plugins: [react()],
+    // CRITICAL: Worker support for OffscreenCanvas
+    worker: {
+      format: 'es',
+      plugins: () => [react()],
+      rollupOptions: {
+        output: {
+          entryFileNames: 'workers/[name].[hash].js',
+        },
+      },
+    },
   };
 
   // Development-specific configuration
@@ -35,43 +45,52 @@ export default defineConfig(({ mode }) => {
       mode: 'development',
       server: {
         port: 3000,
-        host: '0.0.0.0',
+        host: true, // This allows external connections and sets up proper HMR
         strictPort: false,
         open: false,
         cors: true,
-        // HMR configuration for better development experience
+        // HMR configuration - allow auto-negotiation for containerized environments
         hmr: {
           overlay: true,
-          clientPort: 3000,
+          // Remove clientPort and host restrictions to fix WebSocket connection
         },
         // Watch configuration
         watch: {
           usePolling: false,
           ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
         },
-        // Content Security Policy for security
+        // Enhanced Content Security Policy for workers and WebGL
         headers: {
           'Content-Security-Policy': [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
             "img-src 'self' blob: data:",
             "media-src 'self' blob:",
-            "connect-src 'self' ws: wss: https:",
+            "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
             "worker-src 'self' blob:",
           ].join('; '),
+          'Cross-Origin-Embedder-Policy': 'credentialless',
+          'Cross-Origin-Opener-Policy': 'same-origin',
         },
       },
       // Enable source maps for debugging
       css: {
         devSourcemap: true,
       },
-      // Optimize deps for faster dev startup
+      // Optimize deps for faster dev startup - optimized for ChromeOS VirGL
       optimizeDeps: {
         include: ['react', 'react-dom'],
         exclude: [],
-        // Force pre-bundling on cold start
-        force: false,
+        // Force pre-bundling for faster Crostini startup
+        force: isDev,
+        esbuildOptions: {
+          // Target modern browsers (Chrome 120+)
+          target: 'es2022',
+          supported: {
+            'top-level-await': true,
+          },
+        },
       },
       // Clear console on reload for cleaner output
       clearScreen: true,
@@ -201,6 +220,8 @@ export default defineConfig(({ mode }) => {
           assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
         },
       },
+      // CRITICAL: Ensure workers are properly bundled
+      assetsInlineLimit: 0,
       // Report compressed size
       reportCompressedSize: true,
       // Chunk size warning limit (in kB)

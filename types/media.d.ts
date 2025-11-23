@@ -15,6 +15,88 @@ export interface MediaSettingsRange {
   step?: number;
 }
 
+// =============================================================================
+// Normalized Camera Capabilities for UI consumption
+// =============================================================================
+
+/**
+ * Normalized camera capability for UI consumption
+ */
+export interface NormalizedCapability {
+  name: string;
+  min: number;
+  max: number;
+  step: number;
+  current: number;
+  supported: boolean;
+  mode?: 'auto' | 'manual' | 'continuous';
+}
+
+/**
+ * Camera capability registry for reactive UI
+ */
+export interface CameraCapabilityMap {
+  zoom?: NormalizedCapability;
+  pan?: NormalizedCapability;
+  tilt?: NormalizedCapability;
+  brightness?: NormalizedCapability;
+  contrast?: NormalizedCapability;
+  saturation?: NormalizedCapability;
+  sharpness?: NormalizedCapability;
+  exposureTime?: NormalizedCapability;
+  exposureCompensation?: NormalizedCapability;
+  colorTemperature?: NormalizedCapability;
+  focusDistance?: NormalizedCapability;
+  iso?: NormalizedCapability;
+}
+
+// =============================================================================
+// Worker Message Protocol for type-safe communication
+// =============================================================================
+
+/**
+ * Segmentation configuration options
+ */
+export interface SegmentationConfig {
+  enabled: boolean;
+  mode: 'blur' | 'replace' | 'remove';
+  blurAmount: number;
+  edgeRefinement: boolean;
+  modelType: 'general' | 'landscape';
+  threshold: number;
+}
+
+/**
+ * Worker message protocol for type-safe communication
+ */
+export interface SegmentationWorkerMessage {
+  type: 'init' | 'segment' | 'dispose' | 'updateConfig';
+  payload?: {
+    imageBitmap?: ImageBitmap;
+    backgroundImage?: ImageBitmap;
+    config?: SegmentationConfig;
+    offscreenCanvas?: OffscreenCanvas;
+  };
+  timestamp: number;
+}
+
+/**
+ * Worker response protocol
+ */
+export interface SegmentationWorkerResponse {
+  type: 'ready' | 'result' | 'error' | 'performance';
+  payload?: {
+    processedFrame?: ImageBitmap;
+    maskData?: Uint8ClampedArray;
+    width?: number;
+    height?: number;
+    error?: string;
+    fps?: number;
+    latency?: number;
+  };
+  timestamp: number;
+}
+
 /**
  * Extended MediaTrackCapabilities including non-standard camera controls
  * These are supported by many cameras but not in the standard TypeScript definitions

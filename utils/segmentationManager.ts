@@ -6,44 +6,23 @@
  * 2. Main Thread (fallback - if worker fails)
  *
  * This addresses the MediaPipe CDN loading issues mentioned in the codebase
- * by providing graceful degradation.
+ * by providing graceful degradation and proper error handling.
  */
+
+import type {
+  SegmentationWorkerMessage,
+  SegmentationWorkerResponse,
+  SegmentationConfig,
+} from '../types/media';
 
 export interface SegmentationResult {
   mask: ImageData | null;
   error?: string;
+  fps?: number;
+  latency?: number;
 }
 
 export type SegmentationMode = 'worker' | 'main-thread' | 'disabled';
-
-interface WorkerResponseReady {
-  type: 'ready';
-  success: boolean;
-  error?: string;
-}
-
-interface WorkerResponseMask {
-  type: 'mask';
-  maskData: Uint8ClampedArray;
-  width: number;
-  height: number;
-}
-
-interface WorkerResponseFaceLandmarks {
-  type: 'face-landmarks';
-  data: any[];
-}
-
-interface WorkerResponseError {
-  type: 'error';
-  message: string;
-}
-
-type WorkerResponse =
-  | WorkerResponseReady
-  | WorkerResponseMask
-  | WorkerResponseFaceLandmarks
-  | WorkerResponseError;
 
 /**
  * Singleton class to manage segmentation processing
@@ -54,7 +33,10 @@ class SegmentationManager {
   private isInitializing = false;
   private pendingCallbacks: Map<number, (result: SegmentationResult) => void> = new Map();
   private messageId = 0;
-  private onFaceLandmarks?: (landmarks: any[]) => void;
+  private _onFaceLandmarks?: (landmarks: any[]) => void;
+  private onPerformanceUpdate?: (fps: number, latency: number) => void;
+  private currentFps = 0;
+  private currentLatency = 0;
 
   // Feature detection
   private static supportsOffscreenCanvas(): boolean {
@@ -113,7 +95,28 @@ class SegmentationManager {
    * Set callback for face landmarks
    */
   setFaceLandmarksCallback(callback: (landmarks: any[]) => void): void {
-    this.onFaceLandmarks = callback;
+    this._onFaceLandmarks = callback;
+  }
+
+  /**
+   * Get face landmarks callback (for testing)
+   */
+  getFaceLandmarksCallback(): ((landmarks: any[]) => void) | undefined {
+    return this._onFaceLandmarks;
+  }
+
+  /**
+   * Set callback for performance updates
+   */
+  setPerformanceCallback(callback: (fps: number, latency: number) => void): void {
+    this.onPerformanceUpdate = callback;
+  }
+
+  /**
+   * Get current performance metrics
+   */
+  getPerformanceMetrics(): { fps: number; latency: number } {
+    return { fps: this.currentFps, latency: this.currentLatency };
   }
 
   /**
@@ -122,11 +125,7 @@ class SegmentationManager {
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        // Create worker from the worker file
-        // Note: In Vite, use `new Worker(new URL('./workers/segmentation.worker.ts', import.meta.url), { type: 'module' })`
-        // For now, we'll use a blob URL approach for compatibility
-
-        // Check if the worker module is available
+        // Create worker from the worker file using Vite's worker import
         const workerUrl = new URL('../workers/segmentation.worker.ts', import.meta.url);
         this.worker = new Worker(workerUrl, { type: 'module' });
 
@@ -136,19 +135,19 @@ class SegmentationManager {
           resolve(false);
         }, 10000); // 10 second timeout
 
-        this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+        this.worker.onmessage = (event: MessageEvent<SegmentationWorkerResponse>) => {
           const response = event.data;
 
           if (response.type === 'ready') {
             clearTimeout(timeoutId);
-            if (response.success) {
-              this.setupWorkerMessageHandler();
-              resolve(true);
-            } else {
-              console.warn('[SegmentationManager] Worker ready but failed:', response.error);
-              this.terminateWorker();
-              resolve(false);
-            }
+            this.setupWorkerMessageHandler();
+            resolve(true);
+          } else if (response.type === 'error' && !this.pendingCallbacks.size) {
+            // Error during init
+            clearTimeout(timeoutId);
+            console.warn('[SegmentationManager] Worker ready but failed:', response.payload?.error);
+            this.terminateWorker();
+            resolve(false);
           }
         };
 
@@ -159,8 +158,12 @@ class SegmentationManager {
           resolve(false);
         };
 
-        // Send init message
-        this.worker.postMessage({ type: 'init' });
+        // Send init message with timestamp
+        const initMessage: SegmentationWorkerMessage = {
+          type: 'init',
+          timestamp: performance.now(),
+        };
+        this.worker.postMessage(initMessage);
       } catch (e) {
         console.error('[SegmentationManager] Failed to create worker:', e);
         resolve(false);
@@ -174,33 +177,61 @@ class SegmentationManager {
   private setupWorkerMessageHandler(): void {
     if (!this.worker) return;
 
-    this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+    this.worker.onmessage = (event: MessageEvent<SegmentationWorkerResponse>) => {
       const response = event.data;
 
-      if (response.type === 'mask') {
-        // Create ImageData from the transferred array
-        const imageData = new ImageData(
-          new Uint8ClampedArray(response.maskData),
-          response.width,
-          response.height
-        );
+      switch (response.type) {
+        case 'result': {
+          if (response.payload?.maskData && response.payload.width && response.payload.height) {
+            // Create ImageData from the transferred array
+            const imageData = new ImageData(
+              new Uint8ClampedArray(response.payload.maskData),
+              response.payload.width,
+              response.payload.height
+            );
 
-        // Resolve any pending callbacks
-        // Note: In a real implementation, you'd track request IDs
-        this.pendingCallbacks.forEach((callback) => {
-          callback({ mask: imageData });
-        });
-        this.pendingCallbacks.clear();
-      } else if (response.type === 'face-landmarks') {
-        // Call face landmarks callback
-        if (this.onFaceLandmarks) {
-          this.onFaceLandmarks(response.data);
+            // Update performance metrics
+            if (response.payload.fps !== undefined) {
+              this.currentFps = response.payload.fps;
+            }
+            if (response.payload.latency !== undefined) {
+              this.currentLatency = response.payload.latency;
+            }
+
+            // Resolve pending callbacks
+            this.pendingCallbacks.forEach((callback) => {
+              callback({
+                mask: imageData,
+                fps: this.currentFps,
+                latency: this.currentLatency,
+              });
+            });
+            this.pendingCallbacks.clear();
+          }
+          break;
         }
-      } else if (response.type === 'error') {
-        this.pendingCallbacks.forEach((callback) => {
-          callback({ mask: null, error: response.message });
-        });
-        this.pendingCallbacks.clear();
+
+        case 'performance': {
+          if (response.payload?.fps !== undefined) {
+            this.currentFps = response.payload.fps;
+            if (response.payload.latency !== undefined) {
+              this.currentLatency = response.payload.latency;
+            }
+            if (this.onPerformanceUpdate) {
+              this.onPerformanceUpdate(this.currentFps, this.currentLatency);
+            }
+          }
+          break;
+        }
+
+        case 'error': {
+          console.error('[SegmentationManager] Worker error:', response.payload?.error);
+          this.pendingCallbacks.forEach((callback) => {
+            callback({ mask: null, error: response.payload?.error });
+          });
+          this.pendingCallbacks.clear();
+          break;
+        }
       }
     };
   }
@@ -224,15 +255,15 @@ class SegmentationManager {
       // Create ImageBitmap from video frame
       createImageBitmap(video)
         .then((imageBitmap) => {
-          this.worker?.postMessage(
-            {
-              type: 'segment',
+          const message: SegmentationWorkerMessage = {
+            type: 'segment',
+            payload: {
               imageBitmap,
-              width: video.videoWidth,
-              height: video.videoHeight,
             },
-            [imageBitmap] // Transfer ownership
-          );
+            timestamp: performance.now(),
+          };
+
+          this.worker?.postMessage(message, [imageBitmap]);
         })
         .catch((e) => {
           this.pendingCallbacks.delete(id);
@@ -247,6 +278,20 @@ class SegmentationManager {
         }
       }, 1000); // 1 second timeout per frame
     });
+  }
+
+  /**
+   * Update segmentation configuration
+   */
+  updateConfig(config: Partial<SegmentationConfig>): void {
+    if (this.worker && this.mode === 'worker') {
+      const message: SegmentationWorkerMessage = {
+        type: 'updateConfig',
+        payload: { config: config as SegmentationConfig },
+        timestamp: performance.now(),
+      };
+      this.worker.postMessage(message);
+    }
   }
 
   /**
@@ -268,7 +313,11 @@ class SegmentationManager {
    */
   terminateWorker(): void {
     if (this.worker) {
-      this.worker.postMessage({ type: 'terminate' });
+      const message: SegmentationWorkerMessage = {
+        type: 'dispose',
+        timestamp: performance.now(),
+      };
+      this.worker.postMessage(message);
       this.worker.terminate();
       this.worker = null;
     }
