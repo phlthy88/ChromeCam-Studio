@@ -390,9 +390,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                         onChange={(e) => update('audioDeviceId', e.target.value || null)}
                                         className="w-full bg-surface-container-highest text-on-surface md-body-medium rounded-xl py-2.5 px-3 border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none font-medium"
                                     >
-                                        <option value="" className="bg-surface-container-highest text-on-surface">Default Microphone</option>
+                                        <option value="">Default Microphone</option>
                                         {audioDevices.map((device, idx) => (
-                                            <option key={device.deviceId} value={device.deviceId} className="bg-surface-container-highest text-on-surface">
+                                            <option key={device.deviceId} value={device.deviceId}>
                                                 {device.label || `Microphone ${idx + 1}`}
                                             </option>
                                         ))}

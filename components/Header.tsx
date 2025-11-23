@@ -238,12 +238,12 @@ const Header: React.FC<HeaderProps> = ({
                         >
                             {devices.length > 0 ? (
                                 devices.map((device, index) => (
-                                    <option key={device.deviceId} value={device.deviceId} className="bg-surface-container-highest text-on-surface">
+                                    <option key={device.deviceId} value={device.deviceId}>
                                         {device.label || `Camera ${index + 1}`}
                                     </option>
                                 ))
                             ) : (
-                                <option disabled className="bg-surface-container-highest text-on-surface">No cameras found</option>
+                                <option disabled>No cameras found</option>
                             )}
                         </select>
 
