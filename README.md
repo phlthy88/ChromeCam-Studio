@@ -24,6 +24,16 @@ controls, and Material 3 design — built for ChromeOS, macOS, and Windows._
 
 ---
 
+## 🆕 What's New (v1.1.0)
+
+- **Production Worker Architecture** — AI processing now runs entirely off the main thread using Web Workers and OffscreenCanvas for buttery-smooth 60fps UI
+- **Adaptive Quality System** — Automatic frame rate optimization based on real-time performance metrics
+- **Type-Safe Worker Protocol** — Fully typed message passing between main thread and workers with latency tracking
+- **ChromeOS/Crostini Optimizations** — Enhanced CSP headers and Cross-Origin policies for Linux container compatibility
+- **Video Feed Stability Fixes** — Resolved render loop issues causing video disturbances
+
+---
+
 ## ✨ Features
 
 <table>
@@ -32,10 +42,10 @@ controls, and Material 3 design — built for ChromeOS, macOS, and Windows._
 
 ### 🤖 AI-Powered Effects
 
-- **Background Blur** — Real-time bokeh effect using MediaPipe
-- **Body Segmentation** — TensorFlow.js powered person detection
-- **Face Detection** — Smart focal point targeting
-- **Low-Light Enhancement** — Automatic brightness compensation
+- **Background Blur** — Real-time bokeh effect using MediaPipe (off-main-thread)
+- **Body Segmentation** — TensorFlow.js powered person detection via Web Workers
+- **Face Detection** — Smart focal point targeting with OffscreenCanvas
+- **Performance Monitoring** — Real-time FPS and latency tracking
 
 </td>
 <td width="50%">
@@ -121,45 +131,50 @@ npm run preview  # Preview production build
 
 ## 🏗️ Architecture
 
-ChromeCam Studio follows a **modern React architecture** with custom hooks for separation of
-concerns.
+ChromeCam Studio follows a **modern React architecture** with a production-ready off-main-thread worker system for smooth 60fps UI performance.
 
 ```
-src/
 ├── components/
-│   ├── VideoPanel.tsx      # Main video display component
-│   ├── Slider.tsx          # M3 slider control
-│   ├── Toggle.tsx          # M3 toggle switch
-│   └── Chip.tsx            # M3 chip component
+│   ├── VideoPanel.tsx           # Main video display component
+│   ├── Slider.tsx               # M3 slider control
+│   ├── Toggle.tsx               # M3 toggle switch
+│   └── Chip.tsx                 # M3 chip component
 ├── hooks/
 │   ├── useCameraStream.ts       # Camera lifecycle management
+│   ├── useVideoRenderer.ts      # Optimized render loop with adaptive quality
+│   ├── useBodySegmentation.ts   # AI segmentation hook
 │   ├── useMediaRecorder.ts      # Video recording logic
-│   ├── useBodySegmentation.ts   # AI segmentation
-│   ├── useCanvasRenderer.ts     # Render loop management
 │   ├── useProOverlays.ts        # Histogram/zebra/peaking
 │   └── useSystemAccentColor.ts  # Dynamic M3 theming
+├── workers/
+│   └── segmentation.worker.ts   # OffscreenCanvas AI processing
+├── utils/
+│   └── segmentationManager.ts   # Worker lifecycle & fallback management
 └── types/
-    └── media.d.ts          # Extended browser API types
+    └── media.d.ts               # Type-safe worker protocols & browser APIs
 ```
 
 ### 🔧 Tech Stack
 
-| Layer          | Technology                      |
-| -------------- | ------------------------------- |
-| **Framework**  | React 19 with TypeScript        |
-| **Build Tool** | Vite 6 with HMR                 |
-| **Styling**    | Tailwind CSS + M3 Design Tokens |
-| **AI/ML**      | TensorFlow.js + MediaPipe       |
-| **PWA**        | vite-plugin-pwa + Workbox       |
-| **Testing**    | Vitest + React Testing Library  |
+| Layer          | Technology                        |
+| -------------- | --------------------------------- |
+| **Framework**  | React 19 with TypeScript 5.6      |
+| **Build Tool** | Vite 6 with ES Module Workers     |
+| **Styling**    | Tailwind CSS + M3 Design Tokens   |
+| **AI/ML**      | TensorFlow.js + MediaPipe         |
+| **Workers**    | OffscreenCanvas + Web Workers     |
+| **PWA**        | vite-plugin-pwa + Workbox         |
+| **Testing**    | Vitest + React Testing Library    |
 
 ### 🎯 Key Highlights
 
-- **🔒 Type-Safe Browser APIs** — Custom TypeScript definitions for experimental APIs (MediaPipe,
-  BarcodeDetector, WakeLock, FileSystem Access)
-- **⚡ Optimized Canvas Rendering** — `willReadFrequently` hints for GPU readback performance
+- **🧵 Off-Main-Thread AI** — Web Workers with OffscreenCanvas for AI inference without UI jank
+- **🔄 Graceful Fallback** — Automatic main-thread fallback if workers unavailable
+- **🔒 Type-Safe Worker Protocol** — Fully typed message passing with timestamps and performance metrics
+- **⚡ Adaptive Quality** — Dynamic frame skipping based on real-time FPS monitoring
 - **🎨 Mathematical Color System** — OKLCH-based tonal palette generation for Material 3
 - **📦 Smart Caching** — CacheFirst for ML models, StaleWhileRevalidate for styles
+- **🛡️ ChromeOS Optimized** — CSP headers and Cross-Origin policies for Crostini compatibility
 
 ---
 
