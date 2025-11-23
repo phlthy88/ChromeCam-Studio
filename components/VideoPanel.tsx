@@ -1,6 +1,6 @@
 
-import React, { useEffect, useRef, useState } from 'react';
-import { CameraSettings } from './settings';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { CameraSettings, RESOLUTION_PRESETS, VIDEO_CODECS } from './settings';
 
 declare global {
     interface Window {
@@ -210,10 +210,41 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                     capabilitiesRef.current = null; videoTrackRef.current = null; if (onCapabilitiesChange) onCapabilitiesChange(null);
                     if (activeStreamRef.current) { activeStreamRef.current.getTracks().forEach(t => t.stop()); activeStreamRef.current = null; }
                     if (videoRef.current) videoRef.current.srcObject = null;
-                    const widthIdeal = settings.bandwidthSaver ? 640 : 1280; const heightIdeal = settings.bandwidthSaver ? 480 : 720; const fpsIdeal = settings.bandwidthSaver ? 24 : 30;
+
+                    // Determine resolution based on settings
+                    let widthIdeal: number, heightIdeal: number;
+                    if (settings.bandwidthSaver) {
+                        widthIdeal = 640; heightIdeal = 480;
+                    } else if (settings.resolution === 'custom') {
+                        widthIdeal = settings.customWidth; heightIdeal = settings.customHeight;
+                    } else {
+                        const preset = RESOLUTION_PRESETS[settings.resolution] ?? RESOLUTION_PRESETS['720p'];
+                        widthIdeal = preset?.width ?? 1280; heightIdeal = preset?.height ?? 720;
+                    }
+                    const fpsIdeal = settings.bandwidthSaver ? 24 : settings.frameRate;
+
+                    // Build video constraints
+                    const videoConstraints: MediaTrackConstraints = {
+                        deviceId: { exact: deviceId },
+                        width: { ideal: widthIdeal },
+                        height: { ideal: heightIdeal },
+                        frameRate: { ideal: fpsIdeal },
+                        facingMode: settings.facingMode,
+                    };
+
+                    // Build audio constraints
+                    const audioConstraints: MediaTrackConstraints | boolean = settings.enableAudio ? {
+                        deviceId: settings.audioDeviceId ? { exact: settings.audioDeviceId } : undefined,
+                        echoCancellation: settings.echoCancellation,
+                        noiseSuppression: settings.noiseSuppression,
+                        autoGainControl: settings.autoGainControl,
+                        sampleRate: settings.sampleRate,
+                        channelCount: settings.channelCount,
+                    } : false;
+
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: deviceId }, width: { ideal: widthIdeal }, height: { ideal: heightIdeal }, frameRate: { ideal: fpsIdeal }, pan: true, tilt: true, zoom: true } as any,
-                        audio: settings.enableAudio ? { echoCancellation: true, noiseSuppression: settings.noiseSuppression, autoGainControl: true } : false
+                        video: { ...videoConstraints, pan: true, tilt: true, zoom: true } as any,
+                        audio: audioConstraints
                     });
                     if (isCancelled) { stream.getTracks().forEach(t => t.stop()); return; }
                     activeStreamRef.current = stream;
@@ -235,30 +266,128 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
         };
         startStream();
         return () => { isCancelled = true; if (activeStreamRef.current) activeStreamRef.current.getTracks().forEach(track => track.stop()); };
-    }, [deviceId, settings.enableAudio, settings.noiseSuppression, settings.bandwidthSaver]);
+    }, [deviceId, settings.enableAudio, settings.noiseSuppression, settings.echoCancellation, settings.autoGainControl, settings.bandwidthSaver, settings.resolution, settings.customWidth, settings.customHeight, settings.frameRate, settings.facingMode, settings.audioDeviceId, settings.sampleRate, settings.channelCount]);
 
     useEffect(() => {
         const applyHardware = async () => {
             const track = videoTrackRef.current; const caps = capabilitiesRef.current; if (!track || !caps) return;
             const constraints: any = { advanced: [{}] }; let hasChanges = false;
-             // @ts-ignore
-            if (activeHardwareRef.current.zoom && caps.zoom) { constraints.advanced[0].zoom = mapRange(settings.zoom, 1, 3, caps.zoom.min, caps.zoom.max); hasChanges = true; }
-             // @ts-ignore
-            if (activeHardwareRef.current.brightness && caps.brightness) { constraints.advanced[0].brightness = mapRange(settings.brightness, 0, 200, caps.brightness.min, caps.brightness.max); hasChanges = true; }
-             // @ts-ignore
-            if (activeHardwareRef.current.contrast && caps.contrast) { constraints.advanced[0].contrast = mapRange(settings.contrast, 0, 200, caps.contrast.min, caps.contrast.max); hasChanges = true; }
-             // @ts-ignore
-            if (activeHardwareRef.current.saturation && caps.saturation) { constraints.advanced[0].saturation = mapRange(settings.saturation, 0, 200, caps.saturation.min, caps.saturation.max); hasChanges = true; }
+
+            // Zoom
             // @ts-ignore
-            if (caps.exposureMode && settings.exposureMode) { constraints.advanced[0].exposureMode = settings.exposureMode; hasChanges = true; }
+            if (activeHardwareRef.current.zoom && caps.zoom) {
+                // @ts-ignore
+                constraints.advanced[0].zoom = mapRange(settings.zoom, 1, 3, caps.zoom.min, caps.zoom.max);
+                hasChanges = true;
+            }
+
+            // Brightness, Contrast, Saturation
             // @ts-ignore
-            if (settings.exposureMode === 'manual' && caps.exposureTime && settings.exposureTime) { constraints.advanced[0].exposureTime = settings.exposureTime; hasChanges = true; }
+            if (activeHardwareRef.current.brightness && caps.brightness) {
+                // @ts-ignore
+                constraints.advanced[0].brightness = mapRange(settings.brightness, 0, 200, caps.brightness.min, caps.brightness.max);
+                hasChanges = true;
+            }
             // @ts-ignore
-            if (caps.exposureCompensation && settings.exposureCompensation) { constraints.advanced[0].exposureCompensation = settings.exposureCompensation; hasChanges = true; }
-            if (hasChanges) try { await track.applyConstraints(constraints); } catch (e) {}
+            if (activeHardwareRef.current.contrast && caps.contrast) {
+                // @ts-ignore
+                constraints.advanced[0].contrast = mapRange(settings.contrast, 0, 200, caps.contrast.min, caps.contrast.max);
+                hasChanges = true;
+            }
+            // @ts-ignore
+            if (activeHardwareRef.current.saturation && caps.saturation) {
+                // @ts-ignore
+                constraints.advanced[0].saturation = mapRange(settings.saturation, 0, 200, caps.saturation.min, caps.saturation.max);
+                hasChanges = true;
+            }
+
+            // Exposure
+            // @ts-ignore
+            if (caps.exposureMode && settings.exposureMode) {
+                constraints.advanced[0].exposureMode = settings.exposureMode;
+                hasChanges = true;
+            }
+            // @ts-ignore
+            if (settings.exposureMode === 'manual' && caps.exposureTime && settings.exposureTime) {
+                constraints.advanced[0].exposureTime = settings.exposureTime;
+                hasChanges = true;
+            }
+            // @ts-ignore
+            if (caps.exposureCompensation && settings.exposureCompensation) {
+                constraints.advanced[0].exposureCompensation = settings.exposureCompensation;
+                hasChanges = true;
+            }
+
+            // White Balance
+            // @ts-ignore
+            if (caps.whiteBalanceMode) {
+                constraints.advanced[0].whiteBalanceMode = settings.whiteBalanceMode;
+                hasChanges = true;
+            }
+            // @ts-ignore
+            if (settings.whiteBalanceMode === 'manual' && caps.colorTemperature && settings.colorTemperature) {
+                constraints.advanced[0].colorTemperature = settings.colorTemperature;
+                hasChanges = true;
+            }
+
+            // Focus
+            // @ts-ignore
+            if (caps.focusMode) {
+                constraints.advanced[0].focusMode = settings.focusMode;
+                hasChanges = true;
+            }
+            // @ts-ignore
+            if (settings.focusMode === 'manual' && caps.focusDistance && settings.focusDistance) {
+                constraints.advanced[0].focusDistance = settings.focusDistance;
+                hasChanges = true;
+            }
+
+            // ISO
+            // @ts-ignore
+            if (caps.iso && settings.iso) {
+                constraints.advanced[0].iso = settings.iso;
+                hasChanges = true;
+            }
+
+            // Sharpness
+            // @ts-ignore
+            if (caps.sharpness && settings.sharpness) {
+                constraints.advanced[0].sharpness = settings.sharpness;
+                hasChanges = true;
+            }
+
+            // Backlight Compensation
+            // @ts-ignore
+            if (caps.backlightCompensation !== undefined) {
+                constraints.advanced[0].backlightCompensation = settings.backlightCompensation;
+                hasChanges = true;
+            }
+
+            // Power Line Frequency
+            // @ts-ignore
+            if (caps.powerLineFrequency) {
+                const freqMap: Record<string, number> = { 'disabled': 0, '50Hz': 50, '60Hz': 60 };
+                constraints.advanced[0].powerLineFrequency = freqMap[settings.powerLineFrequency] || 0;
+                hasChanges = true;
+            }
+
+            // Torch
+            // @ts-ignore
+            if (caps.torch !== undefined) {
+                constraints.advanced[0].torch = settings.torch;
+                hasChanges = true;
+            }
+
+            if (hasChanges) try { await track.applyConstraints(constraints); } catch (e) { console.warn('Failed to apply hardware constraints:', e); }
         };
         applyHardware();
-    }, [settings.zoom, settings.panX, settings.panY, settings.brightness, settings.contrast, settings.saturation, settings.exposureMode, settings.exposureTime, settings.exposureCompensation]);
+    }, [
+        settings.zoom, settings.panX, settings.panY, settings.brightness, settings.contrast, settings.saturation,
+        settings.exposureMode, settings.exposureTime, settings.exposureCompensation,
+        settings.whiteBalanceMode, settings.colorTemperature,
+        settings.focusMode, settings.focusDistance,
+        settings.iso, settings.sharpness, settings.backlightCompensation, settings.powerLineFrequency, settings.torch
+    ]);
 
 
     useEffect(() => {
@@ -387,12 +516,42 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                     } else { ctx.filter = baseFilter || 'none'; ctx.drawImage(video, 0, 0); ctx.filter = 'none'; }
 
                     if (filterPreset?.overlay) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = filterPreset.blend || 'overlay'; ctx.globalAlpha = filterPreset.alpha || 0.2; ctx.fillStyle = filterPreset.overlay; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1.0; }
+
+                    // Draw professional overlays
+                    const { gridOverlay, showHistogram, showZebraStripes, showFocusPeaking } = settingsRef.current;
+
+                    // Grid overlay
+                    if (gridOverlay !== 'none') {
+                        drawGridOverlay(ctx, canvas.width, canvas.height);
+                    }
+
+                    // Get image data for histogram, zebra, and focus peaking (only if needed)
+                    if (showHistogram || showZebraStripes || showFocusPeaking) {
+                        try {
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                            if (showZebraStripes) {
+                                drawZebraStripes(ctx, canvas.width, canvas.height, imageData);
+                            }
+
+                            if (showFocusPeaking) {
+                                drawFocusPeaking(ctx, canvas.width, canvas.height, imageData);
+                            }
+
+                            if (showHistogram) {
+                                drawHistogram(ctx, canvas.width, canvas.height, imageData);
+                            }
+                        } catch (e) {
+                            // Canvas might be tainted, ignore
+                        }
+                    }
                 }
             }
             if (isLoopActive) requestRef.current = requestAnimationFrame(processVideo);
         };
         requestRef.current = requestAnimationFrame(processVideo);
         return () => { isLoopActive = false; if (requestRef.current) cancelAnimationFrame(requestRef.current); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAiActive, isCompareActive]);
 
     const handleSnapshot = async () => {
@@ -407,30 +566,315 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') { mediaRecorderRef.current.stop(); }
             clearInterval(recordingTimerRef.current); setIsRecording(false);
         } else {
-            if (!canvasRef.current) return; recordedChunksRef.current = []; const stream = canvasRef.current.captureStream(30);
-            if (activeStreamRef.current && settings.enableAudio) { const audioTracks = activeStreamRef.current.getAudioTracks(); const firstTrack = audioTracks[0]; if (firstTrack) stream.addTrack(firstTrack); }
+            if (!canvasRef.current) return;
+            recordedChunksRef.current = [];
+            const stream = canvasRef.current.captureStream(settings.frameRate || 30);
+            if (activeStreamRef.current && settings.enableAudio) {
+                const audioTracks = activeStreamRef.current.getAudioTracks();
+                const firstTrack = audioTracks[0];
+                if (firstTrack) stream.addTrack(firstTrack);
+            }
+
+            // Find the selected codec's mimeType
+            const codecConfig = VIDEO_CODECS.find(c => c.id === settings.videoCodec) ?? VIDEO_CODECS[1];
+            let mimeType = codecConfig?.mimeType ?? 'video/webm;codecs=vp9';
+
+            // Check if the mimeType is supported, fall back to vp9 or vp8
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm;codecs=vp9';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'video/webm;codecs=vp8';
+                }
+            }
+
+            // Calculate bitrate in bits per second
+            const videoBitsPerSecond = settings.videoBitrate * 1000000; // Mbps to bps
+            const audioBitsPerSecond = settings.audioBitrate * 1000; // kbps to bps
+
             try {
-                const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+                const recorder = new MediaRecorder(stream, {
+                    mimeType,
+                    videoBitsPerSecond,
+                    audioBitsPerSecond,
+                });
+
+                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                const mimeTypeForSave = mimeType.split(';')[0] || 'video/webm';
                 recorder.ondataavailable = (event) => { if (event.data.size > 0) recordedChunksRef.current.push(event.data); };
-                recorder.onstop = async () => { const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' }); await saveFile(blob, `recording-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`, 'video/webm'); };
-                recorder.start(); mediaRecorderRef.current = recorder; setIsRecording(true); setRecordingTime(0);
+                recorder.onstop = async () => {
+                    const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+                    await saveFile(blob, `recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`, mimeTypeForSave);
+                };
+                recorder.start();
+                mediaRecorderRef.current = recorder;
+                setIsRecording(true);
+                setRecordingTime(0);
                 recordingTimerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
             } catch (e) { console.error("Recording failed", e); }
         }
     };
     const formatTime = (seconds: number) => { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return `${mins}:${secs < 10 ? '0' : ''}${secs}`; };
+
+    // Draw grid overlays
+    const drawGridOverlay = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
+        const { gridOverlay } = settingsRef.current;
+        if (gridOverlay === 'none') return;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+
+        if (gridOverlay === 'thirds') {
+            // Rule of thirds
+            const thirdW = width / 3;
+            const thirdH = height / 3;
+            ctx.beginPath();
+            ctx.moveTo(thirdW, 0); ctx.lineTo(thirdW, height);
+            ctx.moveTo(thirdW * 2, 0); ctx.lineTo(thirdW * 2, height);
+            ctx.moveTo(0, thirdH); ctx.lineTo(width, thirdH);
+            ctx.moveTo(0, thirdH * 2); ctx.lineTo(width, thirdH * 2);
+            ctx.stroke();
+        } else if (gridOverlay === 'center') {
+            // Center cross
+            ctx.beginPath();
+            ctx.moveTo(width / 2, 0); ctx.lineTo(width / 2, height);
+            ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2);
+            // Center circle
+            ctx.arc(width / 2, height / 2, Math.min(width, height) / 10, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (gridOverlay === 'golden') {
+            // Golden ratio (phi = 1.618)
+            const phi = 1.618;
+            const g1 = width / phi; const g2 = width - g1;
+            const gh1 = height / phi; const gh2 = height - gh1;
+            ctx.beginPath();
+            ctx.moveTo(g2, 0); ctx.lineTo(g2, height);
+            ctx.moveTo(g1, 0); ctx.lineTo(g1, height);
+            ctx.moveTo(0, gh2); ctx.lineTo(width, gh2);
+            ctx.moveTo(0, gh1); ctx.lineTo(width, gh1);
+            ctx.stroke();
+        } else if (gridOverlay === 'safe') {
+            // Safe zones (90% action safe, 80% title safe)
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.4)';
+            const actionMarginX = width * 0.05; const actionMarginY = height * 0.05;
+            ctx.strokeRect(actionMarginX, actionMarginY, width - actionMarginX * 2, height - actionMarginY * 2);
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.4)';
+            const titleMarginX = width * 0.1; const titleMarginY = height * 0.1;
+            ctx.strokeRect(titleMarginX, titleMarginY, width - titleMarginX * 2, height - titleMarginY * 2);
+        }
+
+        ctx.restore();
+    }, []);
+
+    // Draw histogram overlay
+    const drawHistogram = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData) => {
+        const data = imageData.data;
+        const rHist = new Array(256).fill(0);
+        const gHist = new Array(256).fill(0);
+        const bHist = new Array(256).fill(0);
+        const lHist = new Array(256).fill(0);
+
+        // Sample every 4th pixel for performance
+        for (let i = 0; i < data.length; i += 16) {
+            const r = data[i] || 0;
+            const g = data[i + 1] || 0;
+            const b = data[i + 2] || 0;
+            const l = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+            rHist[r]++;
+            gHist[g]++;
+            bHist[b]++;
+            lHist[l]++;
+        }
+
+        // Find max for normalization
+        const maxR = Math.max(...rHist);
+        const maxG = Math.max(...gHist);
+        const maxB = Math.max(...bHist);
+        const maxL = Math.max(...lHist);
+        const maxAll = Math.max(maxR, maxG, maxB, maxL);
+
+        // Draw histogram in bottom-right corner
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const histW = 200; const histH = 80;
+        const histX = width - histW - 10; const histY = height - histH - 10;
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(histX, histY, histW, histH);
+
+        // Draw channels
+        const drawChannel = (hist: number[], color: string) => {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 256; i++) {
+                const x = histX + (i / 255) * histW;
+                const histVal = hist[i] ?? 0;
+                const y = histY + histH - (histVal / maxAll) * histH;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        };
+
+        drawChannel(lHist, 'rgba(255, 255, 255, 0.8)');
+        drawChannel(rHist, 'rgba(255, 0, 0, 0.5)');
+        drawChannel(gHist, 'rgba(0, 255, 0, 0.5)');
+        drawChannel(bHist, 'rgba(0, 0, 255, 0.5)');
+
+        ctx.restore();
+    }, []);
+
+    // Draw zebra stripes for overexposed areas
+    const drawZebraStripes = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData) => {
+        const { zebraThreshold } = settingsRef.current;
+        const threshold = (zebraThreshold / 100) * 255;
+        const data = imageData.data;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        // Create zebra pattern
+        const patternCanvas = document.createElement('canvas');
+        patternCanvas.width = 8; patternCanvas.height = 8;
+        const pCtx = patternCanvas.getContext('2d');
+        if (pCtx) {
+            pCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+            pCtx.lineWidth = 2;
+            pCtx.beginPath();
+            pCtx.moveTo(0, 8); pCtx.lineTo(8, 0);
+            pCtx.stroke();
+        }
+        const pattern = ctx.createPattern(patternCanvas, 'repeat');
+
+        // Find and mark overexposed pixels (sample for performance)
+        const step = 4;
+        for (let y = 0; y < height; y += step) {
+            for (let x = 0; x < width; x += step) {
+                const i = (y * width + x) * 4;
+                const r = data[i] || 0;
+                const g = data[i + 1] || 0;
+                const b = data[i + 2] || 0;
+                if (r > threshold && g > threshold && b > threshold) {
+                    if (pattern) ctx.fillStyle = pattern;
+                    else ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.fillRect(x, y, step, step);
+                }
+            }
+        }
+
+        ctx.restore();
+    }, []);
+
+    // Draw focus peaking overlay
+    const drawFocusPeaking = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData) => {
+        const { focusPeakingColor } = settingsRef.current;
+        const data = imageData.data;
+        const colorMap: Record<string, string> = {
+            red: 'rgba(255, 0, 0, 0.8)',
+            green: 'rgba(0, 255, 0, 0.8)',
+            blue: 'rgba(0, 0, 255, 0.8)',
+            white: 'rgba(255, 255, 255, 0.8)',
+        };
+        const peakColor = colorMap[focusPeakingColor] ?? 'rgba(255, 0, 0, 0.8)';
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = peakColor;
+
+        // Simple edge detection using Sobel-like operator (sampled)
+        const step = 2;
+        const threshold = 50;
+
+        for (let y = step; y < height - step; y += step) {
+            for (let x = step; x < width - step; x += step) {
+                const getGray = (px: number, py: number) => {
+                    const i = (py * width + px) * 4;
+                    return 0.299 * (data[i] || 0) + 0.587 * (data[i + 1] || 0) + 0.114 * (data[i + 2] || 0);
+                };
+
+                // Simplified gradient magnitude
+                const gx = getGray(x + step, y) - getGray(x - step, y);
+                const gy = getGray(x, y + step) - getGray(x, y - step);
+                const mag = Math.sqrt(gx * gx + gy * gy);
+
+                if (mag > threshold) {
+                    ctx.fillRect(x, y, step, step);
+                }
+            }
+        }
+
+        ctx.restore();
+    }, []);
+
     const togglePiP = async () => {
         const video = pipVideoRef.current; if (!video) return;
         try { if (document.pictureInPictureElement) { await document.exitPictureInPicture(); } else { if (video.readyState === 0) await new Promise((resolve) => { video.onloadedmetadata = resolve; }); if (video.paused) await video.play(); await video.requestPictureInPicture(); } } catch (err) { }
     };
 
+    const toggleFullscreen = async () => {
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            } else if (canvasRef.current?.parentElement) {
+                await canvasRef.current.parentElement.requestFullscreen();
+            }
+        } catch (err) {
+            console.warn('Fullscreen failed:', err);
+        }
+    };
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if user is typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
+                return;
+            }
+
+            switch (e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    handleSnapshot();
+                    break;
+                case 'KeyR':
+                    e.preventDefault();
+                    toggleRecording();
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'KeyM':
+                    e.preventDefault();
+                    // Toggle mirror - this requires updating settings through parent
+                    // We'll dispatch a custom event that the parent can listen to
+                    window.dispatchEvent(new CustomEvent('chromecam-toggle-mirror'));
+                    break;
+                case 'KeyC':
+                    e.preventDefault();
+                    setIsCompareActive(prev => !prev);
+                    break;
+                case 'KeyP':
+                    e.preventDefault();
+                    togglePiP();
+                    break;
+                case 'KeyG':
+                    e.preventDefault();
+                    // Cycle through grid overlays
+                    window.dispatchEvent(new CustomEvent('chromecam-cycle-grid'));
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     return (
         <div className="w-full h-full flex items-center justify-center bg-black overflow-hidden relative group">
-            {/* Grid Overlay */}
-            <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-10 z-20 transition-opacity duration-500">
-                <div className="w-full h-full grid grid-cols-3 grid-rows-3"> {[...Array(9)].map((_, i) => <div key={i} className="border border-white/20"></div>)} </div>
-            </div>
-
             {/* Flash Overlay */}
             <div className={`absolute inset-0 bg-white z-50 pointer-events-none transition-opacity duration-150 ${flashActive ? 'opacity-100' : 'opacity-0'}`}></div>
 

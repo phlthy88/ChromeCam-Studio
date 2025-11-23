@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import ControlsPanel from './ControlsPanel';
 import VideoPanel from './VideoPanel';
-import { CameraSettings, DEFAULT_SETTINGS } from './settings';
+import { CameraSettings, DEFAULT_SETTINGS, GRID_OVERLAYS } from './settings';
 import { useTheme } from '../hooks/useTheme';
 
 /**
@@ -15,11 +15,36 @@ import { useTheme } from '../hooks/useTheme';
  */
 const WebcamApp: React.FC = () => {
     const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+    const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
     const [settings, setSettings] = useState<CameraSettings>(DEFAULT_SETTINGS);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [capabilities, setCapabilities] = useState<MediaTrackCapabilities | null>(null);
     const { theme, setTheme } = useTheme();
+
+    // Handle keyboard shortcut events from VideoPanel
+    useEffect(() => {
+        const handleToggleMirror = () => {
+            setSettings(prev => ({ ...prev, mirror: !prev.mirror }));
+        };
+
+        const handleCycleGrid = () => {
+            setSettings(prev => {
+                const gridIds = GRID_OVERLAYS.map(g => g.id);
+                const currentIndex = gridIds.indexOf(prev.gridOverlay);
+                const nextIndex = (currentIndex + 1) % gridIds.length;
+                return { ...prev, gridOverlay: gridIds[nextIndex] ?? 'none' };
+            });
+        };
+
+        window.addEventListener('chromecam-toggle-mirror', handleToggleMirror);
+        window.addEventListener('chromecam-cycle-grid', handleCycleGrid);
+
+        return () => {
+            window.removeEventListener('chromecam-toggle-mirror', handleToggleMirror);
+            window.removeEventListener('chromecam-cycle-grid', handleCycleGrid);
+        };
+    }, []);
 
     // Responsive Sidebar Logic
     useEffect(() => {
@@ -36,13 +61,20 @@ const WebcamApp: React.FC = () => {
     useEffect(() => {
         const getDevices = async () => {
             try {
-                await navigator.mediaDevices.getUserMedia({ video: true }).catch(() => {});
+                // Request permissions to get device labels
+                await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(() => {});
                 const allDevices = await navigator.mediaDevices.enumerateDevices();
+
+                // Get video devices
                 const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
                 setDevices(videoDevices);
                 if (videoDevices.length > 0) {
                     setSelectedDeviceId(currentId => currentId ?? videoDevices[0]?.deviceId ?? null);
                 }
+
+                // Get audio devices
+                const audioInputs = allDevices.filter(device => device.kind === 'audioinput');
+                setAudioDevices(audioInputs);
             } catch (err) {
                 console.error("Error enumerating devices: ", err);
             }
@@ -113,6 +145,7 @@ const WebcamApp: React.FC = () => {
                                 onSettingsChange={setSettings}
                                 onCloseMobile={() => setIsSidebarOpen(false)}
                                 capabilities={capabilities}
+                                audioDevices={audioDevices}
                             />
                         </div>
                     </aside>
