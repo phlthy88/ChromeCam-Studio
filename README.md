@@ -207,6 +207,8 @@ npm run typecheck:watch  # Watch mode
 ## 📄 Documentation
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Detailed architectural analysis, code patterns, and performance considerations
+- **[ROADMAP.md](./ROADMAP.md)** — Technical and product roadmap with prioritized phases
+- **[CODEBASE_ANALYSIS.md](./CODEBASE_ANALYSIS.md)** — Performance analysis and optimization recommendations
 
 ---
 
