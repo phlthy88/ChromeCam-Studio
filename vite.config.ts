@@ -88,7 +88,7 @@ export default defineConfig(({ mode }) => {
       ...baseConfig.plugins!,
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.svg', 'masked-icon.svg'],
+        includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'masked-icon.svg'],
         manifest: {
           name: 'ChromeCam Studio',
           short_name: 'ChromeCam',
