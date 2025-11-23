@@ -220,11 +220,12 @@ const Header: React.FC<HeaderProps> = ({
                             onChange={(e) => onDeviceChange(e.target.value)}
                             className="
                                 appearance-none
-                                bg-surface-container
+                                bg-surface-container-highest
                                 hover:bg-surface-high
                                 text-on-surface
                                 md-label-large
-                                rounded-lg
+                                font-medium
+                                rounded-xl
                                 py-2 pl-9 pr-8
                                 border border-outline-variant/40
                                 outline-none
@@ -237,12 +238,12 @@ const Header: React.FC<HeaderProps> = ({
                         >
                             {devices.length > 0 ? (
                                 devices.map((device, index) => (
-                                    <option key={device.deviceId} value={device.deviceId}>
+                                    <option key={device.deviceId} value={device.deviceId} className="bg-surface-container-highest text-on-surface">
                                         {device.label || `Camera ${index + 1}`}
                                     </option>
                                 ))
                             ) : (
-                                <option disabled>No cameras found</option>
+                                <option disabled className="bg-surface-container-highest text-on-surface">No cameras found</option>
                             )}
                         </select>
 

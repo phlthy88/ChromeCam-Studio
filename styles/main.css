@@ -60,6 +60,36 @@
   * {
     scroll-behavior: smooth;
   }
+
+  /* ========================================
+   * Select/Dropdown Styling for Better Contrast
+   * ======================================== */
+
+  /* Style select elements for better readability */
+  select {
+    color-scheme: light dark;
+  }
+
+  /* Style option elements within selects */
+  select option {
+    background-color: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-on-surface);
+    padding: 8px 12px;
+    font-weight: 500;
+  }
+
+  /* Dark theme option styling */
+  .dark select option {
+    background-color: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  /* Option hover state (limited browser support) */
+  select option:hover,
+  select option:checked {
+    background-color: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-primary-container);
+  }
 }
 
 /* Component layer for reusable patterns */
