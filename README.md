@@ -173,7 +173,7 @@ public/
 ├── pwa-512x512.svg     # High-resolution icon
 ├── masked-icon.svg     # Adaptive icon systems
 ├── apple-touch-icon.svg # iOS home screen
-└── favicon.ico         # Browser tab icon
+└── favicon.svg         # Browser tab icon
 ```
 
 > 💡 **Tip:** For maximum compatibility, convert SVGs to PNG using [pwa-asset-generator](https://github.com/nicholasadamou/pwa-asset-generator)
