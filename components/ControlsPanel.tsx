@@ -457,18 +457,32 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               {audioDevices && audioDevices.length > 0 && (
                 <div>
                   <label className="md-label-large text-on-surface mb-2 block">Microphone</label>
-                  <select
-                    value={settings.audioDeviceId || ''}
-                    onChange={(e) => update('audioDeviceId', e.target.value || null)}
-                    className="w-full bg-surface-container-highest text-on-surface md-body-medium rounded-xl py-2.5 px-3 border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                  >
-                    <option value="">Default Microphone</option>
-                    {audioDevices.map((device, idx) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Microphone ${idx + 1}`}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={settings.audioDeviceId || ''}
+                      onChange={(e) => update('audioDeviceId', e.target.value || null)}
+                      className="w-full appearance-none bg-surface-container-highest hover:bg-surface-high text-on-surface md-body-medium rounded-xl py-2.5 px-3 pr-8 border border-outline-variant/40 focus:border-primary/60 focus:ring-1 focus:ring-primary/15 outline-none font-medium cursor-pointer transition-all duration-short2 ease-standard"
+                    >
+                      <option value="">Default Microphone</option>
+                      {audioDevices.map((device, idx) => (
+                        <option key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Microphone ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Dropdown Arrow */}
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <svg
+                        className="w-4 h-4 text-on-surface-variant"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
               )}
 
