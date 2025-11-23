@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { vi, afterEach } from 'vitest';
 
 // Mock global ML libraries that are loaded via CDN
 const mockSelfieSegmentation = {
