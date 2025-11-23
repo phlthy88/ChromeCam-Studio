@@ -1,16 +1,25 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ControlSection from './ControlSection';
 import Slider from './ui/Slider';
 import Toggle from './ui/Toggle';
 import Chip from './ui/Chip';
-import { CameraSettings, DEFAULT_SETTINGS } from './settings';
+import {
+    CameraSettings,
+    DEFAULT_SETTINGS,
+    RESOLUTION_PRESETS,
+    FRAME_RATE_PRESETS,
+    VIDEO_CODECS,
+    AUDIO_CODECS,
+    GRID_OVERLAYS
+} from './settings';
 
 interface ControlsPanelProps {
     settings: CameraSettings;
     onSettingsChange: (settings: CameraSettings) => void;
     onCloseMobile?: () => void;
     capabilities?: MediaTrackCapabilities | null;
+    audioDevices?: MediaDeviceInfo[];
 }
 
 // Defined Defaults for Granular Resets
@@ -28,6 +37,7 @@ const DEFAULTS_COLOR = {
     hue: 0,
     sepia: 0,
     grayscale: 0,
+    sharpness: 0,
 };
 
 const DEFAULTS_FILTER = {
@@ -56,6 +66,47 @@ const DEFAULTS_CONFERENCING = {
     enableAudio: false,
     noiseSuppression: true,
     bandwidthSaver: false,
+    audioDeviceId: null,
+    echoCancellation: true,
+    autoGainControl: true,
+    sampleRate: 48000,
+    channelCount: 1,
+};
+
+const DEFAULTS_CAMERA_HARDWARE = {
+    whiteBalanceMode: 'continuous',
+    colorTemperature: 4500,
+    focusMode: 'continuous',
+    focusDistance: 0,
+    iso: 0,
+    backlightCompensation: false,
+    powerLineFrequency: 'disabled',
+    torch: false,
+};
+
+const DEFAULTS_STREAM = {
+    resolution: '720p',
+    customWidth: 1280,
+    customHeight: 720,
+    frameRate: 30,
+    aspectRatioLock: 'none',
+    facingMode: 'user',
+};
+
+const DEFAULTS_RECORDING = {
+    videoCodec: 'vp9',
+    audioCodec: 'opus',
+    videoBitrate: 8,
+    audioBitrate: 128,
+};
+
+const DEFAULTS_OVERLAYS = {
+    gridOverlay: 'none',
+    showHistogram: false,
+    showZebraStripes: false,
+    zebraThreshold: 95,
+    showFocusPeaking: false,
+    focusPeakingColor: 'red',
 };
 
 // Filter definitions for UI display
@@ -71,15 +122,37 @@ const AVAILABLE_FILTERS = [
 ];
 
 
-const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChange, onCloseMobile, capabilities }) => {
+const ControlsPanel: React.FC<ControlsPanelProps> = ({
+    settings,
+    onSettingsChange,
+    onCloseMobile,
+    capabilities,
+    audioDevices = [],
+}) => {
     const [resetConfirm, setResetConfirm] = useState(false);
+    const [showCameraInfo, setShowCameraInfo] = useState(false);
+    const [supportedCodecs, setSupportedCodecs] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Check supported codecs on mount
+    useEffect(() => {
+        const checkCodecs = () => {
+            const supported: string[] = [];
+            VIDEO_CODECS.forEach(codec => {
+                if (MediaRecorder.isTypeSupported(codec.mimeType)) {
+                    supported.push(codec.id);
+                }
+            });
+            setSupportedCodecs(supported);
+        };
+        checkCodecs();
+    }, []);
 
     const applyDefaults = () => {
         onSettingsChange({ ...DEFAULT_SETTINGS });
     };
 
     const update = (key: keyof CameraSettings, value: number | boolean | string | null) => {
-        // @ts-ignore
         onSettingsChange({ ...settings, [key]: value });
     };
 
@@ -94,6 +167,34 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
         }
     };
 
+    // Settings Import/Export
+    const exportSettings = () => {
+        const dataStr = JSON.stringify(settings, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `chromecam-settings-${new Date().toISOString().split('T')[0]}.json`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const importSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const imported = JSON.parse(event.target?.result as string);
+                    onSettingsChange({ ...DEFAULT_SETTINGS, ...imported });
+                } catch (err) {
+                    console.error('Failed to import settings:', err);
+                }
+            };
+            reader.readAsText(file);
+        }
+    };
+
     // --- Module Reset Handlers ---
     const resetLight = () => onSettingsChange({ ...settings, ...DEFAULTS_LIGHT });
     const resetColor = () => onSettingsChange({ ...settings, ...DEFAULTS_COLOR });
@@ -101,7 +202,11 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
     const resetGeometry = () => onSettingsChange({ ...settings, ...DEFAULTS_GEOMETRY });
     const resetEffects = () => onSettingsChange({ ...settings, ...DEFAULTS_EFFECTS });
     const resetConferencing = () => onSettingsChange({ ...settings, ...DEFAULTS_CONFERENCING });
-    
+    const resetCameraHardware = () => onSettingsChange({ ...settings, ...DEFAULTS_CAMERA_HARDWARE });
+    const resetStream = () => onSettingsChange({ ...settings, ...DEFAULTS_STREAM });
+    const resetRecording = () => onSettingsChange({ ...settings, ...DEFAULTS_RECORDING });
+    const resetOverlays = () => onSettingsChange({ ...settings, ...DEFAULTS_OVERLAYS });
+
     const handleMasterReset = () => {
         if (resetConfirm) {
             applyDefaults();
@@ -110,6 +215,28 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
             setResetConfirm(true);
             setTimeout(() => setResetConfirm(false), 3000);
         }
+    };
+
+    // Capability helpers
+    const hasCapability = (cap: string) => {
+        if (!capabilities) return false;
+        return cap in capabilities && (capabilities as Record<string, unknown>)[cap] !== undefined;
+    };
+
+    const getCapabilityRange = (cap: string) => {
+        if (!capabilities) return null;
+        const val = (capabilities as Record<string, unknown>)[cap];
+        if (val && typeof val === 'object' && 'min' in val && 'max' in val) {
+            return val as { min: number; max: number; step?: number };
+        }
+        return null;
+    };
+
+    const getCapabilityOptions = (cap: string) => {
+        if (!capabilities) return [];
+        const val = (capabilities as Record<string, unknown>)[cap];
+        if (Array.isArray(val)) return val as string[];
+        return [];
     };
 
     return (
@@ -156,8 +283,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
             {/* Controls Scroll Area */}
             <div className="flex-1 overflow-y-auto md-scrollbar px-4 pb-8 space-y-4">
 
-                {/* Conferencing */}
-                <ControlSection title="Conferencing" defaultOpen={true} onReset={resetConferencing}>
+                {/* Conferencing / Audio */}
+                <ControlSection title="Audio" defaultOpen={true} onReset={resetConferencing}>
                     <div className="space-y-5">
                         <Toggle
                             label="Enable Microphone"
@@ -165,15 +292,76 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
                             onChange={(v) => update('enableAudio', v)}
                         />
 
-                        <div className={`transition-opacity duration-medium2 ease-standard ${settings.enableAudio ? 'opacity-100' : 'opacity-[0.38] pointer-events-none'}`}>
+                        <div className={`space-y-5 transition-opacity duration-medium2 ease-standard ${settings.enableAudio ? 'opacity-100' : 'opacity-[0.38] pointer-events-none'}`}>
+                            {/* Microphone Selection */}
+                            {audioDevices.length > 0 && (
+                                <div>
+                                    <label className="md-label-large text-on-surface mb-2 block">Microphone</label>
+                                    <select
+                                        value={settings.audioDeviceId || ''}
+                                        onChange={(e) => update('audioDeviceId', e.target.value || null)}
+                                        className="w-full bg-surface-container-high text-on-surface md-body-medium rounded-lg py-2.5 px-3 border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                                    >
+                                        <option value="">Default Microphone</option>
+                                        {audioDevices.map((device, idx) => (
+                                            <option key={device.deviceId} value={device.deviceId}>
+                                                {device.label || `Microphone ${idx + 1}`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             <Toggle
-                                label="Voice Isolation (AI)"
+                                label="Noise Suppression"
                                 enabled={settings.noiseSuppression}
                                 onChange={(v) => update('noiseSuppression', v)}
                             />
-                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-                                Uses AI to filter background noise like typing or fans.
-                            </p>
+
+                            <Toggle
+                                label="Echo Cancellation"
+                                enabled={settings.echoCancellation}
+                                onChange={(v) => update('echoCancellation', v)}
+                            />
+
+                            <Toggle
+                                label="Auto Gain Control"
+                                enabled={settings.autoGainControl}
+                                onChange={(v) => update('autoGainControl', v)}
+                            />
+
+                            <div className="pt-4 border-t border-outline-variant">
+                                <label className="md-label-large text-on-surface mb-3 block">Sample Rate</label>
+                                <div className="flex gap-2">
+                                    {[44100, 48000].map(rate => (
+                                        <Chip
+                                            key={rate}
+                                            label={`${rate / 1000}kHz`}
+                                            selected={settings.sampleRate === rate}
+                                            onClick={() => update('sampleRate', rate)}
+                                            variant="filter"
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-outline-variant">
+                                <label className="md-label-large text-on-surface mb-3 block">Channels</label>
+                                <div className="flex gap-2">
+                                    <Chip
+                                        label="Mono"
+                                        selected={settings.channelCount === 1}
+                                        onClick={() => update('channelCount', 1)}
+                                        variant="filter"
+                                    />
+                                    <Chip
+                                        label="Stereo"
+                                        selected={settings.channelCount === 2}
+                                        onClick={() => update('channelCount', 2)}
+                                        variant="filter"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="pt-4 border-t border-outline-variant">
@@ -265,6 +453,249 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
                                 )}
                             </div>
                         )}
+                    </div>
+                </ControlSection>
+
+                {/* Camera Hardware Controls */}
+                {(hasCapability('whiteBalanceMode') || hasCapability('focusMode') || hasCapability('iso') || hasCapability('torch')) && (
+                    <ControlSection title="Camera Hardware" onReset={resetCameraHardware}>
+                        <div className="space-y-5">
+                            {/* White Balance */}
+                            {hasCapability('whiteBalanceMode') && (
+                                <div>
+                                    <label className="md-label-large text-on-surface mb-3 block">White Balance</label>
+                                    <div className="flex gap-2 mb-3">
+                                        {getCapabilityOptions('whiteBalanceMode').map(mode => (
+                                            <Chip
+                                                key={mode}
+                                                label={mode === 'continuous' ? 'Auto' : 'Manual'}
+                                                selected={settings.whiteBalanceMode === mode}
+                                                onClick={() => update('whiteBalanceMode', mode)}
+                                                variant="filter"
+                                            />
+                                        ))}
+                                    </div>
+                                    {settings.whiteBalanceMode === 'manual' && hasCapability('colorTemperature') && (() => {
+                                        const range = getCapabilityRange('colorTemperature');
+                                        return range && (
+                                            <Slider
+                                                label="Color Temperature (K)"
+                                                value={settings.colorTemperature}
+                                                min={range.min}
+                                                max={range.max}
+                                                step={range.step || 100}
+                                                onChange={(v) => update('colorTemperature', v)}
+                                            />
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
+                            {/* Focus Control */}
+                            {hasCapability('focusMode') && (
+                                <div className="pt-4 border-t border-outline-variant">
+                                    <label className="md-label-large text-on-surface mb-3 block">Focus</label>
+                                    <div className="flex gap-2 flex-wrap mb-3">
+                                        {getCapabilityOptions('focusMode').map(mode => (
+                                            <Chip
+                                                key={mode}
+                                                label={mode === 'continuous' ? 'Auto' : mode === 'single-shot' ? 'One-Shot' : 'Manual'}
+                                                selected={settings.focusMode === mode}
+                                                onClick={() => update('focusMode', mode)}
+                                                variant="filter"
+                                            />
+                                        ))}
+                                    </div>
+                                    {settings.focusMode === 'manual' && hasCapability('focusDistance') && (() => {
+                                        const range = getCapabilityRange('focusDistance');
+                                        return range && (
+                                            <Slider
+                                                label="Focus Distance"
+                                                value={settings.focusDistance}
+                                                min={range.min}
+                                                max={range.max}
+                                                step={range.step || 0.01}
+                                                onChange={(v) => update('focusDistance', v)}
+                                            />
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
+                            {/* ISO / Gain */}
+                            {hasCapability('iso') && (() => {
+                                const range = getCapabilityRange('iso');
+                                return range && (
+                                    <div className="pt-4 border-t border-outline-variant">
+                                        <Slider
+                                            label="ISO / Gain"
+                                            value={settings.iso || range.min}
+                                            min={range.min}
+                                            max={range.max}
+                                            step={range.step || 1}
+                                            onChange={(v) => update('iso', v)}
+                                        />
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Sharpness */}
+                            {hasCapability('sharpness') && (() => {
+                                const range = getCapabilityRange('sharpness');
+                                return range && (
+                                    <div className="pt-4 border-t border-outline-variant">
+                                        <Slider
+                                            label="Sharpness"
+                                            value={settings.sharpness || range.min}
+                                            min={range.min}
+                                            max={range.max}
+                                            step={range.step || 1}
+                                            onChange={(v) => update('sharpness', v)}
+                                        />
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Backlight Compensation */}
+                            {hasCapability('backlightCompensation') && (
+                                <div className="pt-4 border-t border-outline-variant">
+                                    <Toggle
+                                        label="Backlight Compensation"
+                                        enabled={settings.backlightCompensation}
+                                        onChange={(v) => update('backlightCompensation', v)}
+                                    />
+                                    <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                        Improves visibility when subject is against bright backgrounds.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Power Line Frequency */}
+                            {hasCapability('powerLineFrequency') && (
+                                <div className="pt-4 border-t border-outline-variant">
+                                    <label className="md-label-large text-on-surface mb-3 block">Anti-Flicker</label>
+                                    <div className="flex gap-2">
+                                        {['disabled', '50Hz', '60Hz'].map(freq => (
+                                            <Chip
+                                                key={freq}
+                                                label={freq === 'disabled' ? 'Off' : freq}
+                                                selected={settings.powerLineFrequency === freq}
+                                                onClick={() => update('powerLineFrequency', freq)}
+                                                variant="filter"
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Torch/Flash */}
+                            {hasCapability('torch') && (
+                                <div className="pt-4 border-t border-outline-variant">
+                                    <Toggle
+                                        label="Camera Light / Torch"
+                                        enabled={settings.torch}
+                                        onChange={(v) => update('torch', v)}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </ControlSection>
+                )}
+
+                {/* Resolution & Stream */}
+                <ControlSection title="Resolution & Stream" onReset={resetStream}>
+                    <div className="space-y-5">
+                        {/* Resolution Picker */}
+                        <div>
+                            <label className="md-label-large text-on-surface mb-3 block">Resolution</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {Object.entries(RESOLUTION_PRESETS).map(([id, preset]) => (
+                                    <Chip
+                                        key={id}
+                                        label={preset.label}
+                                        selected={settings.resolution === id}
+                                        onClick={() => update('resolution', id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Custom Resolution */}
+                        {settings.resolution === 'custom' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <Slider
+                                    label="Width"
+                                    value={settings.customWidth}
+                                    min={320}
+                                    max={4096}
+                                    step={16}
+                                    onChange={(v) => update('customWidth', v)}
+                                />
+                                <Slider
+                                    label="Height"
+                                    value={settings.customHeight}
+                                    min={240}
+                                    max={2160}
+                                    step={16}
+                                    onChange={(v) => update('customHeight', v)}
+                                />
+                            </div>
+                        )}
+
+                        {/* Frame Rate */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Frame Rate</label>
+                            <div className="flex gap-2">
+                                {FRAME_RATE_PRESETS.map(fps => (
+                                    <Chip
+                                        key={fps}
+                                        label={`${fps} fps`}
+                                        selected={settings.frameRate === fps}
+                                        onClick={() => update('frameRate', fps)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Aspect Ratio Lock */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Aspect Ratio</label>
+                            <div className="flex gap-2">
+                                {['none', '4:3', '16:9', '1:1'].map(ratio => (
+                                    <Chip
+                                        key={ratio}
+                                        label={ratio === 'none' ? 'Free' : ratio}
+                                        selected={settings.aspectRatioLock === ratio}
+                                        onClick={() => update('aspectRatioLock', ratio)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Facing Mode (Mobile) */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Camera Direction</label>
+                            <div className="flex gap-2">
+                                <Chip
+                                    label="Front"
+                                    selected={settings.facingMode === 'user'}
+                                    onClick={() => update('facingMode', 'user')}
+                                    variant="filter"
+                                />
+                                <Chip
+                                    label="Back"
+                                    selected={settings.facingMode === 'environment'}
+                                    onClick={() => update('facingMode', 'environment')}
+                                    variant="filter"
+                                />
+                            </div>
+                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                Switch between front and rear cameras on mobile devices.
+                            </p>
+                        </div>
                     </div>
                 </ControlSection>
 
@@ -443,9 +874,159 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
                     </div>
                 </ControlSection>
 
+                {/* Recording */}
+                <ControlSection title="Recording" onReset={resetRecording}>
+                    <div className="space-y-5">
+                        {/* Video Codec */}
+                        <div>
+                            <label className="md-label-large text-on-surface mb-3 block">Video Codec</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {VIDEO_CODECS.filter(c => supportedCodecs.includes(c.id)).map(codec => (
+                                    <Chip
+                                        key={codec.id}
+                                        label={codec.label}
+                                        selected={settings.videoCodec === codec.id}
+                                        onClick={() => update('videoCodec', codec.id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                            {supportedCodecs.length === 0 && (
+                                <p className="md-body-small text-on-surface-variant">
+                                    Checking codec support...
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Video Bitrate */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <Slider
+                                label="Video Bitrate (Mbps)"
+                                value={settings.videoBitrate}
+                                min={1}
+                                max={50}
+                                step={1}
+                                onChange={(v) => update('videoBitrate', v)}
+                            />
+                        </div>
+
+                        {/* Audio Codec */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Audio Codec</label>
+                            <div className="flex gap-2">
+                                {AUDIO_CODECS.map(codec => (
+                                    <Chip
+                                        key={codec.id}
+                                        label={codec.label}
+                                        selected={settings.audioCodec === codec.id}
+                                        onClick={() => update('audioCodec', codec.id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Audio Bitrate */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <Slider
+                                label="Audio Bitrate (kbps)"
+                                value={settings.audioBitrate}
+                                min={64}
+                                max={320}
+                                step={32}
+                                onChange={(v) => update('audioBitrate', v)}
+                            />
+                        </div>
+                    </div>
+                </ControlSection>
+
+                {/* Overlays */}
+                <ControlSection title="Overlays" onReset={resetOverlays}>
+                    <div className="space-y-5">
+                        {/* Grid Overlay */}
+                        <div>
+                            <label className="md-label-large text-on-surface mb-3 block">Grid Overlay</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {GRID_OVERLAYS.map(grid => (
+                                    <Chip
+                                        key={grid.id}
+                                        label={grid.label}
+                                        selected={settings.gridOverlay === grid.id}
+                                        onClick={() => update('gridOverlay', grid.id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Histogram */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <Toggle
+                                label="Histogram"
+                                enabled={settings.showHistogram}
+                                onChange={(v) => update('showHistogram', v)}
+                            />
+                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                Shows real-time RGB/luminance distribution.
+                            </p>
+                        </div>
+
+                        {/* Zebra Stripes */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <Toggle
+                                label="Zebra Stripes"
+                                enabled={settings.showZebraStripes}
+                                onChange={(v) => update('showZebraStripes', v)}
+                            />
+                            {settings.showZebraStripes && (
+                                <div className="mt-3">
+                                    <Slider
+                                        label="Threshold (%)"
+                                        value={settings.zebraThreshold}
+                                        min={85}
+                                        max={100}
+                                        onChange={(v) => update('zebraThreshold', v)}
+                                    />
+                                </div>
+                            )}
+                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                Highlights overexposed areas.
+                            </p>
+                        </div>
+
+                        {/* Focus Peaking */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <Toggle
+                                label="Focus Peaking"
+                                enabled={settings.showFocusPeaking}
+                                onChange={(v) => update('showFocusPeaking', v)}
+                            />
+                            {settings.showFocusPeaking && (
+                                <div className="mt-3">
+                                    <label className="md-label-large text-on-surface mb-2 block">Color</label>
+                                    <div className="flex gap-2">
+                                        {['red', 'green', 'blue', 'white'].map(color => (
+                                            <Chip
+                                                key={color}
+                                                label={color.charAt(0).toUpperCase() + color.slice(1)}
+                                                selected={settings.focusPeakingColor === color}
+                                                onClick={() => update('focusPeakingColor', color)}
+                                                variant="filter"
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                Highlights in-focus edges for manual focus assistance.
+                            </p>
+                        </div>
+                    </div>
+                </ControlSection>
+
                 {/* Tools & Utilities */}
                 <ControlSection title="Tools">
-                    <div className="space-y-3">
+                    <div className="space-y-5">
                         <Toggle
                             label="QR Code Scanner"
                             enabled={settings.qrMode}
@@ -454,6 +1035,92 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
                         <p className="md-body-small text-on-surface-variant ml-1">
                             Detects QR codes and barcodes using native browser APIs.
                         </p>
+
+                        {/* Camera Info Panel */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <button
+                                onClick={() => setShowCameraInfo(!showCameraInfo)}
+                                className="w-full flex items-center justify-between py-2 text-on-surface hover:text-primary transition-colors"
+                            >
+                                <span className="md-label-large">Camera Info</span>
+                                <svg
+                                    className={`w-5 h-5 transition-transform ${showCameraInfo ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            {showCameraInfo && capabilities && (
+                                <div className="mt-3 p-3 bg-surface-container rounded-lg space-y-2 text-sm">
+                                    {Object.entries(capabilities).map(([key, value]) => (
+                                        <div key={key} className="flex justify-between gap-2">
+                                            <span className="text-on-surface-variant">{key}:</span>
+                                            <span className="text-on-surface font-mono text-right truncate max-w-[60%]">
+                                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {showCameraInfo && !capabilities && (
+                                <p className="mt-3 md-body-small text-on-surface-variant">
+                                    No camera capabilities available.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Settings Import/Export */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Settings Backup</label>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={exportSettings}
+                                    className="flex-1 py-2 px-4 bg-secondary-container text-on-secondary-container rounded-full md-label-large hover:bg-secondary transition-colors"
+                                >
+                                    Export
+                                </button>
+                                <label className="flex-1 py-2 px-4 bg-secondary-container text-on-secondary-container rounded-full md-label-large hover:bg-secondary transition-colors text-center cursor-pointer">
+                                    Import
+                                    <input
+                                        type="file"
+                                        accept=".json"
+                                        onChange={importSettings}
+                                        className="hidden"
+                                        ref={fileInputRef}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Keyboard Shortcuts */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Keyboard Shortcuts</label>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-on-surface-variant">Take Snapshot</span>
+                                    <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">Space</kbd>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-on-surface-variant">Record</span>
+                                    <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">R</kbd>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-on-surface-variant">Fullscreen</span>
+                                    <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">F</kbd>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-on-surface-variant">Mirror</span>
+                                    <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">M</kbd>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-on-surface-variant">Compare</span>
+                                    <kbd className="px-2 py-0.5 bg-surface-container rounded text-on-surface font-mono">C</kbd>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </ControlSection>
 
