@@ -20,8 +20,7 @@
 
 /// <reference lib="webworker" />
 
-// Declare worker globals
-declare const importScripts: (...urls: string[]) => void;
+// importScripts is available in classic workers
 
 // Worker message types
 interface WorkerMessageInit {
@@ -91,26 +90,7 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // In production, use locally bundled scripts
     const cdnPath = modelPath || '/mediapipe/';
 
-    // Attempt to import MediaPipe scripts
-    // Note: This may fail due to CORS - see fallback in main thread
-    try {
-      try {
-        // Load TensorFlow and MediaPipe scripts
-        importScripts(
-          'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.15.0',
-          'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.15.0',
-          'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js'
-        );
-        console.log('[Worker] MediaPipe scripts loaded successfully');
-      } catch (scriptError) {
-        console.error('[Worker] Failed to load MediaPipe scripts:', scriptError);
-        throw new Error('MediaPipe script loading failed');
-      }
-    } catch (e) {
-      console.warn('[Worker] Failed to load TensorFlow scripts:', e);
-      // Try alternative loading method
-      throw new Error('CDN script loading failed - use main thread fallback');
-    }
+    // Scripts are loaded in main thread
 
     // Access the globally loaded libraries
     const bodySegmentation = (self as unknown as { bodySegmentation: unknown }).bodySegmentation;

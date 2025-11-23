@@ -53,6 +53,7 @@ export interface CameraSettings {
   // Cinematic Color Grading (WebGL)
   cinematicLut: string; // LUT preset ID ('none', 'teal-orange', etc.)
   cinematicLutIntensity: number; // 0-100 (LUT blend intensity)
+  webglEnabled: boolean; // Enable WebGL rendering
 
   // AI/System
   autoFrame: boolean;
@@ -162,6 +163,7 @@ export const DEFAULT_SETTINGS: CameraSettings = {
   // Cinematic Color Grading (WebGL)
   cinematicLut: 'none',
   cinematicLutIntensity: 100,
+  webglEnabled: true,
 
   // AI/System
   autoFrame: false,

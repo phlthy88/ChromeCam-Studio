@@ -47,18 +47,17 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
 }) => {
   console.log('[VideoPanel] Rendering with deviceId:', deviceId, 'settings:', settings);
 
+  // Detect ChromeOS
+  const isChromeOS = navigator.userAgent.includes('CrOS');
+  console.log('[VideoPanel] Is ChromeOS:', isChromeOS);
+
   // Canvas ref for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
 
   // Force canvas recreation when switching rendering modes
-  const hasBeautyFilters =
-    settings.eyeEnlargement > 0 ||
-    settings.noseSlimming > 0 ||
-    settings.jawSlimming > 0 ||
-    settings.mouthScaling > 0;
-  const canvasKey = hasBeautyFilters ? 'beauty-mode' : 'normal-mode';
+  const canvasKey = settings.webglEnabled ? 'webgl-mode' : 'cpu-mode';
 
   // UI state
   const [isCompareActive, setIsCompareActive] = useState(false);
@@ -530,7 +529,18 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
               onClick={
                 isVirtualCameraActive
                   ? stopVirtualCamera
-                  : () => canvasRef.current && startVirtualCamera(canvasRef.current)
+                  : () => {
+                      if (isChromeOS) {
+                        showToast(
+                          'Virtual camera on ChromeOS is browser-only. Use screen share for external apps.',
+                          'warning',
+                          5000
+                        );
+                      }
+                      if (canvasRef.current) {
+                        startVirtualCamera(canvasRef.current);
+                      }
+                    }
               }
               className="
                                 p-2 sm:p-2.5 md:p-3 rounded-full

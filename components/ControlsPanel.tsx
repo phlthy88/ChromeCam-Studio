@@ -282,6 +282,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
       zebraThreshold: 'number',
       showFocusPeaking: 'boolean',
       focusPeakingColor: 'string',
+      webglEnabled: 'boolean',
     };
 
     // Validate each key

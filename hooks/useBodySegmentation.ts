@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CameraSettings } from '../components/settings';
 import type { BodySegmenter, BarcodeDetector } from '../types/media.d.ts';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
@@ -50,6 +50,38 @@ export function useBodySegmentation({
   const targetTransformRef = useRef<AutoFrameTransform>({ panX: 0, panY: 0, zoom: 1 });
   const barcodeDetectorRef = useRef<BarcodeDetector | null>(null);
 
+  // Load MediaPipe scripts if not already loaded
+  const loadScripts = useCallback(async () => {
+    if (typeof window !== 'undefined' && !(window as any).bodySegmentation) {
+      try {
+        // Load TensorFlow
+        if (!(window as any).tf) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        // Load MediaPipe
+        if (!(window as any).bodySegmentation) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src =
+              'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        console.log('[useBodySegmentation] Scripts loaded successfully');
+      } catch (error) {
+        console.error('[useBodySegmentation] Failed to load scripts:', error);
+      }
+    }
+  }, []);
+
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [aiRuntimeError, setAiRuntimeError] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Initializing AI...');
@@ -87,6 +119,8 @@ export function useBodySegmentation({
 
     const initWorker = async (): Promise<boolean> => {
       try {
+        setLoadingStatus('Loading AI Scripts...');
+        await loadScripts();
         setLoadingStatus('Initializing AI Worker...');
         const mode = await segmentationManager.initialize();
 

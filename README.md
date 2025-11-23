@@ -4,7 +4,7 @@
 
 # 🎥 ChromeCam Studio
 
-### *Professional webcam studio with AI-powered effects*
+### _Professional webcam studio with AI-powered effects_
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -12,11 +12,13 @@
 [![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-**[Features](#-features)** • **[Installation](#-quick-start)** • **[Architecture](#-architecture)** • **[PWA](#-progressive-web-app)**
+**[Features](#-features)** • **[Installation](#-quick-start)** • **[Architecture](#-architecture)**
+• **[PWA](#-progressive-web-app)**
 
 ---
 
-*A feature-rich webcam application with real-time AI background effects, professional camera controls, and Material 3 design — built for ChromeOS, macOS, and Windows.*
+_A feature-rich webcam application with real-time AI background effects, professional camera
+controls, and Material 3 design — built for ChromeOS, macOS, and Windows._
 
 </div>
 
@@ -29,6 +31,7 @@
 <td width="50%">
 
 ### 🤖 AI-Powered Effects
+
 - **Background Blur** — Real-time bokeh effect using MediaPipe
 - **Body Segmentation** — TensorFlow.js powered person detection
 - **Face Detection** — Smart focal point targeting
@@ -38,6 +41,7 @@
 <td width="50%">
 
 ### 🎛️ Professional Camera Controls
+
 - **Exposure** — Manual ISO, shutter speed, and compensation
 - **White Balance** — Color temperature and tint adjustments
 - **Focus** — Manual focus distance with peaking overlay
@@ -49,6 +53,7 @@
 <td width="50%">
 
 ### 🎨 Material 3 Design
+
 - **Dynamic Theming** — Automatic accent color from ChromeOS/Windows
 - **OKLCH Color Science** — Perceptually uniform tonal palettes
 - **Light/Dark Modes** — Seamless theme switching
@@ -58,6 +63,7 @@
 <td width="50%">
 
 ### 📊 Pro Overlays
+
 - **Zebra Stripes** — Highlight overexposed areas
 - **Focus Peaking** — Sharp edge detection visualization
 - **RGB Histogram** — Real-time exposure analysis
@@ -72,9 +78,18 @@
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - **Node.js 18+** and npm 9+
 - A webcam-equipped device
 - Modern browser (Chrome, Edge, Firefox, Safari)
+
+### ChromeOS / Crostini Setup
+
+For ChromeOS users running in Crostini (Linux container):
+
+1. Ensure camera permissions are granted in ChromeOS settings
+2. If using virtual camera feature, note that PWA virtual cameras are browser-only
+3. For system-wide virtual camera support, consider Chrome extension version
 
 ### Installation
 
@@ -106,7 +121,8 @@ npm run preview  # Preview production build
 
 ## 🏗️ Architecture
 
-ChromeCam Studio follows a **modern React architecture** with custom hooks for separation of concerns.
+ChromeCam Studio follows a **modern React architecture** with custom hooks for separation of
+concerns.
 
 ```
 src/
@@ -128,18 +144,19 @@ src/
 
 ### 🔧 Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Framework** | React 19 with TypeScript |
-| **Build Tool** | Vite 6 with HMR |
-| **Styling** | Tailwind CSS + M3 Design Tokens |
-| **AI/ML** | TensorFlow.js + MediaPipe |
-| **PWA** | vite-plugin-pwa + Workbox |
-| **Testing** | Vitest + React Testing Library |
+| Layer          | Technology                      |
+| -------------- | ------------------------------- |
+| **Framework**  | React 19 with TypeScript        |
+| **Build Tool** | Vite 6 with HMR                 |
+| **Styling**    | Tailwind CSS + M3 Design Tokens |
+| **AI/ML**      | TensorFlow.js + MediaPipe       |
+| **PWA**        | vite-plugin-pwa + Workbox       |
+| **Testing**    | Vitest + React Testing Library  |
 
 ### 🎯 Key Highlights
 
-- **🔒 Type-Safe Browser APIs** — Custom TypeScript definitions for experimental APIs (MediaPipe, BarcodeDetector, WakeLock, FileSystem Access)
+- **🔒 Type-Safe Browser APIs** — Custom TypeScript definitions for experimental APIs (MediaPipe,
+  BarcodeDetector, WakeLock, FileSystem Access)
 - **⚡ Optimized Canvas Rendering** — `willReadFrequently` hints for GPU readback performance
 - **🎨 Mathematical Color System** — OKLCH-based tonal palette generation for Material 3
 - **📦 Smart Caching** — CacheFirst for ML models, StaleWhileRevalidate for styles
@@ -152,12 +169,12 @@ ChromeCam Studio is a **fully installable PWA** with native-like experience.
 
 ### ✅ PWA Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔌 **Offline Capable** | App shell and CDN assets cached locally |
-| 🪟 **Window Controls Overlay** | Custom titlebar for native feel |
-| 🔐 **Hardware Access** | Persisted camera/mic permissions |
-| 🔄 **Auto-Update** | Service worker updates on new deployments |
+| Feature                        | Description                               |
+| ------------------------------ | ----------------------------------------- |
+| 🔌 **Offline Capable**         | App shell and CDN assets cached locally   |
+| 🪟 **Window Controls Overlay** | Custom titlebar for native feel           |
+| 🔐 **Hardware Access**         | Persisted camera/mic permissions          |
+| 🔄 **Auto-Update**             | Service worker updates on new deployments |
 
 ### 📥 Installation
 
@@ -176,7 +193,8 @@ public/
 └── favicon.svg         # Browser tab icon
 ```
 
-> 💡 **Tip:** For maximum compatibility, convert SVGs to PNG using [pwa-asset-generator](https://github.com/nicholasadamou/pwa-asset-generator)
+> 💡 **Tip:** For maximum compatibility, convert SVGs to PNG using
+> [pwa-asset-generator](https://github.com/nicholasadamou/pwa-asset-generator)
 
 ---
 
@@ -184,16 +202,16 @@ public/
 
 ### Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server |
-| `npm run dev:host` | Dev server with network access |
-| `npm run build` | Production build with type checking |
-| `npm run build:analyze` | Build + bundle visualization |
-| `npm run test` | Run tests in watch mode |
-| `npm run test:coverage` | Generate coverage report |
-| `npm run lint` | ESLint check |
-| `npm run format` | Prettier formatting |
+| Script                  | Description                         |
+| ----------------------- | ----------------------------------- |
+| `npm run dev`           | Start development server            |
+| `npm run dev:host`      | Dev server with network access      |
+| `npm run build`         | Production build with type checking |
+| `npm run build:analyze` | Build + bundle visualization        |
+| `npm run test`          | Run tests in watch mode             |
+| `npm run test:coverage` | Generate coverage report            |
+| `npm run lint`          | ESLint check                        |
+| `npm run format`        | Prettier formatting                 |
 
 ### Type Checking
 
@@ -206,9 +224,11 @@ npm run typecheck:watch  # Watch mode
 
 ## 📄 Documentation
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Detailed architectural analysis, code patterns, and performance considerations
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Detailed architectural analysis, code patterns, and
+  performance considerations
 - **[ROADMAP.md](./ROADMAP.md)** — Technical and product roadmap with prioritized phases
-- **[CODEBASE_ANALYSIS.md](./CODEBASE_ANALYSIS.md)** — Performance analysis and optimization recommendations
+- **[CODEBASE_ANALYSIS.md](./CODEBASE_ANALYSIS.md)** — Performance analysis and optimization
+  recommendations
 
 ---
 

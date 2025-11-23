@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
             "img-src 'self' blob: data:",
             "media-src 'self' blob:",
-            "connect-src 'self' wss: https:",
+            "connect-src 'self' ws: wss: https:",
             "worker-src 'self' blob:",
           ].join('; '),
         },
