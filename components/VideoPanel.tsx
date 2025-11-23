@@ -630,8 +630,9 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                                 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16
                                 flex items-center justify-center rounded-xl sm:rounded-2xl
                                 transition-all duration-300
-                                shadow-elevation-2 hover:shadow-elevation-4 active:scale-95
-                                ${isRecording ? 'bg-error text-on-error' : 'bg-primary text-on-primary'}
+                                text-on-surface-variant hover:bg-on-surface-variant/10
+                                active:bg-on-surface-variant/20
+                                ${isRecording ? 'bg-error/20 text-error' : ''}
                             `}
               title={isRecording ? 'Stop Recording' : 'Start Recording'}
               aria-label={isRecording ? 'Stop recording (R)' : 'Start recording (R)'}

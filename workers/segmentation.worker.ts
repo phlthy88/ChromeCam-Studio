@@ -136,12 +136,15 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
 
     // Initialize Face Mesh
     try {
+      console.log('[Worker] Initializing face mesh...');
       const faceLandmarksDetection = (self as unknown as { faceLandmarksDetection: unknown })
         .faceLandmarksDetection;
+      console.log('[Worker] faceLandmarksDetection available:', !!faceLandmarksDetection);
       if (faceLandmarksDetection) {
         const faceModel = (
           faceLandmarksDetection as { SupportedModels: { MediaPipeFaceMesh: unknown } }
         ).SupportedModels.MediaPipeFaceMesh;
+        console.log('[Worker] Creating face mesh detector...');
         faceMesh = await (
           faceLandmarksDetection as {
             createDetector: (model: unknown, config: unknown) => Promise<unknown>;
@@ -151,10 +154,12 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
           refineLandmarks: true,
           solutionPath: cdnPath,
         });
-        console.log('[Worker] Face mesh initialized');
+        console.log('[Worker] Face mesh initialized successfully');
+      } else {
+        console.warn('[Worker] faceLandmarksDetection not available');
       }
     } catch (e) {
-      console.warn('[Worker] Face mesh initialization failed:', e);
+      console.error('[Worker] Face mesh initialization failed:', e);
     }
 
     // Create offscreen canvas for processing
@@ -212,6 +217,7 @@ async function processFrame(
         ).estimateFaces(offscreenCanvas);
         if (faces.length > 0) {
           const face = faces[0] as { keypoints: FaceLandmark[] };
+          console.log('[Worker] Detected face with', face.keypoints.length, 'landmarks');
           // Post face landmarks
           self.postMessage({
             type: 'face-landmarks',

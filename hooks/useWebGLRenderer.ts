@@ -95,7 +95,9 @@ export function useWebGLRenderer({
     const faceWarpRenderer = new WebGLFaceWarpRenderer();
     console.log('[useWebGLRenderer] Initializing WebGL renderers...');
     const initialized = renderer.initialize(webglCanvasRef.current);
+    console.log('[useWebGLRenderer] LUT renderer initialized:', initialized);
     const faceWarpInitialized = faceWarpRenderer.initialize(webglCanvasRef.current);
+    console.log('[useWebGLRenderer] Face warp renderer initialized:', faceWarpInitialized);
 
     if (initialized && faceWarpInitialized) {
       rendererRef.current = renderer;
@@ -103,7 +105,12 @@ export function useWebGLRenderer({
       setIsReady(true);
       console.log('[useWebGLRenderer] WebGL renderers initialized successfully');
     } else {
-      console.error('[useWebGLRenderer] Failed to initialize WebGL renderers');
+      console.error(
+        '[useWebGLRenderer] Failed to initialize WebGL renderers - LUT:',
+        initialized,
+        'FaceWarp:',
+        faceWarpInitialized
+      );
       setIsWebGLSupported(false);
     }
 
@@ -165,9 +172,22 @@ export function useWebGLRenderer({
 
           // Apply face warping first if enabled
           if (faceWarpRendererRef.current && beautySettings && faceLandmarks) {
+            console.log(
+              '[useWebGLRenderer] Applying face warp with',
+              faceLandmarks.length,
+              'landmarks'
+            );
             faceWarpRendererRef.current.updateLandmarks(faceLandmarks);
             faceWarpRendererRef.current.render(source, beautySettings);
           } else {
+            console.log(
+              '[useWebGLRenderer] Face warp not applied - renderer:',
+              !!faceWarpRendererRef.current,
+              'settings:',
+              !!beautySettings,
+              'landmarks:',
+              !!faceLandmarks
+            );
             // Copy source to canvas
             const ctx = webglCanvasRef.current.getContext('2d');
             if (ctx) {

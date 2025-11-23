@@ -366,13 +366,21 @@ export function useVideoRenderer({
   const { drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking } = useProOverlays();
 
   // Initialize WebGL renderer with LUT and face warping
+  const beautyEnabled =
+    settingsRef.current.eyeEnlargement > 0 ||
+    settingsRef.current.noseSlimming > 0 ||
+    settingsRef.current.jawSlimming > 0 ||
+    settingsRef.current.mouthScaling > 0;
+
+  console.log(
+    '[useVideoRenderer] Beauty enabled:',
+    beautyEnabled,
+    'faceLandmarks:',
+    !!faceLandmarks
+  );
+
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
-    enabled:
-      settingsRef.current.cinematicLut !== 'none' ||
-      settingsRef.current.eyeEnlargement > 0 ||
-      settingsRef.current.noseSlimming > 0 ||
-      settingsRef.current.jawSlimming > 0 ||
-      settingsRef.current.mouthScaling > 0,
+    enabled: settingsRef.current.cinematicLut !== 'none' || beautyEnabled,
     lutPreset: settings.cinematicLut,
     lutIntensity: settings.cinematicLutIntensity,
     faceLandmarks,
