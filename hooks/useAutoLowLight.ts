@@ -54,28 +54,39 @@ export function useAutoLowLight({
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+    // Reusable ImageData buffer to avoid GC churn
+    const imageDataRef = useRef<ImageData | null>(null);
 
-    // Initialize canvas for sampling
+    // Initialize canvas and reusable ImageData buffer for sampling
     useEffect(() => {
         const canvas = document.createElement('canvas');
         canvas.width = sampleSize;
         canvas.height = sampleSize;
         canvasRef.current = canvas;
-        ctxRef.current = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctxRef.current = ctx;
+
+        // Pre-allocate ImageData buffer to avoid allocations during analysis
+        if (ctx) {
+            imageDataRef.current = ctx.createImageData(sampleSize, sampleSize);
+        }
 
         return () => {
             canvasRef.current = null;
             ctxRef.current = null;
+            imageDataRef.current = null;
         };
     }, [sampleSize]);
 
     // Analyze brightness from multiple regions
+    // Optimized to reuse ImageData buffer and reduce allocations
     const analyzeBrightness = useCallback(() => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         const ctx = ctxRef.current;
+        const reusableImageData = imageDataRef.current;
 
-        if (!video || !canvas || !ctx || video.paused || video.readyState < 2) {
+        if (!video || !canvas || !ctx || !reusableImageData || video.paused || video.readyState < 2) {
             return null;
         }
 
@@ -86,6 +97,7 @@ export function useAutoLowLight({
 
         try {
             // Sample regions: center (40%), corners (15% each)
+            // Note: Using static array to avoid allocation per call
             const regions = [
                 // Center region (weighted more heavily)
                 { x: vw * 0.3, y: vh * 0.3, w: vw * 0.4, h: vh * 0.4, weight: 0.5 },
@@ -103,6 +115,10 @@ export function useAutoLowLight({
             let minBrightness = 255;
             let maxBrightness = 0;
 
+            // Reuse the same Uint8ClampedArray reference for all regions
+            const data = reusableImageData.data;
+            const pixelCount = sampleSize * sampleSize;
+
             for (const region of regions) {
                 // Draw region to sample canvas
                 ctx.drawImage(
@@ -111,23 +127,24 @@ export function useAutoLowLight({
                     0, 0, sampleSize, sampleSize
                 );
 
-                const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
-                const data = imageData.data;
+                // Copy pixel data directly into our reusable buffer
+                // This copies into the existing Uint8ClampedArray instead of allocating new one
+                const freshData = ctx.getImageData(0, 0, sampleSize, sampleSize);
+                data.set(freshData.data);
 
                 let regionBrightness = 0;
-                let pixelCount = 0;
 
+                // Process pixel data (RGBA format, 4 bytes per pixel)
                 for (let i = 0; i < data.length; i += 4) {
                     // Use perceived brightness formula (ITU-R BT.709)
                     const luminance = 0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0);
                     regionBrightness += luminance;
-                    pixelCount++;
 
                     minBrightness = Math.min(minBrightness, luminance);
                     maxBrightness = Math.max(maxBrightness, luminance);
                 }
 
-                const avgRegionBrightness = pixelCount > 0 ? regionBrightness / pixelCount : 0;
+                const avgRegionBrightness = regionBrightness / pixelCount;
                 totalWeightedBrightness += avgRegionBrightness * region.weight;
             }
 

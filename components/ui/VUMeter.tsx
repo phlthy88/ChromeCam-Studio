@@ -1,58 +1,97 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+    getAudioContext,
+    isAudioContextSupported,
+    calculateRMSVolume,
+    getCSSProperty,
+    VU_METER_CONFIG,
+    VU_METER_COLORS,
+} from '../../utils/audio';
+
+interface VUMeterProps {
+    /** Optional existing audio stream to use instead of creating a new one */
+    audioStream?: MediaStream;
+}
 
 /**
  * Material 3 Audio Level Meter
  *
- * Visual indicator for microphone input levels
- * Uses M3 color tokens for theming
+ * Visual indicator for microphone input levels.
+ * Uses M3 color tokens for theming and shared AudioContext for efficiency.
+ *
+ * Improvements over original:
+ * - Uses shared AudioContext singleton (avoids browser limits)
+ * - Can accept existing audio stream (avoids duplicate getUserMedia calls)
+ * - Properly disconnects audio nodes on unmount
+ * - Extracts magic numbers to constants
  */
-const VUMeter: React.FC = () => {
+const VUMeter: React.FC<VUMeterProps> = ({ audioStream }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [active, setActive] = useState(false);
     const requestRef = useRef<number | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const ownStreamRef = useRef<MediaStream | null>(null);
 
     useEffect(() => {
-        let audioContext: AudioContext | null = null;
-        let analyser: AnalyserNode | null = null;
-        let microphone: MediaStreamAudioSourceNode | null = null;
-        let stream: MediaStream | null = null;
+        if (!isAudioContextSupported()) {
+            console.log('VU Meter: AudioContext not supported');
+            return;
+        }
+
+        let isActive = true;
 
         const initAudio = async () => {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const audioContext = getAudioContext();
+
+                // Use provided stream or create our own
+                let stream: MediaStream;
+                if (audioStream) {
+                    stream = audioStream;
+                } else {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    ownStreamRef.current = stream;
+                }
+
+                if (!isActive) {
+                    // Component unmounted during async operation
+                    if (ownStreamRef.current) {
+                        ownStreamRef.current.getTracks().forEach((track) => track.stop());
+                        ownStreamRef.current = null;
+                    }
+                    return;
+                }
+
                 setActive(true);
 
-                audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                microphone = audioContext.createMediaStreamSource(stream);
+                const analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
 
-                analyser.fftSize = 256;
-                analyser.smoothingTimeConstant = 0.5;
+                analyser.fftSize = VU_METER_CONFIG.FFT_SIZE;
+                analyser.smoothingTimeConstant = VU_METER_CONFIG.SMOOTHING;
 
-                microphone.connect(analyser);
+                source.connect(analyser);
+                // Note: We don't connect to destination to avoid feedback
+
+                analyserRef.current = analyser;
+                sourceRef.current = source;
 
                 const bufferLength = analyser.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
 
-                // Get CSS custom properties for M3 colors
-                const getColor = (property: string, fallback: string) => {
-                    return getComputedStyle(document.documentElement)
-                        .getPropertyValue(property).trim() || fallback;
-                };
+                // Get M3 inactive color from CSS
+                const colorInactive = getCSSProperty(
+                    '--md-sys-color-outline-variant',
+                    VU_METER_COLORS.INACTIVE_FALLBACK
+                );
 
                 const draw = () => {
-                    if (!analyser || !canvasRef.current) return;
+                    if (!isActive || !analyserRef.current || !canvasRef.current) return;
 
-                    analyser.getByteFrequencyData(dataArray);
+                    analyserRef.current.getByteFrequencyData(dataArray);
 
-                    // Calculate RMS for volume approximation
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        const value = dataArray[i] ?? 0;
-                        sum += value * value;
-                    }
-                    const rms = Math.sqrt(sum / bufferLength);
-                    const volume = Math.min(100, (rms / 128) * 100 * 1.5);
+                    const volume = calculateRMSVolume(dataArray);
 
                     const canvas = canvasRef.current;
                     const ctx = canvas.getContext('2d');
@@ -60,32 +99,25 @@ const VUMeter: React.FC = () => {
 
                     const width = canvas.width;
                     const height = canvas.height;
-                    const bars = 12;
-                    const gap = 2;
-                    const barWidth = (width - ((bars - 1) * gap)) / bars;
+                    const { BARS, GAP, GREEN_THRESHOLD, YELLOW_THRESHOLD } = VU_METER_CONFIG;
+                    const barWidth = (width - (BARS - 1) * GAP) / BARS;
 
                     ctx.clearRect(0, 0, width, height);
 
-                    // M3 color scheme for bars
-                    const colorLow = '#4ade80';      // Green (safe levels)
-                    const colorMid = '#facc15';      // Yellow (moderate)
-                    const colorHigh = '#f87171';     // Red (peak)
-                    const colorInactive = getColor('--md-sys-color-outline-variant', '#cac4d0');
-
                     // Draw bars
-                    for (let i = 0; i < bars; i++) {
-                        const x = i * (barWidth + gap);
-                        const threshold = (i + 1) * (100 / bars);
-                        const isActive = volume >= (threshold - (100 / bars) / 2);
+                    for (let i = 0; i < BARS; i++) {
+                        const x = i * (barWidth + GAP);
+                        const threshold = (i + 1) * (100 / BARS);
+                        const isBarActive = volume >= threshold - 100 / BARS / 2;
 
                         let color: string;
-                        if (isActive) {
-                            if (i < bars * 0.6) {
-                                color = colorLow;
-                            } else if (i < bars * 0.85) {
-                                color = colorMid;
+                        if (isBarActive) {
+                            if (i < BARS * GREEN_THRESHOLD) {
+                                color = VU_METER_COLORS.LOW;
+                            } else if (i < BARS * YELLOW_THRESHOLD) {
+                                color = VU_METER_COLORS.MID;
                             } else {
-                                color = colorHigh;
+                                color = VU_METER_COLORS.HIGH;
                             }
                         } else {
                             color = colorInactive;
@@ -101,9 +133,8 @@ const VUMeter: React.FC = () => {
                 };
 
                 draw();
-
             } catch (e) {
-                console.log("VU Meter: Audio permission denied or error", e);
+                console.log('VU Meter: Audio permission denied or error', e);
                 setActive(false);
             }
         };
@@ -111,11 +142,28 @@ const VUMeter: React.FC = () => {
         initAudio();
 
         return () => {
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            if (stream) stream.getTracks().forEach(track => track.stop());
-            if (audioContext) audioContext.close();
+            isActive = false;
+
+            // Cancel animation frame
+            if (requestRef.current) {
+                cancelAnimationFrame(requestRef.current);
+                requestRef.current = null;
+            }
+
+            // Disconnect audio nodes (important for memory cleanup)
+            if (sourceRef.current) {
+                sourceRef.current.disconnect();
+                sourceRef.current = null;
+            }
+            analyserRef.current = null;
+
+            // Stop our own stream if we created one
+            if (ownStreamRef.current) {
+                ownStreamRef.current.getTracks().forEach((track) => track.stop());
+                ownStreamRef.current = null;
+            }
         };
-    }, []);
+    }, [audioStream]);
 
     if (!active) return null;
 
