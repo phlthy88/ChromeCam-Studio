@@ -492,8 +492,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                     gap-2 p-2 sm:gap-4 sm:p-3 md:gap-5 md:p-4 lg:gap-6 lg:p-4
                 "
         >
-          {/* Secondary Actions (Left) - Hidden on very small screens */}
-          <div className="hidden sm:flex items-center gap-1 md:gap-2">
+          {/* Secondary Actions (Left) */}
+          <div className="flex items-center gap-1 md:gap-2">
             <button
               onClick={togglePiP}
               className="
