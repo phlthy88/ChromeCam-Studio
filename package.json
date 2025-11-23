@@ -24,7 +24,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:run": "vitest run",
-    "clean": "rm -rf dist node_modules/.vite",
+    "clean": "rm -rf node_modules dist package-lock.json",
     "clean:all": "rm -rf dist node_modules",
     "prepare": "echo 'Ready for development'"
   },
