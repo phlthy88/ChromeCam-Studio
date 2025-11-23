@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
         headers: {
           'Content-Security-Policy': [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net",
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
             "img-src 'self' blob: data:",
             "media-src 'self' blob:",
