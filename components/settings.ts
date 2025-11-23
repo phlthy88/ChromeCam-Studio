@@ -45,6 +45,10 @@ export interface CameraSettings {
     vignette: number; // 0-100 (Vignette intensity)
     softwareSharpness: number; // 0-100 (Software-based sharpening)
 
+    // Cinematic Color Grading (WebGL)
+    cinematicLut: string; // LUT preset ID ('none', 'teal-orange', etc.)
+    cinematicLutIntensity: number; // 0-100 (LUT blend intensity)
+
     // AI/System
     autoFrame: boolean;
     denoise: boolean;
@@ -62,6 +66,18 @@ export interface CameraSettings {
     autoGainControl: boolean;
     sampleRate: number; // 44100 | 48000
     channelCount: number; // 1 (mono) | 2 (stereo)
+
+    // Audio Processor (Web Audio API)
+    audioCompressorEnabled: boolean;
+    audioCompressorThreshold: number; // dB (-100 to 0)
+    audioCompressorKnee: number; // dB (0 to 40)
+    audioCompressorRatio: number; // 1 to 20
+    audioCompressorAttack: number; // seconds (0 to 1)
+    audioCompressorRelease: number; // seconds (0 to 1)
+    audioNoiseGateEnabled: boolean;
+    audioNoiseGateThreshold: number; // dB (-100 to 0)
+    audioNoiseGateAttack: number; // seconds (0 to 0.5)
+    audioNoiseGateRelease: number; // seconds (0 to 1)
 
     // Resolution & Stream
     resolution: string; // '720p' | '1080p' | '4k' | 'custom'
@@ -132,6 +148,10 @@ export const DEFAULT_SETTINGS: CameraSettings = {
     vignette: 0,
     softwareSharpness: 0,
 
+    // Cinematic Color Grading (WebGL)
+    cinematicLut: 'none',
+    cinematicLutIntensity: 100,
+
     // AI/System
     autoFrame: false,
     denoise: false,
@@ -149,6 +169,18 @@ export const DEFAULT_SETTINGS: CameraSettings = {
     autoGainControl: true,
     sampleRate: 48000,
     channelCount: 1,
+
+    // Audio Processor
+    audioCompressorEnabled: false,
+    audioCompressorThreshold: -24,
+    audioCompressorKnee: 12,
+    audioCompressorRatio: 4,
+    audioCompressorAttack: 0.003,
+    audioCompressorRelease: 0.25,
+    audioNoiseGateEnabled: false,
+    audioNoiseGateThreshold: -50,
+    audioNoiseGateAttack: 0.005,
+    audioNoiseGateRelease: 0.1,
 
     // Resolution & Stream
     resolution: '720p',

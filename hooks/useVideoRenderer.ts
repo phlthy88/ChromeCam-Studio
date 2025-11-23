@@ -3,6 +3,7 @@ import type { CameraSettings } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
 import type { AutoFrameTransform } from './useBodySegmentation';
 import { useProOverlays } from './useProOverlays';
+import { useWebGLRenderer } from './useWebGLRenderer';
 
 interface FilterDef {
     css: string;
@@ -228,6 +229,7 @@ export interface UseVideoRendererReturn {
     maskCanvasRef: React.RefObject<HTMLCanvasElement | null>;
     tempCanvasRef: React.RefObject<HTMLCanvasElement | null>;
     currentTransformRef: React.RefObject<AutoFrameTransform>;
+    isWebGLActive: boolean;
 }
 
 /**
@@ -289,6 +291,16 @@ export function useVideoRenderer({
     });
 
     const { drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking } = useProOverlays();
+
+    // Initialize WebGL LUT renderer
+    const {
+        isReady: isWebGLReady,
+        applyLutGrading,
+    } = useWebGLRenderer({
+        enabled: settingsRef.current.cinematicLut !== 'none',
+        lutPreset: settings.cinematicLut,
+        lutIntensity: settings.cinematicLutIntensity,
+    });
 
     // Keep settings ref updated
     useEffect(() => {
@@ -556,6 +568,15 @@ export function useVideoRenderer({
                         }
                     }
 
+                    // Apply WebGL LUT cinematic color grading
+                    const { cinematicLut } = settingsRef.current;
+                    if (cinematicLut !== 'none' && isWebGLReady) {
+                        const lutCanvas = applyLutGrading(canvas);
+                        if (lutCanvas) {
+                            ctx.drawImage(lutCanvas, 0, 0);
+                        }
+                    }
+
                     // Draw professional overlays
                     if (gridOverlay !== 'none') {
                         drawGridOverlay(ctx, canvas.width, canvas.height, gridOverlay);
@@ -611,12 +632,15 @@ export function useVideoRenderer({
         drawHistogram,
         drawZebraStripes,
         drawFocusPeaking,
+        isWebGLReady,
+        applyLutGrading,
     ]);
 
     return {
         maskCanvasRef,
         tempCanvasRef,
         currentTransformRef,
+        isWebGLActive: isWebGLReady && settings.cinematicLut !== 'none',
     };
 }
 
