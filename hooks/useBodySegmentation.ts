@@ -316,7 +316,10 @@ export function useBodySegmentation({
       }
 
       if (isLoopActive) {
-        timeoutId = setTimeout(inferenceLoop, 33); // ~30fps inference
+        // Use requestAnimationFrame for better performance synchronization
+        // This prevents double work by aligning with the render loop
+        // Only run inference every other frame (~30fps on 60fps displays)
+        timeoutId = setTimeout(inferenceLoop, 66); // ~15fps inference to reduce CPU load
       }
     };
 
@@ -336,19 +339,10 @@ export function useBodySegmentation({
     };
   }, []);
 
-  // Temporary: Return test face landmarks for debugging
-  const testLandmarks = [
-    { x: 0.3, y: 0.4 }, // Left eye
-    { x: 0.7, y: 0.4 }, // Right eye
-    { x: 0.5, y: 0.6 }, // Nose
-    { x: 0.2, y: 0.7 }, // Jaw left
-    { x: 0.8, y: 0.7 }, // Jaw right
-  ];
-
   return {
     segmentationMaskRef,
     targetTransformRef,
-    faceLandmarks: faceLandmarks || testLandmarks, // Use test landmarks if none detected
+    faceLandmarks, // Will be null if no face detection - beauty effects need real landmarks
     isAiActive,
     loadingStatus,
     loadingError,

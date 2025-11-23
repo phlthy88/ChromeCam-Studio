@@ -14,10 +14,13 @@ import {
   useVirtualCamera,
 } from '../hooks';
 
+import type { DetectedCapabilities } from './settings';
+
 interface VideoPanelProps {
   deviceId: string | null;
   settings: CameraSettings;
   onCapabilitiesChange?: (capabilities: ExtendedMediaTrackCapabilities | null) => void;
+  onDetectedCapabilitiesChange?: (capabilities: DetectedCapabilities | null) => void;
   onProcessedAudioStream?: (stream: MediaStream | null) => void;
 }
 
@@ -43,6 +46,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   deviceId,
   settings,
   onCapabilitiesChange,
+  onDetectedCapabilitiesChange,
   onProcessedAudioStream,
 }) => {
   console.log('[VideoPanel] Rendering with deviceId:', deviceId, 'settings:', settings);
@@ -145,12 +149,20 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     videoRef,
     streamRef,
     hardwareCapabilities,
+    detectedCapabilities,
     error: cameraError,
   } = useCameraStream({
     deviceId,
     settings,
     onCapabilitiesChange: handleCapabilitiesChange,
   });
+
+  // Report detected capabilities to parent when they change
+  useEffect(() => {
+    if (onDetectedCapabilitiesChange) {
+      onDetectedCapabilitiesChange(detectedCapabilities);
+    }
+  }, [detectedCapabilities, onDetectedCapabilitiesChange]);
 
   // Auto low-light detection and gain adjustment
   const { autoGain } = useAutoLowLight({

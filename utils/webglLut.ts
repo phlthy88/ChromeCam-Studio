@@ -5,11 +5,23 @@
  * 3D LUTs map input RGB values to output RGB values for precise color manipulation.
  */
 
-// Vertex shader - simple pass-through for full-screen quad
+// Vertex shader - simple pass-through for full-screen quad (GLSL ES 1.0 for LUT)
 const VERTEX_SHADER = `
     attribute vec2 a_position;
     attribute vec2 a_texCoord;
     varying vec2 v_texCoord;
+
+    void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+        v_texCoord = a_texCoord;
+    }
+`;
+
+// Vertex shader for face warp (GLSL ES 3.0 to match fragment shader)
+const FACE_WARP_VERTEX = `#version 300 es
+    in vec2 a_position;
+    in vec2 a_texCoord;
+    out vec2 v_texCoord;
 
     void main() {
         gl_Position = vec4(a_position, 0.0, 1.0);
@@ -176,10 +188,10 @@ export interface CinematicLut {
 
 /**
  * WebGL Face Warp Renderer class
- * Handles GPU-accelerated facial warping
+ * Handles GPU-accelerated facial warping using WebGL2
  */
 export class WebGLFaceWarpRenderer {
-  private gl: WebGLRenderingContext | null = null;
+  private gl: WebGL2RenderingContext | null = null;
   private program: WebGLProgram | null = null;
   private positionBuffer: WebGLBuffer | null = null;
   private texCoordBuffer: WebGLBuffer | null = null;
@@ -188,38 +200,38 @@ export class WebGLFaceWarpRenderer {
   private landmarks: any = null;
 
   /**
-   * Check if WebGL is supported
+   * Check if WebGL2 is supported (required for GLSL ES 3.0)
    */
   static isSupported(): boolean {
     try {
       const canvas = document.createElement('canvas');
-      return !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+      return !!canvas.getContext('webgl2');
     } catch {
       return false;
     }
   }
 
   /**
-   * Initialize the WebGL context and shaders
+   * Initialize the WebGL2 context and shaders
    */
   initialize(canvas: HTMLCanvasElement): boolean {
-    console.log('[WebGLFaceWarpRenderer] Initializing WebGL face warp renderer...');
+    console.log('[WebGLFaceWarpRenderer] Initializing WebGL2 face warp renderer...');
     this.canvas = canvas;
 
-    // Get WebGL context
-    this.gl = canvas.getContext('webgl', {
+    // Get WebGL2 context (required for GLSL ES 3.0 shaders)
+    this.gl = canvas.getContext('webgl2', {
       alpha: false,
       premultipliedAlpha: false,
       preserveDrawingBuffer: true,
-    }) as WebGLRenderingContext | null;
+    }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
-      console.error('[WebGLFaceWarpRenderer] WebGL context creation failed');
+      console.error('[WebGLFaceWarpRenderer] WebGL2 context creation failed - beauty effects unavailable');
       return false;
     }
 
-    // Compile shaders
-    const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, VERTEX_SHADER);
+    // Compile shaders - use GLSL ES 3.0 compatible vertex shader
+    const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, FACE_WARP_VERTEX);
     const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, FACE_WARP_FRAGMENT);
 
     if (!vertexShader || !fragmentShader) {

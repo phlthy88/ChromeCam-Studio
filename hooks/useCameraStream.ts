@@ -78,8 +78,8 @@ function analyzeCapabilities(caps: ExtendedMediaTrackCapabilities): DetectedCapa
         : 30;
     detected.maxFrameRate = maxFps;
 
-    // Generate supported frame rates
-    const standardFps = [15, 24, 30, 60, 120];
+    // Generate supported frame rates - include higher options for high-refresh cameras
+    const standardFps = [15, 24, 30, 48, 60, 90, 100, 120, 144, 240];
     detected.supportedFrameRates = standardFps.filter((fps) => fps <= maxFps);
     if (detected.supportedFrameRates.length === 0) {
       detected.supportedFrameRates = [30]; // Fallback
@@ -333,13 +333,13 @@ export function useCameraStream({
         hasChanges = true;
       }
 
-      // Pan and Tilt
+      // Pan and Tilt - UI range is -50 to 50
       if (hardwareCapabilities.panX && caps.pan) {
-        advancedConstraint.pan = mapRange(settings.panX, -1, 1, caps.pan.min, caps.pan.max);
+        advancedConstraint.pan = mapRange(settings.panX, -50, 50, caps.pan.min, caps.pan.max);
         hasChanges = true;
       }
       if (hardwareCapabilities.panY && caps.tilt) {
-        advancedConstraint.tilt = mapRange(settings.panY, -1, 1, caps.tilt.min, caps.tilt.max);
+        advancedConstraint.tilt = mapRange(settings.panY, -50, 50, caps.tilt.min, caps.tilt.max);
         hasChanges = true;
       }
 

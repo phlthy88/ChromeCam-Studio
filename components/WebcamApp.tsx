@@ -64,6 +64,7 @@ const WebcamAppInner: React.FC = () => {
   const [settings, setSettings] = useState<CameraSettings>(DEFAULT_SETTINGS);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [capabilities, setCapabilities] = useState<ExtendedMediaTrackCapabilities | null>(null);
+  const [detectedCapabilities, setDetectedCapabilities] = useState<import('./settings').DetectedCapabilities | null>(null);
   const [processedAudioStream, setProcessedAudioStream] = useState<MediaStream | null>(null);
   const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
@@ -261,6 +262,7 @@ const WebcamAppInner: React.FC = () => {
                 onSettingsChange={handleSettingsChange}
                 onCloseMobile={() => setIsSidebarOpen(false)}
                 capabilities={capabilities}
+                detectedCapabilities={detectedCapabilities}
                 audioDevices={audioDevices}
               />
             </div>
@@ -282,6 +284,7 @@ const WebcamAppInner: React.FC = () => {
               deviceId={selectedDeviceId}
               settings={settings}
               onCapabilitiesChange={setCapabilities}
+              onDetectedCapabilitiesChange={setDetectedCapabilities}
               onProcessedAudioStream={setProcessedAudioStream}
             />
           </div>

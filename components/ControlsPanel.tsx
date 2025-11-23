@@ -11,6 +11,7 @@ import {
   VIDEO_CODECS,
   AUDIO_CODECS,
   GRID_OVERLAYS,
+  type DetectedCapabilities,
 } from './settings';
 import { useOBSIntegration } from '../hooks';
 import { CINEMATIC_LUT_PRESETS } from '../data/cinematicLuts';
@@ -21,6 +22,7 @@ interface ControlsPanelProps {
   onSettingsChange: (settings: CameraSettings) => void;
   onCloseMobile?: () => void;
   capabilities?: ExtendedMediaTrackCapabilities | null;
+  detectedCapabilities?: DetectedCapabilities | null;
   audioDevices?: MediaDeviceInfo[];
 }
 
@@ -137,6 +139,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onSettingsChange,
   onCloseMobile,
   capabilities,
+  detectedCapabilities,
   audioDevices,
 }) => {
   // OBS Integration
@@ -972,19 +975,38 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         {/* Resolution & Stream */}
         <ControlSection title="Resolution & Stream" onReset={resetStream}>
           <div className="space-y-5">
-            {/* Resolution Picker */}
+            {/* Resolution Picker - filtered by camera capabilities */}
             <div>
-              <label className="md-label-large text-on-surface mb-3 block">Resolution</label>
+              <label className="md-label-large text-on-surface mb-3 block">
+                Resolution
+                {detectedCapabilities?.maxResolution && (
+                  <span className="text-outline ml-2 text-sm">
+                    (max: {detectedCapabilities.maxResolution.width}x{detectedCapabilities.maxResolution.height})
+                  </span>
+                )}
+              </label>
               <div className="flex gap-2 flex-wrap">
-                {Object.entries(RESOLUTION_PRESETS).map(([id, preset]) => (
-                  <Chip
-                    key={id}
-                    label={preset.label}
-                    selected={settings.resolution === id}
-                    onClick={() => update('resolution', id)}
-                    variant="filter"
-                  />
-                ))}
+                {Object.entries(RESOLUTION_PRESETS)
+                  .filter(([id, preset]) => {
+                    // Always show custom option
+                    if (id === 'custom') return true;
+                    // If no capabilities detected, show all
+                    if (!detectedCapabilities?.maxResolution) return true;
+                    // Filter based on max resolution
+                    return (
+                      preset.width <= detectedCapabilities.maxResolution.width &&
+                      preset.height <= detectedCapabilities.maxResolution.height
+                    );
+                  })
+                  .map(([id, preset]) => (
+                    <Chip
+                      key={id}
+                      label={preset.label}
+                      selected={settings.resolution === id}
+                      onClick={() => update('resolution', id)}
+                      variant="filter"
+                    />
+                  ))}
               </div>
             </div>
 
@@ -1010,11 +1032,21 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               </div>
             )}
 
-            {/* Frame Rate */}
+            {/* Frame Rate - filtered by camera capabilities */}
             <div className="pt-4 border-t border-outline-variant">
-              <label className="md-label-large text-on-surface mb-3 block">Frame Rate</label>
-              <div className="flex gap-2">
-                {FRAME_RATE_PRESETS.map((fps) => (
+              <label className="md-label-large text-on-surface mb-3 block">
+                Frame Rate
+                {detectedCapabilities?.maxFrameRate && (
+                  <span className="text-outline ml-2 text-sm">
+                    (max: {detectedCapabilities.maxFrameRate} fps)
+                  </span>
+                )}
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {(detectedCapabilities?.supportedFrameRates?.length
+                  ? detectedCapabilities.supportedFrameRates
+                  : FRAME_RATE_PRESETS
+                ).map((fps) => (
                   <Chip
                     key={fps}
                     label={`${fps} fps`}
