@@ -77,12 +77,11 @@ const Header: React.FC<HeaderProps> = ({
             className="
                 bg-surface text-on-surface
                 flex items-center justify-between
-                px-4 lg:px-6
-                pt-[env(titlebar-area-height,12px)] pb-3
+                px-4 lg:px-5
+                pt-[env(titlebar-area-height,10px)] pb-2.5
                 shrink-0 z-40 relative
-                shadow-elevation-0
             "
-            style={{ minHeight: '64px' }}
+            style={{ minHeight: '56px' }}
         >
             <div className="flex items-center gap-3 w-full">
 
@@ -121,7 +120,7 @@ const Header: React.FC<HeaderProps> = ({
                 </h1>
 
                 <div className="ml-auto flex items-center gap-3">
-                    {/* Theme Toggle Button */}
+                    {/* Theme Toggle Button - Softer interaction states */}
                     {onThemeChange && (
                         <button
                             onClick={() => {
@@ -129,13 +128,13 @@ const Header: React.FC<HeaderProps> = ({
                                 onThemeChange(nextTheme);
                             }}
                             className="
-                                p-2.5
-                                rounded-full
+                                p-2
+                                rounded-lg
                                 text-on-surface-variant
-                                hover:bg-on-surface/[0.08]
-                                active:bg-on-surface/[0.12]
+                                hover:bg-on-surface/[0.05]
+                                active:bg-on-surface/[0.08]
                                 transition-colors duration-short2 ease-standard
-                                focus:outline-none focus-visible:bg-on-surface/[0.12]
+                                focus:outline-none focus-visible:bg-on-surface/[0.08]
                             "
                             title={`Theme: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`}
                             aria-label={`Current theme: ${theme}. Click to change.`}
@@ -219,18 +218,18 @@ const Header: React.FC<HeaderProps> = ({
                             onChange={(e) => onDeviceChange(e.target.value)}
                             className="
                                 appearance-none
-                                bg-surface-container-high
-                                hover:bg-surface-container-highest
+                                bg-surface-container
+                                hover:bg-surface-high
                                 text-on-surface
                                 md-label-large
-                                rounded-full
-                                py-2.5 pl-10 pr-9
-                                border border-outline-variant
+                                rounded-lg
+                                py-2 pl-9 pr-8
+                                border border-outline-variant/40
                                 outline-none
-                                focus:border-primary focus:ring-2 focus:ring-primary/20
+                                focus:border-primary/60 focus:ring-1 focus:ring-primary/15
                                 transition-all duration-short2 ease-standard
                                 cursor-pointer
-                                min-w-[140px] max-w-[220px] truncate
+                                min-w-[140px] max-w-[200px] truncate
                             "
                             aria-label="Select Camera"
                         >
