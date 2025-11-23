@@ -244,7 +244,9 @@ export function useBodySegmentation({
                         setIsAiActive(false);
                     }
                 } catch (e) {
+                    console.error('[AI] Runtime error during segmentation:', e);
                     setAiRuntimeError(true);
+                    setLoadingError('AI processing encountered an error. Some features may be unavailable.');
                 }
             }
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { CameraSettings } from '../components/settings';
 import { VIDEO_CODECS } from '../components/settings';
 
@@ -171,9 +171,26 @@ export function useMediaRecorder({
                 }, 1000);
             } catch (e) {
                 console.error('Recording failed', e);
+                // Reset recording state when MediaRecorder fails to start
+                setIsRecording(false);
+                setRecordingTime(0);
+                if (recordingTimerRef.current) {
+                    clearInterval(recordingTimerRef.current);
+                    recordingTimerRef.current = null;
+                }
             }
         }
     }, [isRecording, canvasRef, streamRef, settings, processedAudioStream]);
+
+    // Cleanup recording timer on unmount to prevent memory leak
+    useEffect(() => {
+        return () => {
+            if (recordingTimerRef.current) {
+                clearInterval(recordingTimerRef.current);
+                recordingTimerRef.current = null;
+            }
+        };
+    }, []);
 
     return {
         isRecording,

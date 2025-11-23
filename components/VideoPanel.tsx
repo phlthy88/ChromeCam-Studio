@@ -43,6 +43,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
 
     // UI state
     const [isCompareActive, setIsCompareActive] = useState(false);
+    const [bgImageError, setBgImageError] = useState<string | null>(null);
+    const [isMobileToolbarVisible, setIsMobileToolbarVisible] = useState(false);
 
     // Keep screen awake during camera operation
     useWakeLock();
@@ -69,7 +71,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     });
 
     // Audio processing (compressor + noise gate)
-    const { processedStream: processedAudioStream, isProcessing: isAudioProcessing } = useAudioProcessor({
+    const { processedStream: processedAudioStream, isProcessing: isAudioProcessing, audioError } = useAudioProcessor({
         inputStream: streamRef.current,
         enabled: settings.enableAudio,
         compressorEnabled: settings.audioCompressorEnabled,
@@ -133,12 +135,15 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             img.src = settings.virtualBackgroundImage;
             img.onload = () => {
                 bgImageRef.current = img;
+                setBgImageError(null);
             };
             img.onerror = () => {
                 bgImageRef.current = null;
+                setBgImageError('Failed to load virtual background image');
             };
         } else {
             bgImageRef.current = null;
+            setBgImageError(null);
         }
     }, [settings.virtualBackground, settings.virtualBackgroundImage]);
 
@@ -282,8 +287,9 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             )}
 
             {isRecording && (
-                <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-error-container/90 backdrop-blur-sm rounded-full border border-error/30 shadow-sm animate-pulse">
-                    <div className="w-2 h-2 rounded-full bg-error"></div>
+                <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-error-container/90 backdrop-blur-sm rounded-full border border-error/30 shadow-sm animate-pulse" role="status" aria-live="polite" aria-label={`Recording: ${formatTime(recordingTime)}`}>
+                    <div className="w-2 h-2 rounded-full bg-error" aria-hidden="true"></div>
+                    <span className="md-label-small text-on-error-container font-semibold">REC</span>
                     <span className="md-label-small text-on-error-container font-mono">{formatTime(recordingTime)}</span>
                 </div>
             )}
@@ -311,20 +317,27 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             )}
 
             {/* Error Display */}
-            {(cameraError || loadingError) && (
+            {(cameraError || loadingError || audioError || bgImageError) && (
                 <div className="absolute z-30 text-on-error-container bg-error-container/90 px-4 py-2 rounded-full backdrop-blur-sm flex items-center gap-2">
-                    <span className="text-sm font-medium">{cameraError || loadingError}</span>
+                    <span className="text-sm font-medium">{cameraError || loadingError || audioError || bgImageError}</span>
                 </div>
             )}
 
-            {/* M3 FLOATING TOOLBAR */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 transition-transform duration-300 translate-y-[150%] group-hover:translate-y-0">
+            {/* Mobile tap zone to toggle toolbar visibility */}
+            <div
+                className="absolute inset-0 z-30 md:hidden"
+                onClick={() => setIsMobileToolbarVisible(prev => !prev)}
+                aria-hidden="true"
+            />
+
+            {/* M3 FLOATING TOOLBAR - hover on desktop, tap-to-show on mobile */}
+            <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-40 transition-transform duration-300 ${isMobileToolbarVisible ? 'translate-y-0' : 'translate-y-[150%]'} md:translate-y-[150%] md:group-hover:translate-y-0`}>
                 <div className="flex items-center gap-6 p-4 bg-surface-container-low/95 backdrop-blur-lg rounded-full shadow-elevation-3 border border-outline-variant/30">
 
                     {/* Secondary Actions (Left) */}
                     <div className="flex items-center gap-2">
-                        <button onClick={togglePiP} className="p-3 rounded-full text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20 transition-colors" title="Picture-in-Picture">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <button onClick={togglePiP} className="p-3 rounded-full text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20 transition-colors" title="Picture-in-Picture" aria-label="Toggle Picture-in-Picture mode">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                             </svg>
                         </button>
@@ -333,8 +346,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                     {/* Primary Actions (Center) */}
                     <div className="flex items-center gap-4 px-2 border-x border-outline-variant/20">
                         {/* Snapshot: Filled Tonal Button */}
-                        <button onClick={handleSnapshot} className="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container text-on-secondary-container hover:shadow-elevation-1 active:scale-95 transition-all" title="Take Snapshot">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <button onClick={handleSnapshot} className="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container text-on-secondary-container hover:shadow-elevation-1 active:scale-95 transition-all" title="Take Snapshot" aria-label="Take snapshot (Space)">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
@@ -345,8 +358,10 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                             onClick={toggleRecording}
                             className={`w-16 h-16 flex items-center justify-center rounded-2xl transition-all duration-300 shadow-elevation-2 hover:shadow-elevation-4 active:scale-95 ${isRecording ? 'bg-error text-on-error' : 'bg-primary text-on-primary'}`}
                             title={isRecording ? 'Stop Recording' : 'Start Recording'}
+                            aria-label={isRecording ? 'Stop recording (R)' : 'Start recording (R)'}
+                            aria-pressed={isRecording}
                         >
-                            <div className={`transition-all duration-300 ${isRecording ? 'w-6 h-6 bg-current rounded-sm' : 'w-4 h-4 bg-current rounded-full scale-150'}`}></div>
+                            <div className={`transition-all duration-300 ${isRecording ? 'w-6 h-6 bg-current rounded-sm' : 'w-4 h-4 bg-current rounded-full scale-150'}`} aria-hidden="true"></div>
                         </button>
                     </div>
 
@@ -360,8 +375,10 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                             onTouchEnd={() => setIsCompareActive(false)}
                             className={`p-3 rounded-full transition-colors ${isCompareActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-on-surface-variant/10'}`}
                             title="Hold to Compare"
+                            aria-label="Hold to compare with original (C)"
+                            aria-pressed={isCompareActive}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>

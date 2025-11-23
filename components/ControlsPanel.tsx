@@ -201,6 +201,62 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         URL.revokeObjectURL(url);
     };
 
+    // Validate imported settings against expected schema
+    const validateImportedSettings = (imported: unknown): Partial<CameraSettings> | null => {
+        if (typeof imported !== 'object' || imported === null) {
+            return null;
+        }
+
+        const validatedSettings: Partial<CameraSettings> = {};
+        const importedObj = imported as Record<string, unknown>;
+
+        // Define expected types for each setting
+        const expectedTypes: Record<keyof CameraSettings, 'number' | 'boolean' | 'string' | 'string|null'> = {
+            brightness: 'number', contrast: 'number', saturation: 'number', grayscale: 'number',
+            sepia: 'number', hue: 'number', sharpness: 'number', exposureMode: 'string',
+            exposureTime: 'number', exposureCompensation: 'number', whiteBalanceMode: 'string',
+            colorTemperature: 'number', focusMode: 'string', focusDistance: 'number', iso: 'number',
+            backlightCompensation: 'boolean', powerLineFrequency: 'string', torch: 'boolean',
+            activeFilter: 'string', zoom: 'number', panX: 'number', panY: 'number', rotation: 'number',
+            mirror: 'boolean', blur: 'number', portraitLighting: 'number', faceSmoothing: 'number',
+            vignette: 'number', softwareSharpness: 'number', cinematicLut: 'string',
+            cinematicLutIntensity: 'number', autoFrame: 'boolean', denoise: 'boolean',
+            autoLowLight: 'boolean', virtualBackground: 'boolean', virtualBackgroundImage: 'string|null',
+            qrMode: 'boolean', enableAudio: 'boolean', noiseSuppression: 'boolean',
+            bandwidthSaver: 'boolean', audioDeviceId: 'string|null', echoCancellation: 'boolean',
+            autoGainControl: 'boolean', sampleRate: 'number', channelCount: 'number',
+            audioCompressorEnabled: 'boolean', audioCompressorThreshold: 'number',
+            audioCompressorKnee: 'number', audioCompressorRatio: 'number',
+            audioCompressorAttack: 'number', audioCompressorRelease: 'number',
+            audioNoiseGateEnabled: 'boolean', audioNoiseGateThreshold: 'number',
+            audioNoiseGateAttack: 'number', audioNoiseGateRelease: 'number', resolution: 'string',
+            customWidth: 'number', customHeight: 'number', frameRate: 'number',
+            aspectRatioLock: 'string', facingMode: 'string', videoCodec: 'string',
+            audioCodec: 'string', videoBitrate: 'number', audioBitrate: 'number',
+            gridOverlay: 'string', showHistogram: 'boolean', showZebraStripes: 'boolean',
+            zebraThreshold: 'number', showFocusPeaking: 'boolean', focusPeakingColor: 'string',
+        };
+
+        // Validate each key
+        for (const key of Object.keys(expectedTypes) as Array<keyof CameraSettings>) {
+            if (key in importedObj) {
+                const value = importedObj[key];
+                const expectedType = expectedTypes[key];
+
+                if (expectedType === 'string|null') {
+                    if (value === null || typeof value === 'string') {
+                        (validatedSettings as Record<string, unknown>)[key] = value;
+                    }
+                } else if (typeof value === expectedType) {
+                    (validatedSettings as Record<string, unknown>)[key] = value;
+                }
+                // Skip invalid values silently - they'll use defaults
+            }
+        }
+
+        return Object.keys(validatedSettings).length > 0 ? validatedSettings : null;
+    };
+
     const importSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -208,9 +264,16 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             reader.onload = (event) => {
                 try {
                     const imported = JSON.parse(event.target?.result as string);
-                    onSettingsChange({ ...DEFAULT_SETTINGS, ...imported });
+                    const validated = validateImportedSettings(imported);
+                    if (validated) {
+                        onSettingsChange({ ...DEFAULT_SETTINGS, ...validated });
+                    } else {
+                        console.error('Invalid settings file format');
+                        alert('Invalid settings file format. Please ensure you are importing a valid ChromeCam settings file.');
+                    }
                 } catch (err) {
                     console.error('Failed to import settings:', err);
+                    alert('Failed to parse settings file. Please ensure the file is valid JSON.');
                 }
             };
             reader.readAsText(file);
