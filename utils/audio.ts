@@ -119,3 +119,296 @@ export function calculateRMSVolume(dataArray: Uint8Array): number {
 export function getCSSProperty(property: string, fallback: string): string {
     return getComputedStyle(document.documentElement).getPropertyValue(property).trim() || fallback;
 }
+
+/**
+ * Audio Processor Configuration
+ */
+export interface CompressorConfig {
+    threshold: number; // dB (-100 to 0)
+    knee: number; // dB (0 to 40)
+    ratio: number; // 1 to 20
+    attack: number; // seconds (0 to 1)
+    release: number; // seconds (0 to 1)
+}
+
+export interface NoiseGateConfig {
+    threshold: number; // dB (-100 to 0)
+    attack: number; // seconds (0 to 0.5)
+    release: number; // seconds (0 to 1)
+}
+
+/**
+ * Default compressor settings for voice
+ */
+export const DEFAULT_COMPRESSOR_CONFIG: CompressorConfig = {
+    threshold: -24,
+    knee: 12,
+    ratio: 4,
+    attack: 0.003,
+    release: 0.25,
+};
+
+/**
+ * Default noise gate settings
+ */
+export const DEFAULT_NOISE_GATE_CONFIG: NoiseGateConfig = {
+    threshold: -50,
+    attack: 0.005,
+    release: 0.1,
+};
+
+/**
+ * Create a DynamicsCompressorNode with the given configuration.
+ *
+ * @param ctx - AudioContext to create the node in
+ * @param config - Compressor configuration
+ * @returns Configured DynamicsCompressorNode
+ */
+export function createCompressor(
+    ctx: AudioContext,
+    config: CompressorConfig = DEFAULT_COMPRESSOR_CONFIG
+): DynamicsCompressorNode {
+    const compressor = ctx.createDynamicsCompressor();
+
+    compressor.threshold.value = config.threshold;
+    compressor.knee.value = config.knee;
+    compressor.ratio.value = config.ratio;
+    compressor.attack.value = config.attack;
+    compressor.release.value = config.release;
+
+    return compressor;
+}
+
+/**
+ * Update compressor parameters in real-time.
+ *
+ * @param compressor - The compressor node to update
+ * @param config - New configuration values
+ */
+export function updateCompressor(
+    compressor: DynamicsCompressorNode,
+    config: Partial<CompressorConfig>
+): void {
+    if (config.threshold !== undefined) compressor.threshold.value = config.threshold;
+    if (config.knee !== undefined) compressor.knee.value = config.knee;
+    if (config.ratio !== undefined) compressor.ratio.value = config.ratio;
+    if (config.attack !== undefined) compressor.attack.value = config.attack;
+    if (config.release !== undefined) compressor.release.value = config.release;
+}
+
+/**
+ * Noise Gate implementation using Web Audio API
+ *
+ * Since Web Audio API doesn't have a native noise gate, we implement it using:
+ * - An AnalyserNode to measure input level
+ * - A GainNode to control output
+ * - A scriptProcessorNode/worklet for real-time processing
+ *
+ * This creates a simple expander that reduces gain below the threshold.
+ */
+export class NoiseGate {
+    private analyser: AnalyserNode;
+    private gainNode: GainNode;
+    private inputNode: GainNode;
+    private config: NoiseGateConfig;
+    private isOpen: boolean = false;
+    private currentGain: number = 1;
+    private animationFrameId: number | null = null;
+    private dataArray: Float32Array;
+
+    constructor(ctx: AudioContext, config: NoiseGateConfig = DEFAULT_NOISE_GATE_CONFIG) {
+        this.config = { ...config };
+
+        // Create nodes
+        this.inputNode = ctx.createGain();
+        this.analyser = ctx.createAnalyser();
+        this.gainNode = ctx.createGain();
+
+        // Configure analyser
+        this.analyser.fftSize = 256;
+        this.analyser.smoothingTimeConstant = 0.3;
+        this.dataArray = new Float32Array(this.analyser.frequencyBinCount);
+
+        // Connect internal chain
+        this.inputNode.connect(this.analyser);
+        this.inputNode.connect(this.gainNode);
+
+        // Start processing
+        this.startProcessing();
+    }
+
+    /**
+     * Get the input node to connect audio source to
+     */
+    get input(): GainNode {
+        return this.inputNode;
+    }
+
+    /**
+     * Get the output node to connect to destination
+     */
+    get output(): GainNode {
+        return this.gainNode;
+    }
+
+    /**
+     * Update gate configuration
+     */
+    updateConfig(config: Partial<NoiseGateConfig>): void {
+        if (config.threshold !== undefined) this.config.threshold = config.threshold;
+        if (config.attack !== undefined) this.config.attack = config.attack;
+        if (config.release !== undefined) this.config.release = config.release;
+    }
+
+    /**
+     * Check if the gate is currently open
+     */
+    get gateOpen(): boolean {
+        return this.isOpen;
+    }
+
+    /**
+     * Get current gain reduction in dB
+     */
+    get reduction(): number {
+        return 20 * Math.log10(this.currentGain + 0.0001);
+    }
+
+    private startProcessing(): void {
+        const process = () => {
+            // Get current RMS level in dB
+            this.analyser.getFloatTimeDomainData(this.dataArray);
+
+            let sum = 0;
+            for (let i = 0; i < this.dataArray.length; i++) {
+                const sample = this.dataArray[i] ?? 0;
+                sum += sample * sample;
+            }
+            const rms = Math.sqrt(sum / this.dataArray.length);
+            const dbLevel = 20 * Math.log10(rms + 0.0001);
+
+            // Determine if gate should be open or closed
+            const shouldBeOpen = dbLevel > this.config.threshold;
+
+            // Calculate target gain
+            const targetGain = shouldBeOpen ? 1 : 0;
+
+            // Apply attack/release smoothing
+            const smoothingTime = shouldBeOpen ? this.config.attack : this.config.release;
+            const smoothingFactor = Math.min(1, (1 / 60) / smoothingTime); // Assuming ~60fps
+
+            this.currentGain = this.currentGain + (targetGain - this.currentGain) * smoothingFactor;
+            this.isOpen = this.currentGain > 0.5;
+
+            // Apply gain
+            this.gainNode.gain.value = this.currentGain;
+
+            this.animationFrameId = requestAnimationFrame(process);
+        };
+
+        this.animationFrameId = requestAnimationFrame(process);
+    }
+
+    /**
+     * Disconnect and clean up resources
+     */
+    dispose(): void {
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+
+        this.inputNode.disconnect();
+        this.analyser.disconnect();
+        this.gainNode.disconnect();
+    }
+}
+
+/**
+ * Audio processing chain for microphone input
+ *
+ * Chain order:
+ * Source -> NoiseGate -> Compressor -> Destination
+ */
+export interface AudioProcessingChain {
+    source: MediaStreamAudioSourceNode;
+    noiseGate: NoiseGate | null;
+    compressor: DynamicsCompressorNode | null;
+    output: MediaStreamAudioDestinationNode;
+    processedStream: MediaStream;
+}
+
+/**
+ * Create a complete audio processing chain from a media stream.
+ *
+ * @param inputStream - The input media stream with audio track
+ * @param options - Processing options
+ * @returns The processing chain with processed output stream
+ */
+export function createAudioProcessingChain(
+    inputStream: MediaStream,
+    options: {
+        enableCompressor?: boolean;
+        compressorConfig?: CompressorConfig;
+        enableNoiseGate?: boolean;
+        noiseGateConfig?: NoiseGateConfig;
+    } = {}
+): AudioProcessingChain {
+    const ctx = getAudioContext();
+
+    // Create source from input stream
+    const source = ctx.createMediaStreamSource(inputStream);
+
+    // Create destination for output stream
+    const output = ctx.createMediaStreamDestination();
+
+    let noiseGate: NoiseGate | null = null;
+    let compressor: DynamicsCompressorNode | null = null;
+
+    // Build the chain
+    let currentNode: AudioNode = source;
+
+    // Add noise gate if enabled
+    if (options.enableNoiseGate) {
+        noiseGate = new NoiseGate(ctx, options.noiseGateConfig);
+        currentNode.connect(noiseGate.input);
+        currentNode = noiseGate.output;
+    }
+
+    // Add compressor if enabled
+    if (options.enableCompressor) {
+        compressor = createCompressor(ctx, options.compressorConfig);
+        currentNode.connect(compressor);
+        currentNode = compressor;
+    }
+
+    // Connect to output
+    currentNode.connect(output);
+
+    return {
+        source,
+        noiseGate,
+        compressor,
+        output,
+        processedStream: output.stream,
+    };
+}
+
+/**
+ * Dispose of an audio processing chain and clean up resources.
+ *
+ * @param chain - The chain to dispose
+ */
+export function disposeAudioProcessingChain(chain: AudioProcessingChain): void {
+    chain.source.disconnect();
+
+    if (chain.noiseGate) {
+        chain.noiseGate.dispose();
+    }
+
+    if (chain.compressor) {
+        chain.compressor.disconnect();
+    }
+
+    chain.output.disconnect();
+}

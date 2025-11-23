@@ -13,6 +13,7 @@ import {
     AUDIO_CODECS,
     GRID_OVERLAYS
 } from './settings';
+import { CINEMATIC_LUT_PRESETS } from '../data/cinematicLuts';
 import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
 
 interface ControlsPanelProps {
@@ -63,6 +64,24 @@ const DEFAULTS_EFFECTS = {
     denoise: false,
     virtualBackground: false,
     virtualBackgroundImage: null,
+};
+
+const DEFAULTS_CINEMATIC = {
+    cinematicLut: 'none',
+    cinematicLutIntensity: 100,
+};
+
+const DEFAULTS_AUDIO_PROCESSOR = {
+    audioCompressorEnabled: false,
+    audioCompressorThreshold: -24,
+    audioCompressorKnee: 12,
+    audioCompressorRatio: 4,
+    audioCompressorAttack: 0.003,
+    audioCompressorRelease: 0.25,
+    audioNoiseGateEnabled: false,
+    audioNoiseGateThreshold: -50,
+    audioNoiseGateAttack: 0.005,
+    audioNoiseGateRelease: 0.1,
 };
 
 const DEFAULTS_CONFERENCING = {
@@ -209,6 +228,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
     const resetStream = () => onSettingsChange({ ...settings, ...DEFAULTS_STREAM });
     const resetRecording = () => onSettingsChange({ ...settings, ...DEFAULTS_RECORDING });
     const resetOverlays = () => onSettingsChange({ ...settings, ...DEFAULTS_OVERLAYS });
+    const resetCinematic = () => onSettingsChange({ ...settings, ...DEFAULTS_CINEMATIC });
+    const resetAudioProcessor = () => onSettingsChange({ ...settings, ...DEFAULTS_AUDIO_PROCESSOR });
 
     const handleMasterReset = () => {
         if (resetConfirm) {
@@ -377,6 +398,190 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                             <p className="md-body-small text-on-surface-variant mt-2 ml-1">
                                 Reduces resolution to 480p/24fps to prioritize connection stability.
                             </p>
+                        </div>
+                    </div>
+                </ControlSection>
+
+                {/* Audio Studio */}
+                <ControlSection title="Audio Studio" onReset={resetAudioProcessor}>
+                    <div className="space-y-5">
+                        {/* Info Banner */}
+                        <div className="bg-tertiary-container p-4 rounded-md flex items-start gap-3">
+                            <svg className="w-5 h-5 shrink-0 mt-0.5 text-on-tertiary-container" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                            </svg>
+                            <p className="md-body-small text-on-tertiary-container">
+                                Professional audio processing using Web Audio API. Improve voice quality with compression and noise gating.
+                            </p>
+                        </div>
+
+                        {/* Compressor Section */}
+                        <div>
+                            <Toggle
+                                label="Compressor"
+                                enabled={settings.audioCompressorEnabled}
+                                onChange={(v) => update('audioCompressorEnabled', v)}
+                            />
+                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                Evens out loud and quiet parts of your voice for consistent levels.
+                            </p>
+                        </div>
+
+                        {settings.audioCompressorEnabled && (
+                            <div className="pl-4 border-l-2 border-primary/30 space-y-4">
+                                <Slider
+                                    label="Threshold (dB)"
+                                    value={settings.audioCompressorThreshold}
+                                    min={-60}
+                                    max={0}
+                                    step={1}
+                                    onChange={(v) => update('audioCompressorThreshold', v)}
+                                />
+                                <Slider
+                                    label="Ratio"
+                                    value={settings.audioCompressorRatio}
+                                    min={1}
+                                    max={20}
+                                    step={0.5}
+                                    onChange={(v) => update('audioCompressorRatio', v)}
+                                />
+                                <Slider
+                                    label="Knee (dB)"
+                                    value={settings.audioCompressorKnee}
+                                    min={0}
+                                    max={40}
+                                    step={1}
+                                    onChange={(v) => update('audioCompressorKnee', v)}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Slider
+                                        label="Attack (ms)"
+                                        value={Math.round(settings.audioCompressorAttack * 1000)}
+                                        min={0}
+                                        max={100}
+                                        step={1}
+                                        onChange={(v) => update('audioCompressorAttack', v / 1000)}
+                                    />
+                                    <Slider
+                                        label="Release (ms)"
+                                        value={Math.round(settings.audioCompressorRelease * 1000)}
+                                        min={10}
+                                        max={1000}
+                                        step={10}
+                                        onChange={(v) => update('audioCompressorRelease', v / 1000)}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Noise Gate Section */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <Toggle
+                                label="Noise Gate"
+                                enabled={settings.audioNoiseGateEnabled}
+                                onChange={(v) => update('audioNoiseGateEnabled', v)}
+                            />
+                            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                Silences audio below threshold to eliminate background noise.
+                            </p>
+                        </div>
+
+                        {settings.audioNoiseGateEnabled && (
+                            <div className="pl-4 border-l-2 border-primary/30 space-y-4">
+                                <Slider
+                                    label="Threshold (dB)"
+                                    value={settings.audioNoiseGateThreshold}
+                                    min={-80}
+                                    max={-20}
+                                    step={1}
+                                    onChange={(v) => update('audioNoiseGateThreshold', v)}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Slider
+                                        label="Attack (ms)"
+                                        value={Math.round(settings.audioNoiseGateAttack * 1000)}
+                                        min={0}
+                                        max={50}
+                                        step={1}
+                                        onChange={(v) => update('audioNoiseGateAttack', v / 1000)}
+                                    />
+                                    <Slider
+                                        label="Release (ms)"
+                                        value={Math.round(settings.audioNoiseGateRelease * 1000)}
+                                        min={10}
+                                        max={500}
+                                        step={10}
+                                        onChange={(v) => update('audioNoiseGateRelease', v / 1000)}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Presets */}
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Quick Presets</label>
+                            <div className="flex gap-2 flex-wrap">
+                                <Chip
+                                    label="Voice Call"
+                                    selected={false}
+                                    onClick={() => {
+                                        onSettingsChange({
+                                            ...settings,
+                                            audioCompressorEnabled: true,
+                                            audioCompressorThreshold: -24,
+                                            audioCompressorRatio: 4,
+                                            audioCompressorKnee: 12,
+                                            audioCompressorAttack: 0.003,
+                                            audioCompressorRelease: 0.25,
+                                            audioNoiseGateEnabled: true,
+                                            audioNoiseGateThreshold: -50,
+                                            audioNoiseGateAttack: 0.005,
+                                            audioNoiseGateRelease: 0.1,
+                                        });
+                                    }}
+                                    variant="filter"
+                                />
+                                <Chip
+                                    label="Podcast"
+                                    selected={false}
+                                    onClick={() => {
+                                        onSettingsChange({
+                                            ...settings,
+                                            audioCompressorEnabled: true,
+                                            audioCompressorThreshold: -18,
+                                            audioCompressorRatio: 6,
+                                            audioCompressorKnee: 8,
+                                            audioCompressorAttack: 0.005,
+                                            audioCompressorRelease: 0.15,
+                                            audioNoiseGateEnabled: true,
+                                            audioNoiseGateThreshold: -45,
+                                            audioNoiseGateAttack: 0.003,
+                                            audioNoiseGateRelease: 0.08,
+                                        });
+                                    }}
+                                    variant="filter"
+                                />
+                                <Chip
+                                    label="Streaming"
+                                    selected={false}
+                                    onClick={() => {
+                                        onSettingsChange({
+                                            ...settings,
+                                            audioCompressorEnabled: true,
+                                            audioCompressorThreshold: -20,
+                                            audioCompressorRatio: 3,
+                                            audioCompressorKnee: 15,
+                                            audioCompressorAttack: 0.003,
+                                            audioCompressorRelease: 0.3,
+                                            audioNoiseGateEnabled: false,
+                                            audioNoiseGateThreshold: -55,
+                                            audioNoiseGateAttack: 0.005,
+                                            audioNoiseGateRelease: 0.15,
+                                        });
+                                    }}
+                                    variant="filter"
+                                />
+                            </div>
                         </div>
                     </div>
                 </ControlSection>
@@ -721,6 +926,83 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                 </span>
                             </button>
                         ))}
+                    </div>
+                </ControlSection>
+
+                {/* Cinematic Color Grading */}
+                <ControlSection title="Cinematic Color" onReset={resetCinematic}>
+                    <div className="space-y-5">
+                        {/* Info Banner */}
+                        <div className="bg-secondary-container p-4 rounded-md flex items-start gap-3">
+                            <svg className="w-5 h-5 shrink-0 mt-0.5 text-on-secondary-container" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                            </svg>
+                            <p className="md-body-small text-on-secondary-container">
+                                GPU-accelerated color grading using 3D LUTs. Applies cinematic film looks in real-time.
+                            </p>
+                        </div>
+
+                        {/* LUT Presets by Category */}
+                        <div>
+                            <label className="md-label-large text-on-surface mb-3 block">Film Looks</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {CINEMATIC_LUT_PRESETS.filter(lut => lut.category === 'film').map(lut => (
+                                    <Chip
+                                        key={lut.id}
+                                        label={lut.name}
+                                        selected={settings.cinematicLut === lut.id}
+                                        onClick={() => update('cinematicLut', lut.id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Mood</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {CINEMATIC_LUT_PRESETS.filter(lut => lut.category === 'mood').map(lut => (
+                                    <Chip
+                                        key={lut.id}
+                                        label={lut.name}
+                                        selected={settings.cinematicLut === lut.id}
+                                        onClick={() => update('cinematicLut', lut.id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-outline-variant">
+                            <label className="md-label-large text-on-surface mb-3 block">Creative</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {CINEMATIC_LUT_PRESETS.filter(lut => lut.category === 'creative' || lut.category === 'vintage').map(lut => (
+                                    <Chip
+                                        key={lut.id}
+                                        label={lut.name}
+                                        selected={settings.cinematicLut === lut.id}
+                                        onClick={() => update('cinematicLut', lut.id)}
+                                        variant="filter"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Intensity Slider */}
+                        {settings.cinematicLut !== 'none' && (
+                            <div className="pt-4 border-t border-outline-variant">
+                                <Slider
+                                    label="Intensity"
+                                    value={settings.cinematicLutIntensity}
+                                    min={0}
+                                    max={100}
+                                    onChange={(v) => update('cinematicLutIntensity', v)}
+                                />
+                                <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                                    Blend between original and graded look.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </ControlSection>
 

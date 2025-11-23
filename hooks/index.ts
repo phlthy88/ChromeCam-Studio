@@ -25,3 +25,7 @@ export { useToast, ToastProvider, ToastContainer } from './useToast';
 export type { Toast, ToastType } from './useToast';
 export { useAutoLowLight } from './useAutoLowLight';
 export type { LowLightAnalysis, UseAutoLowLightOptions, UseAutoLowLightReturn } from './useAutoLowLight';
+export { useWebGLRenderer } from './useWebGLRenderer';
+export type { UseWebGLRendererOptions, UseWebGLRendererReturn } from './useWebGLRenderer';
+export { useAudioProcessor } from './useAudioProcessor';
+export type { UseAudioProcessorOptions, UseAudioProcessorReturn } from './useAudioProcessor';
