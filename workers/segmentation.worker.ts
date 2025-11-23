@@ -23,13 +23,6 @@
 // Declare worker globals
 declare const importScripts: (...urls: string[]) => void;
 
-// Face mesh types
-interface FaceLandmark {
-  x: number;
-  y: number;
-  z: number;
-}
-
 // Worker message types
 interface WorkerMessageInit {
   type: 'init';
@@ -72,7 +65,7 @@ type WorkerResponse = WorkerResponseReady | WorkerResponseMask | WorkerResponseE
 
 // Global state
 let segmenter: unknown = null;
-let faceMesh: unknown = null;
+let faceMesh: any = null;
 let offscreenCanvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let isInitialized = false;
@@ -101,21 +94,31 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // Attempt to import MediaPipe scripts
     // Note: This may fail due to CORS - see fallback in main thread
     try {
-      importScripts(
-        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core',
-        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter',
-        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl',
-        'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation',
-        'https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection'
-      );
+      try {
+        // Load TensorFlow and MediaPipe scripts
+        importScripts(
+          'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.15.0',
+          'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.15.0',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js'
+        );
+        console.log('[Worker] MediaPipe scripts loaded successfully');
+      } catch (scriptError) {
+        console.error('[Worker] Failed to load MediaPipe scripts:', scriptError);
+        throw new Error('MediaPipe script loading failed');
+      }
     } catch (e) {
       console.warn('[Worker] Failed to load TensorFlow scripts:', e);
       // Try alternative loading method
       throw new Error('CDN script loading failed - use main thread fallback');
     }
 
-    // Access the globally loaded bodySegmentation
+    // Access the globally loaded libraries
     const bodySegmentation = (self as unknown as { bodySegmentation: unknown }).bodySegmentation;
+    const FaceMesh = (self as unknown as { FaceMesh: unknown }).FaceMesh;
+
+    console.log('[Worker] bodySegmentation available:', !!bodySegmentation);
+    console.log('[Worker] FaceMesh available:', !!FaceMesh);
+
     if (!bodySegmentation) {
       throw new Error('bodySegmentation not available after script load');
     }
@@ -137,26 +140,20 @@ async function initializeSegmenter(modelPath?: string): Promise<boolean> {
     // Initialize Face Mesh
     try {
       console.log('[Worker] Initializing face mesh...');
-      const faceLandmarksDetection = (self as unknown as { faceLandmarksDetection: unknown })
-        .faceLandmarksDetection;
-      console.log('[Worker] faceLandmarksDetection available:', !!faceLandmarksDetection);
-      if (faceLandmarksDetection) {
-        const faceModel = (
-          faceLandmarksDetection as { SupportedModels: { MediaPipeFaceMesh: unknown } }
-        ).SupportedModels.MediaPipeFaceMesh;
-        console.log('[Worker] Creating face mesh detector...');
-        faceMesh = await (
-          faceLandmarksDetection as {
-            createDetector: (model: unknown, config: unknown) => Promise<unknown>;
-          }
-        ).createDetector(faceModel, {
-          runtime: 'mediapipe',
+      if (FaceMesh) {
+        console.log('[Worker] Creating face mesh instance...');
+        faceMesh = new (FaceMesh as any)({
+          locateFile: (file: string) => `${cdnPath}${file}`,
+        });
+        faceMesh.setOptions({
+          maxNumFaces: 1,
           refineLandmarks: true,
-          solutionPath: cdnPath,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
         });
         console.log('[Worker] Face mesh initialized successfully');
       } else {
-        console.warn('[Worker] faceLandmarksDetection not available');
+        console.warn('[Worker] FaceMesh not available');
       }
     } catch (e) {
       console.error('[Worker] Face mesh initialization failed:', e);
@@ -182,7 +179,16 @@ async function processFrame(
   width: number,
   height: number
 ): Promise<Uint8ClampedArray | null> {
+  console.log('[Worker] Processing frame:', width, 'x', height);
   if (!segmenter || !offscreenCanvas || !ctx) {
+    console.warn(
+      '[Worker] Not initialized - segmenter:',
+      !!segmenter,
+      'canvas:',
+      !!offscreenCanvas,
+      'ctx:',
+      !!ctx
+    );
     return null;
   }
 
@@ -211,22 +217,30 @@ async function processFrame(
 
     // Run face detection if available
     if (faceMesh) {
+      console.log('[Worker] Running face detection...');
       try {
-        const faces = await (
-          faceMesh as { estimateFaces: (source: OffscreenCanvas) => Promise<unknown[]> }
-        ).estimateFaces(offscreenCanvas);
-        if (faces.length > 0) {
-          const face = faces[0] as { keypoints: FaceLandmark[] };
-          console.log('[Worker] Detected face with', face.keypoints.length, 'landmarks');
-          // Post face landmarks
-          self.postMessage({
-            type: 'face-landmarks',
-            data: face.keypoints,
+        // For MediaPipe FaceMesh, use onResults callback
+        await new Promise<void>((resolve) => {
+          faceMesh.onResults((results: any) => {
+            console.log('[Worker] Face detection result:', results);
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+              const landmarks = results.multiFaceLandmarks[0];
+              console.log('[Worker] Detected face with', landmarks.length, 'landmarks');
+              // Post face landmarks
+              self.postMessage({
+                type: 'face-landmarks',
+                data: landmarks,
+              });
+            }
+            resolve();
           });
-        }
+          faceMesh.send({ image: offscreenCanvas });
+        });
       } catch (e) {
-        console.warn('[Worker] Face detection error:', e);
+        console.error('[Worker] Face detection error:', e);
       }
+    } else {
+      console.log('[Worker] Face mesh not available, skipping face detection');
     }
 
     // Clean up the ImageBitmap
