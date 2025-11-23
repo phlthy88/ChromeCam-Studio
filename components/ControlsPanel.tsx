@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import ControlSection from './ControlSection';
 import Slider from './ui/Slider';
 import Toggle from './ui/Toggle';
@@ -11,13 +11,6 @@ interface ControlsPanelProps {
     onSettingsChange: (settings: CameraSettings) => void;
     onCloseMobile?: () => void;
     capabilities?: MediaTrackCapabilities | null;
-}
-
-interface Preset {
-    id: string;
-    name: string;
-    type: 'user' | 'system';
-    settings: CameraSettings;
 }
 
 // Defined Defaults for Granular Resets
@@ -77,122 +70,15 @@ const AVAILABLE_FILTERS = [
     { id: 'prime', name: 'Prime', color: 'bg-blue-200 dark:bg-blue-900' },
 ];
 
-const SYSTEM_PRESETS: Preset[] = [
-    {
-        id: 'sys_conference',
-        name: 'Conference',
-        type: 'system',
-        settings: {
-            ...DEFAULT_SETTINGS,
-            brightness: 110,
-            saturation: 105,
-            faceSmoothing: 30,
-            denoise: true,
-            enableAudio: true,
-            noiseSuppression: true,
-            activeFilter: 'prime'
-        }
-    },
-    {
-        id: 'sys_privacy',
-        name: 'Privacy',
-        type: 'system',
-        settings: {
-            ...DEFAULT_SETTINGS,
-            blur: 20, // Max blur for privacy
-            denoise: true,
-            enableAudio: false
-        }
-    },
-    {
-        id: 'sys_portrait',
-        name: 'Portrait',
-        type: 'system',
-        settings: {
-            ...DEFAULT_SETTINGS,
-            portraitLighting: 30, // Subtle lighting
-            contrast: 105,
-            faceSmoothing: 50, // Smooth skin
-            blur: 8, // Natural bokeh
-            activeFilter: 'none' // Keep natural colors
-        }
-    },
-    {
-        id: 'sys_lowlight',
-        name: 'Low Light',
-        type: 'system',
-        settings: {
-            ...DEFAULT_SETTINGS,
-            brightness: 120,
-            contrast: 110,
-            autoLowLight: true,
-            denoise: true
-        }
-    }
-];
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChange, onCloseMobile, capabilities }) => {
-    const [presets, setPresets] = useState<Preset[]>([]);
-    const [newPresetName, setNewPresetName] = useState('');
-    const [activePresetId, setActivePresetId] = useState<string | null>(null);
     const [resetConfirm, setResetConfirm] = useState(false);
 
-    useEffect(() => {
-        const saved = localStorage.getItem('cam_presets');
-        let userPresets: Preset[] = [];
-        if (saved) {
-            try {
-                userPresets = JSON.parse(saved);
-            } catch (e) {
-                console.error(e);
-            }
-        }
-        setPresets([...SYSTEM_PRESETS, ...userPresets]);
-    }, []);
-
-    const savePreset = () => {
-        if (!newPresetName.trim()) return;
-        const newPreset: Preset = {
-            id: Date.now().toString(),
-            name: newPresetName.trim(),
-            type: 'user',
-            settings: { ...settings }
-        };
-        
-        const currentSystem = presets.filter(p => p.type === 'system');
-        const currentUser = presets.filter(p => p.type === 'user');
-        const updatedUser = [newPreset, ...currentUser];
-        
-        setPresets([...currentSystem, ...updatedUser]);
-        localStorage.setItem('cam_presets', JSON.stringify(updatedUser));
-        setNewPresetName('');
-        setActivePresetId(newPreset.id);
-    };
-
-    const loadPreset = (p: Preset) => {
-        setActivePresetId(p.id);
-        onSettingsChange({ ...p.settings });
-    };
-
     const applyDefaults = () => {
-        setActivePresetId(null);
         onSettingsChange({ ...DEFAULT_SETTINGS });
     };
 
-    const deletePreset = (id: string) => {
-        const currentSystem = presets.filter(p => p.type === 'system');
-        const currentUser = presets.filter(p => p.type === 'user').filter(p => p.id !== id);
-        
-        setPresets([...currentSystem, ...currentUser]);
-        localStorage.setItem('cam_presets', JSON.stringify(currentUser));
-        
-        if (activePresetId === id) {
-            setActivePresetId(null);
-        }
-    };
-
     const update = (key: keyof CameraSettings, value: number | boolean | string | null) => {
-        setActivePresetId(null);
         // @ts-ignore
         onSettingsChange({ ...settings, [key]: value });
     };
@@ -209,30 +95,12 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
     };
 
     // --- Module Reset Handlers ---
-    const resetLight = () => {
-        setActivePresetId(null);
-        onSettingsChange({ ...settings, ...DEFAULTS_LIGHT });
-    };
-    const resetColor = () => {
-        setActivePresetId(null);
-        onSettingsChange({ ...settings, ...DEFAULTS_COLOR });
-    };
-    const resetFilters = () => {
-        setActivePresetId(null);
-        onSettingsChange({ ...settings, ...DEFAULTS_FILTER });
-    };
-    const resetGeometry = () => {
-        setActivePresetId(null);
-        onSettingsChange({ ...settings, ...DEFAULTS_GEOMETRY });
-    };
-    const resetEffects = () => {
-        setActivePresetId(null);
-        onSettingsChange({ ...settings, ...DEFAULTS_EFFECTS });
-    };
-    const resetConferencing = () => {
-        setActivePresetId(null);
-        onSettingsChange({ ...settings, ...DEFAULTS_CONFERENCING });
-    };
+    const resetLight = () => onSettingsChange({ ...settings, ...DEFAULTS_LIGHT });
+    const resetColor = () => onSettingsChange({ ...settings, ...DEFAULTS_COLOR });
+    const resetFilters = () => onSettingsChange({ ...settings, ...DEFAULTS_FILTER });
+    const resetGeometry = () => onSettingsChange({ ...settings, ...DEFAULTS_GEOMETRY });
+    const resetEffects = () => onSettingsChange({ ...settings, ...DEFAULTS_EFFECTS });
+    const resetConferencing = () => onSettingsChange({ ...settings, ...DEFAULTS_CONFERENCING });
     
     const handleMasterReset = () => {
         if (resetConfirm) {
@@ -252,8 +120,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
                 <div className="w-8 h-1 rounded-full bg-outline-variant" />
             </div>
 
-            {/* Presets & Global Actions */}
-            <div className="p-4 pb-2 space-y-4 shrink-0">
+            {/* Header & Global Actions */}
+            <div className="p-4 pb-2 shrink-0">
                 <div className="flex justify-between items-center">
                     <h2 className="md-title-large text-on-surface">Settings</h2>
 
@@ -282,54 +150,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({ settings, onSettingsChang
                             </svg>
                         </button>
                     </div>
-                </div>
-
-                {/* Preset Chips - M3 Filter Chips */}
-                <div className="flex gap-2 overflow-x-auto pb-2 md-scrollbar snap-x -mx-2 px-2">
-                    {presets.map(preset => (
-                        <Chip
-                            key={preset.id}
-                            label={preset.name}
-                            selected={activePresetId === preset.id}
-                            onClick={() => activePresetId === preset.id ? applyDefaults() : loadPreset(preset)}
-                            onDelete={preset.type === 'user' ? () => deletePreset(preset.id) : undefined}
-                            variant="filter"
-                        />
-                    ))}
-                </div>
-
-                {/* Save Preset Field - M3 Text Field style */}
-                <div className="relative flex gap-2">
-                    <input
-                        type="text"
-                        value={newPresetName}
-                        onChange={(e) => setNewPresetName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && savePreset()}
-                        placeholder="Name preset..."
-                        className="
-                            min-w-0 flex-1 px-4 py-3
-                            md-body-large text-on-surface
-                            bg-surface-container-high rounded-md
-                            border border-outline-variant
-                            placeholder:text-on-surface-variant
-                            focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary
-                            transition-colors duration-short2 ease-standard
-                        "
-                    />
-                    <button
-                        onClick={savePreset}
-                        disabled={!newPresetName.trim()}
-                        className="
-                            shrink-0 px-5 py-2.5
-                            bg-primary text-on-primary
-                            md-label-large rounded-full
-                            shadow-elevation-1 hover:shadow-elevation-2
-                            disabled:opacity-[0.38] disabled:cursor-not-allowed disabled:shadow-none
-                            transition-all duration-short2 ease-standard
-                        "
-                    >
-                        Save
-                    </button>
                 </div>
             </div>
 

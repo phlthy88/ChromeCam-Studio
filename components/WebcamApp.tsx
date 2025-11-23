@@ -3,6 +3,7 @@ import Header from './Header';
 import ControlsPanel from './ControlsPanel';
 import VideoPanel from './VideoPanel';
 import { CameraSettings, DEFAULT_SETTINGS } from './settings';
+import { useTheme } from '../hooks/useTheme';
 
 /**
  * Main Application Container
@@ -18,6 +19,7 @@ const WebcamApp: React.FC = () => {
     const [settings, setSettings] = useState<CameraSettings>(DEFAULT_SETTINGS);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [capabilities, setCapabilities] = useState<MediaTrackCapabilities | null>(null);
+    const { theme, setTheme } = useTheme();
 
     // Responsive Sidebar Logic
     useEffect(() => {
@@ -60,6 +62,8 @@ const WebcamApp: React.FC = () => {
                     onDeviceChange={setSelectedDeviceId}
                     onToggleSidebar={toggleSidebar}
                     isSidebarOpen={isSidebarOpen}
+                    theme={theme}
+                    onThemeChange={setTheme}
                 />
             </div>
 

@@ -437,7 +437,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             {/* Status Indicators (Top Left/Right) - M3 Semantic Colors */}
             {isAiActive && !isCompareActive && (
                 <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 items-end pointer-events-none">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/80 backdrop-blur-md rounded-full border border-outline-variant/20 shadow-sm">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/90 backdrop-blur-sm rounded-full border border-outline-variant/30 shadow-sm">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -447,7 +447,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                 </div>
             )}
             {isRecording && (
-                <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-error-container/80 backdrop-blur-md rounded-full border border-error/30 shadow-sm animate-pulse">
+                <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-error-container/90 backdrop-blur-sm rounded-full border border-error/30 shadow-sm animate-pulse">
                     <div className="w-2 h-2 rounded-full bg-error"></div>
                     <span className="md-label-small text-on-error-container font-mono">{formatTime(recordingTime)}</span>
                 </div>
@@ -464,14 +464,14 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
 
             {/* Loading Status */}
             {settingsRef.current && (settingsRef.current.blur > 0 || settingsRef.current.portraitLighting > 0 || settingsRef.current.faceSmoothing > 0) && !isAiActive && !loadingError && !isCompareActive && (
-                <div className="absolute z-30 text-on-surface-variant bg-surface-container/80 px-4 py-2 rounded-full backdrop-blur-md animate-pulse flex items-center gap-2">
+                <div className="absolute z-30 text-on-surface-variant bg-surface-container/90 px-4 py-2 rounded-full backdrop-blur-sm animate-pulse flex items-center gap-2">
                     <span className="text-sm font-medium">{loadingStatus}</span>
                 </div>
             )}
 
             {/* M3 FLOATING TOOLBAR */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 transition-transform duration-300 translate-y-[150%] group-hover:translate-y-0">
-                <div className="flex items-center gap-6 p-4 bg-surface-container-low/90 backdrop-blur-xl rounded-full shadow-elevation-3 border border-outline-variant/20">
+                <div className="flex items-center gap-6 p-4 bg-surface-container-low/95 backdrop-blur-lg rounded-full shadow-elevation-3 border border-outline-variant/30">
 
                     {/* Secondary Actions (Left) */}
                     <div className="flex items-center gap-2">
