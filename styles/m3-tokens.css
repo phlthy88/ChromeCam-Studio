@@ -618,3 +618,49 @@
 .md-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: var(--md-sys-color-outline);
 }
+
+/* ========================================
+ * WINDOW CONTROLS OVERLAY (PWA)
+ * Native app-like title bar for installed PWAs
+ * ======================================== */
+
+@media (display-mode: window-controls-overlay) {
+  /* Header adjustments for custom title bar area */
+  header {
+    padding-left: env(titlebar-area-x, 0);
+    padding-top: env(titlebar-area-y, 0);
+    height: env(titlebar-area-height, 64px);
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  /* Ensure interactive elements remain clickable */
+  button,
+  select,
+  input,
+  a,
+  [role="button"],
+  .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  /* Adjust body to account for title bar */
+  body {
+    padding-top: env(titlebar-area-height, 0);
+  }
+}
+
+/* Standalone mode adjustments */
+@media (display-mode: standalone) {
+  /* Remove any browser chrome gaps */
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    height: 100%;
+    overflow: auto;
+  }
+}

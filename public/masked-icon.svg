@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Maskable icon with safe area padding (20% inset) -->
+  <rect width="512" height="512" fill="#4f46e5"/>
+  <g transform="translate(128, 128)">
+    <circle cx="128" cy="96" r="72" fill="none" stroke="#ffffff" stroke-width="12"/>
+    <circle cx="128" cy="96" r="24" fill="#ffffff"/>
+    <path d="M40 160 L128 224 L216 160 L216 216 C216 232 200 248 184 248 L72 248 C56 248 40 232 40 216 Z" fill="#ffffff"/>
+    <rect x="200" y="56" width="32" height="24" rx="4" fill="#ffffff"/>
+    <circle cx="216" cy="68" r="6" fill="#4f46e5"/>
+  </g>
+</svg>

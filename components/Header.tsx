@@ -1,5 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import VUMeter from './ui/VUMeter';
+
+interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 interface HeaderProps {
     devices: MediaDeviceInfo[];
@@ -17,6 +22,7 @@ interface HeaderProps {
  * - M3 typography (Headline Small for title)
  * - Icon buttons with state layers
  * - Proper spacing and alignment
+ * - PWA install button with beforeinstallprompt support
  */
 const Header: React.FC<HeaderProps> = ({
     devices,
@@ -24,6 +30,43 @@ const Header: React.FC<HeaderProps> = ({
     onDeviceChange,
     onToggleSidebar
 }) => {
+    const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+    const [isInstalled, setIsInstalled] = useState(false);
+
+    useEffect(() => {
+        // Check if already installed
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            setIsInstalled(true);
+            return;
+        }
+
+        const handler = (e: Event) => {
+            e.preventDefault();
+            setDeferredPrompt(e as BeforeInstallPromptEvent);
+        };
+
+        const installedHandler = () => {
+            setIsInstalled(true);
+            setDeferredPrompt(null);
+        };
+
+        window.addEventListener('beforeinstallprompt', handler);
+        window.addEventListener('appinstalled', installedHandler);
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handler);
+            window.removeEventListener('appinstalled', installedHandler);
+        };
+    }, []);
+
+    const handleInstall = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            setDeferredPrompt(null);
+        }
+    };
     return (
         <header
             className="
@@ -73,6 +116,40 @@ const Header: React.FC<HeaderProps> = ({
                 </h1>
 
                 <div className="ml-auto flex items-center gap-3">
+                    {/* PWA Install Button */}
+                    {deferredPrompt && !isInstalled && (
+                        <button
+                            onClick={handleInstall}
+                            className="
+                                hidden sm:flex items-center gap-2
+                                bg-primary-container text-on-primary-container
+                                px-4 py-2 rounded-full
+                                md-label-large
+                                hover:bg-primary-container/90
+                                active:bg-primary-container/80
+                                transition-all duration-short2 ease-standard
+                                shadow-elevation-1
+                                focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
+                            "
+                            aria-label="Install ChromeCam Studio"
+                        >
+                            <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                />
+                            </svg>
+                            Install
+                        </button>
+                    )}
+
                     {/* VU Meter */}
                     <VUMeter />
 
