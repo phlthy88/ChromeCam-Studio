@@ -554,14 +554,22 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                       }
                     }
               }
-              className="
-                                p-2 sm:p-2.5 md:p-3 rounded-full
-                                text-on-surface-variant hover:bg-on-surface-variant/10
-                                active:bg-on-surface-variant/20 transition-colors
-                            "
+              className={`
+                                relative p-2 sm:p-2.5 md:p-3 rounded-full
+                                transition-colors
+                                ${isVirtualCameraActive
+                                  ? 'text-primary bg-primary/10 hover:bg-primary/20'
+                                  : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
+                                }
+                            `}
               title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
               aria-label={isVirtualCameraActive ? 'Stop virtual camera' : 'Start virtual camera'}
             >
+              {/* Active indicator dot */}
+              {isVirtualCameraActive && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
+              {/* Virtual Camera icon - video camera with broadcast waves */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-5 w-5 md:h-6 md:w-6"
@@ -571,11 +579,21 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                 strokeWidth={2}
                 aria-hidden="true"
               >
+                {/* Video camera body */}
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                  d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
                 />
+                {/* Broadcast indicator - small arc */}
+                {isVirtualCameraActive && (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8.25 4.5a7.5 7.5 0 010 15"
+                    className="animate-pulse"
+                  />
+                )}
               </svg>
             </button>
           </div>
