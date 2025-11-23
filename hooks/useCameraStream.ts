@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CameraSettings } from '../components/settings';
+import type { CameraSettings, DetectedCapabilities } from '../components/settings';
 import { RESOLUTION_PRESETS } from '../components/settings';
 import type {
     ExtendedMediaTrackCapabilities,
@@ -19,6 +19,88 @@ export interface HardwareCapabilities {
     saturation: boolean;
 }
 
+/**
+ * Detects and analyzes camera capabilities to determine supported settings
+ */
+function analyzeCapabilities(caps: ExtendedMediaTrackCapabilities): DetectedCapabilities {
+    const detected: DetectedCapabilities = {
+        maxResolution: null,
+        supportedResolutions: [],
+        maxFrameRate: null,
+        supportedFrameRates: [],
+        supportedAspectRatios: [],
+        hasAutoExposure: false,
+        hasAutoFocus: false,
+        hasAutoWhiteBalance: false,
+        hasTorch: caps.torch !== undefined,
+        hasZoom: !!caps.zoom,
+        hasPan: !!caps.pan,
+        hasTilt: !!caps.tilt,
+        hasBacklightCompensation: caps.backlightCompensation !== undefined,
+    };
+
+    // Detect max resolution
+    if (caps.width && caps.height) {
+        const maxWidth: number = typeof caps.width === 'object' && 'max' in caps.width
+            ? (caps.width.max ?? 1920)
+            : 1920;
+        const maxHeight: number = typeof caps.height === 'object' && 'max' in caps.height
+            ? (caps.height.max ?? 1080)
+            : 1080;
+        detected.maxResolution = { width: maxWidth, height: maxHeight };
+
+        // Generate supported resolutions based on max capability
+        const standardResolutions = [
+            { width: 640, height: 480, label: '480p (SD)' },
+            { width: 1280, height: 720, label: '720p (HD)' },
+            { width: 1920, height: 1080, label: '1080p (Full HD)' },
+            { width: 2560, height: 1440, label: '1440p (QHD)' },
+            { width: 3840, height: 2160, label: '4K (UHD)' },
+        ];
+
+        detected.supportedResolutions = standardResolutions.filter(
+            res => res.width <= maxWidth && res.height <= maxHeight
+        );
+
+        // Detect aspect ratios from supported resolutions
+        const aspectRatios = new Set<string>();
+        if (maxWidth / maxHeight >= 4 / 3 - 0.01) aspectRatios.add('4:3');
+        if (maxWidth / maxHeight >= 16 / 9 - 0.01) aspectRatios.add('16:9');
+        if (maxWidth >= maxHeight) aspectRatios.add('1:1');
+        if (maxWidth / maxHeight >= 21 / 9 - 0.01) aspectRatios.add('21:9');
+        aspectRatios.add('9:16'); // Portrait always available with crop
+        detected.supportedAspectRatios = ['none', ...Array.from(aspectRatios)];
+    }
+
+    // Detect max frame rate
+    if (caps.frameRate) {
+        const maxFps: number = typeof caps.frameRate === 'object' && 'max' in caps.frameRate
+            ? (caps.frameRate.max ?? 30)
+            : 30;
+        detected.maxFrameRate = maxFps;
+
+        // Generate supported frame rates
+        const standardFps = [15, 24, 30, 60, 120];
+        detected.supportedFrameRates = standardFps.filter(fps => fps <= maxFps);
+        if (detected.supportedFrameRates.length === 0) {
+            detected.supportedFrameRates = [30]; // Fallback
+        }
+    }
+
+    // Detect auto modes
+    if (caps.exposureMode) {
+        detected.hasAutoExposure = caps.exposureMode.includes('continuous');
+    }
+    if (caps.focusMode) {
+        detected.hasAutoFocus = caps.focusMode.includes('continuous');
+    }
+    if (caps.whiteBalanceMode) {
+        detected.hasAutoWhiteBalance = caps.whiteBalanceMode.includes('continuous');
+    }
+
+    return detected;
+}
+
 export interface UseCameraStreamOptions {
     deviceId: string | null;
     settings: CameraSettings;
@@ -31,6 +113,7 @@ export interface UseCameraStreamReturn {
     videoTrackRef: React.RefObject<MediaStreamTrack | null>;
     capabilitiesRef: React.RefObject<ExtendedMediaTrackCapabilities | null>;
     hardwareCapabilities: HardwareCapabilities;
+    detectedCapabilities: DetectedCapabilities | null;
     error: string | null;
 }
 
@@ -65,6 +148,7 @@ export function useCameraStream({
         contrast: false,
         saturation: false,
     });
+    const [detectedCapabilities, setDetectedCapabilities] = useState<DetectedCapabilities | null>(null);
 
     // Start/restart stream when device or core settings change
     useEffect(() => {
@@ -178,6 +262,10 @@ export function useCameraStream({
                         contrast: !!caps.contrast,
                         saturation: !!caps.saturation,
                     });
+
+                    // Analyze and set detected capabilities
+                    const analyzed = analyzeCapabilities(caps);
+                    setDetectedCapabilities(analyzed);
                 }
 
                 if (videoRef.current) {
@@ -351,6 +439,7 @@ export function useCameraStream({
         videoTrackRef,
         capabilitiesRef,
         hardwareCapabilities,
+        detectedCapabilities,
         error,
     };
 }
