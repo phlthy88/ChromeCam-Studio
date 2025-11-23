@@ -53,8 +53,9 @@ export function useWebGLRenderer({
   enabled,
   lutPreset,
   lutIntensity,
-  faceLandmarks,
-  beautySettings,
+  // Face warp disabled for now - requires proper face detection
+  faceLandmarks: _faceLandmarks,
+  beautySettings: _beautySettings,
 }: UseWebGLRendererOptions): UseWebGLRendererReturn {
   const rendererRef = useRef<WebGLLutRenderer | null>(null);
   const faceWarpRendererRef = useRef<WebGLFaceWarpRenderer | null>(null);
@@ -72,6 +73,10 @@ export function useWebGLRenderer({
         rendererRef.current.dispose();
         rendererRef.current = null;
       }
+      if (faceWarpRendererRef.current) {
+        faceWarpRendererRef.current.dispose();
+        faceWarpRendererRef.current = null;
+      }
       setIsReady(false);
       return;
     }
@@ -86,38 +91,37 @@ export function useWebGLRenderer({
       return;
     }
 
-    // Create canvas and renderer
+    // Create canvas for LUT renderer
     if (!webglCanvasRef.current) {
       webglCanvasRef.current = document.createElement('canvas');
     }
 
+    // Initialize LUT renderer
     const renderer = new WebGLLutRenderer();
-    const faceWarpRenderer = new WebGLFaceWarpRenderer();
-    console.log('[useWebGLRenderer] Initializing WebGL renderers...');
+    console.log('[useWebGLRenderer] Initializing LUT renderer...');
     const initialized = renderer.initialize(webglCanvasRef.current);
     console.log('[useWebGLRenderer] LUT renderer initialized:', initialized);
-    const faceWarpInitialized = faceWarpRenderer.initialize(webglCanvasRef.current);
-    console.log('[useWebGLRenderer] Face warp renderer initialized:', faceWarpInitialized);
 
-    if (initialized && faceWarpInitialized) {
+    if (initialized) {
       rendererRef.current = renderer;
-      faceWarpRendererRef.current = faceWarpRenderer;
       setIsReady(true);
-      console.log('[useWebGLRenderer] WebGL renderers initialized successfully');
+      console.log('[useWebGLRenderer] WebGL LUT renderer initialized successfully');
     } else {
-      console.error(
-        '[useWebGLRenderer] Failed to initialize WebGL renderers - LUT:',
-        initialized,
-        'FaceWarp:',
-        faceWarpInitialized
-      );
+      console.error('[useWebGLRenderer] Failed to initialize WebGL LUT renderer');
       setIsWebGLSupported(false);
     }
+
+    // Note: Face warp renderer disabled for now - requires separate canvas and face detection
+    // TODO: Re-enable when proper face landmark detection is implemented
 
     return () => {
       if (rendererRef.current) {
         rendererRef.current.dispose();
         rendererRef.current = null;
+      }
+      if (faceWarpRendererRef.current) {
+        faceWarpRendererRef.current.dispose();
+        faceWarpRendererRef.current = null;
       }
       setIsReady(false);
     };
@@ -149,16 +153,15 @@ export function useWebGLRenderer({
     }
   }, [isReady, lutPreset]);
 
-  // Apply LUT grading and beauty effects to source
+  // Apply LUT grading to source
   const applyLutGrading = useCallback(
     (source: HTMLVideoElement | HTMLCanvasElement): HTMLCanvasElement | null => {
-      if (!enabled) {
+      if (!enabled || lutPreset === 'none') {
         return null;
       }
 
       const lutData = getCinematicLut(lutPreset);
       if (!lutData) {
-        console.warn('[useWebGLRenderer] No LUT data available');
         return null;
       }
 
@@ -168,35 +171,8 @@ export function useWebGLRenderer({
       // Try WebGL first
       if (isReady && rendererRef.current && webglCanvasRef.current) {
         try {
-          console.log('[useWebGLRenderer] Applying effects with WebGL');
-
-          // Apply face warping first if enabled
-          if (faceWarpRendererRef.current && beautySettings && faceLandmarks) {
-            console.log(
-              '[useWebGLRenderer] Applying face warp with',
-              faceLandmarks.length,
-              'landmarks'
-            );
-            faceWarpRendererRef.current.updateLandmarks(faceLandmarks);
-            faceWarpRendererRef.current.render(source, beautySettings);
-          } else {
-            console.log(
-              '[useWebGLRenderer] Face warp not applied - renderer:',
-              !!faceWarpRendererRef.current,
-              'settings:',
-              !!beautySettings,
-              'landmarks:',
-              !!faceLandmarks
-            );
-            // Copy source to canvas
-            const ctx = webglCanvasRef.current.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(source, 0, 0);
-            }
-          }
-
-          // Then apply LUT
-          rendererRef.current.render(webglCanvasRef.current, normalizedIntensity);
+          // Apply LUT directly to source
+          rendererRef.current.render(source, normalizedIntensity);
           return webglCanvasRef.current;
         } catch (error) {
           console.warn('[useWebGLRenderer] WebGL render failed, falling back to software:', error);
@@ -204,7 +180,6 @@ export function useWebGLRenderer({
       }
 
       // Software fallback
-      console.log('[useWebGLRenderer] Using software LUT fallback');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
@@ -218,7 +193,7 @@ export function useWebGLRenderer({
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const processedData = applyLutSoftware(imageData, lutData);
 
-        // Apply intensity
+        // Apply intensity blending
         for (let i = 0; i < processedData.data.length; i += 4) {
           const originalR = imageData.data[i]! / 255;
           const originalG = imageData.data[i + 1]! / 255;
@@ -244,7 +219,7 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [enabled, isReady, lutPreset, lutIntensity, faceLandmarks, beautySettings]
+    [enabled, isReady, lutPreset, lutIntensity]
   );
 
   return {

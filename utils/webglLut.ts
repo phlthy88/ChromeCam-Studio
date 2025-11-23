@@ -630,11 +630,8 @@ export class WebGLLutRenderer {
     intensity: number = 1.0
   ): void {
     if (!this.gl || !this.program || !this.canvas) {
-      console.error('[WebGLLutRenderer] Cannot render: missing WebGL context, program, or canvas');
       return;
     }
-
-    console.log(`[WebGLLutRenderer] Rendering with intensity: ${intensity}`);
 
     const gl = this.gl;
 
