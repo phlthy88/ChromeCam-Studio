@@ -1,19 +1,19 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CameraSettings, RESOLUTION_PRESETS, VIDEO_CODECS } from './settings';
-
-declare global {
-    interface Window {
-        bodySegmentation: any;
-        BarcodeDetector?: any;
-        showSaveFilePicker?: (options?: any) => Promise<any>;
-    }
-}
+import type {
+    ExtendedMediaTrackCapabilities,
+    ExtendedMediaTrackConstraints,
+    ExtendedMediaTrackConstraintSet,
+    BodySegmenter,
+    BarcodeDetector,
+    WakeLockSentinel,
+} from '../types/media.d.ts';
 
 interface VideoPanelProps {
     deviceId: string | null;
     settings: CameraSettings;
-    onCapabilitiesChange?: (capabilities: MediaTrackCapabilities | null) => void;
+    onCapabilitiesChange?: (capabilities: ExtendedMediaTrackCapabilities | null) => void;
 }
 
 // Constants to avoid GC in the render loop
@@ -104,14 +104,14 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null);
     const bgImageRef = useRef<HTMLImageElement | null>(null);
 
-    const [segmenter, setSegmenter] = useState<any>(null);
+    const [segmenter, setSegmenter] = useState<BodySegmenter | null>(null);
     const segmentationMaskRef = useRef<ImageData | null>(null);
     const requestRef = useRef<number | null>(null);
-    const lowLightIntervalRef = useRef<any>(null);
+    const lowLightIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const currentTransformRef = useRef({ panX: 0, panY: 0, zoom: 1 });
     const targetTransformRef = useRef({ panX: 0, panY: 0, zoom: 1 });
     const videoTrackRef = useRef<MediaStreamTrack | null>(null);
-    const capabilitiesRef = useRef<MediaTrackCapabilities | null>(null);
+    const capabilitiesRef = useRef<ExtendedMediaTrackCapabilities | null>(null);
     const activeHardwareRef = useRef({
         zoom: false, panX: false, panY: false,
         brightness: false, contrast: false, saturation: false
@@ -130,9 +130,9 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     const [recordingTime, setRecordingTime] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
-    const recordingTimerRef = useRef<any>(null);
+    const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [qrResult, setQrResult] = useState<string | null>(null);
-    const barcodeDetectorRef = useRef<any>(null);
+    const barcodeDetectorRef = useRef<BarcodeDetector | null>(null);
 
     useEffect(() => {
         settingsRef.current = settings;
@@ -141,8 +141,16 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     }, [settings]);
 
     useEffect(() => {
-        let wakeLock: any = null;
-        const requestWakeLock = async () => { if ('wakeLock' in navigator) try { wakeLock = await (navigator as any).wakeLock.request('screen'); } catch (err) {} };
+        let wakeLock: WakeLockSentinel | null = null;
+        const requestWakeLock = async () => {
+            if (navigator.wakeLock) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.warn('[WakeLock] Failed to acquire:', err);
+                }
+            }
+        };
         requestWakeLock();
         const handleVisibilityChange = () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -157,20 +165,23 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     }, []);
 
     useEffect(() => {
-        let intervalId: any;
+        let intervalId: ReturnType<typeof setInterval> | undefined;
         const initAI = async () => {
             if (window.bodySegmentation) {
-                 clearInterval(intervalId);
+                 if (intervalId) clearInterval(intervalId);
                  try {
                     const model = window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation;
-                    const segmenterConfig = { runtime: 'mediapipe', solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/', modelType: 'general' };
+                    const segmenterConfig = { runtime: 'mediapipe' as const, solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/', modelType: 'general' as const };
                     const seg = await window.bodySegmentation.createSegmenter(model, segmenterConfig);
                     setSegmenter(seg); setLoadingStatus('AI Ready'); setLoadingError(null);
-                 } catch(e) { setLoadingError("Failed to load AI Engine"); }
+                 } catch(e) {
+                    console.error('[AI] Failed to initialize:', e);
+                    setLoadingError("Failed to load AI Engine");
+                 }
             }
         };
         intervalId = setInterval(initAI, 500);
-        return () => clearInterval(intervalId);
+        return () => { if (intervalId) clearInterval(intervalId); };
     }, []);
 
     useEffect(() => {
@@ -242,8 +253,16 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                         channelCount: settings.channelCount,
                     } : false;
 
+                    // Extended video constraints with PTZ support
+                    const extendedVideoConstraints: ExtendedMediaTrackConstraintSet = {
+                        ...videoConstraints,
+                        pan: true,
+                        tilt: true,
+                        zoom: true
+                    };
+
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { ...videoConstraints, pan: true, tilt: true, zoom: true } as any,
+                        video: extendedVideoConstraints as MediaTrackConstraints,
                         audio: audioConstraints
                     });
                     if (isCancelled) { stream.getTracks().forEach(t => t.stop()); return; }
@@ -251,17 +270,35 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                     const videoTrack = stream.getVideoTracks()[0];
                     if (videoTrack) {
                         videoTrackRef.current = videoTrack;
-                        try { await videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }, { exposureMode: 'continuous' }] } as any); } catch (e) {}
-                        const caps = videoTrack.getCapabilities(); capabilitiesRef.current = caps; if (onCapabilitiesChange) onCapabilitiesChange(caps);
-                        // @ts-ignore
-                        activeHardwareRef.current.zoom = !!caps.zoom; activeHardwareRef.current.panX = !!caps.pan; activeHardwareRef.current.panY = !!caps.tilt; activeHardwareRef.current.brightness = !!caps.brightness; activeHardwareRef.current.contrast = !!caps.contrast; activeHardwareRef.current.saturation = !!caps.saturation;
+                        // Apply initial focus/exposure modes
+                        const initialConstraints: ExtendedMediaTrackConstraints = {
+                            advanced: [{ focusMode: 'continuous', exposureMode: 'continuous' }]
+                        };
+                        try {
+                            await videoTrack.applyConstraints(initialConstraints as MediaTrackConstraints);
+                        } catch (e) {
+                            console.warn('[Camera] Initial constraints not supported:', e);
+                        }
+                        const caps = videoTrack.getCapabilities() as ExtendedMediaTrackCapabilities;
+                        capabilitiesRef.current = caps;
+                        if (onCapabilitiesChange) onCapabilitiesChange(caps);
+                        activeHardwareRef.current.zoom = !!caps.zoom;
+                        activeHardwareRef.current.panX = !!caps.pan;
+                        activeHardwareRef.current.panY = !!caps.tilt;
+                        activeHardwareRef.current.brightness = !!caps.brightness;
+                        activeHardwareRef.current.contrast = !!caps.contrast;
+                        activeHardwareRef.current.saturation = !!caps.saturation;
                     }
                     if (videoRef.current) {
                         videoRef.current.srcObject = stream;
                         await videoRef.current.play().catch(_e => {});
                         videoRef.current.onloadedmetadata = () => { if (videoRef.current && canvasRef.current) { canvasRef.current.width = videoRef.current.videoWidth; canvasRef.current.height = videoRef.current.videoHeight; videoRef.current.width = videoRef.current.videoWidth; videoRef.current.height = videoRef.current.videoHeight; } };
                     }
-                } catch (err: any) { setLoadingError(err.name === 'NotReadableError' ? "Camera is in use." : "Could not start camera."); }
+                } catch (err) {
+                    const error = err instanceof Error ? err : new Error('Unknown error');
+                    console.error('[Camera] Stream error:', error);
+                    setLoadingError(error.name === 'NotReadableError' ? "Camera is in use." : "Could not start camera.");
+                }
             }
         };
         startStream();
@@ -270,115 +307,106 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
 
     useEffect(() => {
         const applyHardware = async () => {
-            const track = videoTrackRef.current; const caps = capabilitiesRef.current; if (!track || !caps) return;
-            const constraints: any = { advanced: [{}] }; let hasChanges = false;
+            const track = videoTrackRef.current;
+            const caps = capabilitiesRef.current;
+            if (!track || !caps) return;
+
+            const advancedConstraint: ExtendedMediaTrackConstraintSet = {};
+            let hasChanges = false;
 
             // Zoom
-            // @ts-ignore
             if (activeHardwareRef.current.zoom && caps.zoom) {
-                // @ts-ignore
-                constraints.advanced[0].zoom = mapRange(settings.zoom, 1, 3, caps.zoom.min, caps.zoom.max);
+                advancedConstraint.zoom = mapRange(settings.zoom, 1, 3, caps.zoom.min, caps.zoom.max);
                 hasChanges = true;
             }
 
             // Brightness, Contrast, Saturation
-            // @ts-ignore
             if (activeHardwareRef.current.brightness && caps.brightness) {
-                // @ts-ignore
-                constraints.advanced[0].brightness = mapRange(settings.brightness, 0, 200, caps.brightness.min, caps.brightness.max);
+                advancedConstraint.brightness = mapRange(settings.brightness, 0, 200, caps.brightness.min, caps.brightness.max);
                 hasChanges = true;
             }
-            // @ts-ignore
             if (activeHardwareRef.current.contrast && caps.contrast) {
-                // @ts-ignore
-                constraints.advanced[0].contrast = mapRange(settings.contrast, 0, 200, caps.contrast.min, caps.contrast.max);
+                advancedConstraint.contrast = mapRange(settings.contrast, 0, 200, caps.contrast.min, caps.contrast.max);
                 hasChanges = true;
             }
-            // @ts-ignore
             if (activeHardwareRef.current.saturation && caps.saturation) {
-                // @ts-ignore
-                constraints.advanced[0].saturation = mapRange(settings.saturation, 0, 200, caps.saturation.min, caps.saturation.max);
+                advancedConstraint.saturation = mapRange(settings.saturation, 0, 200, caps.saturation.min, caps.saturation.max);
                 hasChanges = true;
             }
 
             // Exposure
-            // @ts-ignore
             if (caps.exposureMode && settings.exposureMode) {
-                constraints.advanced[0].exposureMode = settings.exposureMode;
+                advancedConstraint.exposureMode = settings.exposureMode;
                 hasChanges = true;
             }
-            // @ts-ignore
             if (settings.exposureMode === 'manual' && caps.exposureTime && settings.exposureTime) {
-                constraints.advanced[0].exposureTime = settings.exposureTime;
+                advancedConstraint.exposureTime = settings.exposureTime;
                 hasChanges = true;
             }
-            // @ts-ignore
             if (caps.exposureCompensation && settings.exposureCompensation) {
-                constraints.advanced[0].exposureCompensation = settings.exposureCompensation;
+                advancedConstraint.exposureCompensation = settings.exposureCompensation;
                 hasChanges = true;
             }
 
             // White Balance
-            // @ts-ignore
             if (caps.whiteBalanceMode) {
-                constraints.advanced[0].whiteBalanceMode = settings.whiteBalanceMode;
+                advancedConstraint.whiteBalanceMode = settings.whiteBalanceMode;
                 hasChanges = true;
             }
-            // @ts-ignore
             if (settings.whiteBalanceMode === 'manual' && caps.colorTemperature && settings.colorTemperature) {
-                constraints.advanced[0].colorTemperature = settings.colorTemperature;
+                advancedConstraint.colorTemperature = settings.colorTemperature;
                 hasChanges = true;
             }
 
             // Focus
-            // @ts-ignore
             if (caps.focusMode) {
-                constraints.advanced[0].focusMode = settings.focusMode;
+                advancedConstraint.focusMode = settings.focusMode;
                 hasChanges = true;
             }
-            // @ts-ignore
             if (settings.focusMode === 'manual' && caps.focusDistance && settings.focusDistance) {
-                constraints.advanced[0].focusDistance = settings.focusDistance;
+                advancedConstraint.focusDistance = settings.focusDistance;
                 hasChanges = true;
             }
 
             // ISO
-            // @ts-ignore
             if (caps.iso && settings.iso) {
-                constraints.advanced[0].iso = settings.iso;
+                advancedConstraint.iso = settings.iso;
                 hasChanges = true;
             }
 
             // Sharpness
-            // @ts-ignore
             if (caps.sharpness && settings.sharpness) {
-                constraints.advanced[0].sharpness = settings.sharpness;
+                advancedConstraint.sharpness = settings.sharpness;
                 hasChanges = true;
             }
 
             // Backlight Compensation
-            // @ts-ignore
             if (caps.backlightCompensation !== undefined) {
-                constraints.advanced[0].backlightCompensation = settings.backlightCompensation;
+                advancedConstraint.backlightCompensation = settings.backlightCompensation;
                 hasChanges = true;
             }
 
             // Power Line Frequency
-            // @ts-ignore
             if (caps.powerLineFrequency) {
                 const freqMap: Record<string, number> = { 'disabled': 0, '50Hz': 50, '60Hz': 60 };
-                constraints.advanced[0].powerLineFrequency = freqMap[settings.powerLineFrequency] || 0;
+                advancedConstraint.powerLineFrequency = freqMap[settings.powerLineFrequency] ?? 0;
                 hasChanges = true;
             }
 
             // Torch
-            // @ts-ignore
             if (caps.torch !== undefined) {
-                constraints.advanced[0].torch = settings.torch;
+                advancedConstraint.torch = settings.torch;
                 hasChanges = true;
             }
 
-            if (hasChanges) try { await track.applyConstraints(constraints); } catch (e) { console.warn('Failed to apply hardware constraints:', e); }
+            if (hasChanges) {
+                const constraints: ExtendedMediaTrackConstraints = { advanced: [advancedConstraint] };
+                try {
+                    await track.applyConstraints(constraints as MediaTrackConstraints);
+                } catch (e) {
+                    console.warn('[Camera] Failed to apply hardware constraints:', e);
+                }
+            }
         };
         applyHardware();
     }, [
@@ -402,7 +430,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     }, [deviceId]);
 
     useEffect(() => {
-        let isLoopActive = true; let timeoutId: any;
+        let isLoopActive = true; let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const inferenceLoop = async () => {
             if (!isLoopActive) return;
             const video = videoRef.current;
