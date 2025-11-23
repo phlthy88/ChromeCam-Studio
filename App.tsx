@@ -1,5 +1,4 @@
 
-import React from 'react';
 import WebcamApp from './components/WebcamApp';
 
 function App() {

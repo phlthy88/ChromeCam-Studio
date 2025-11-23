@@ -97,7 +97,7 @@ const Chip: React.FC<ChipProps> = ({
         return 'px-4';
     };
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = (_e: React.MouseEvent) => {
         if (!disabled && onClick) {
             onClick();
         }

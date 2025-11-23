@@ -48,7 +48,8 @@ const VUMeter: React.FC = () => {
                     // Calculate RMS for volume approximation
                     let sum = 0;
                     for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i] * dataArray[i];
+                        const value = dataArray[i] ?? 0;
+                        sum += value * value;
                     }
                     const rms = Math.sqrt(sum / bufferLength);
                     const volume = Math.min(100, (rms / 128) * 100 * 1.5);

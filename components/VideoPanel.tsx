@@ -122,7 +122,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     const [aiRuntimeError, setAiRuntimeError] = useState(false);
     const [loadingStatus, setLoadingStatus] = useState<string>('Initializing AI...');
     const [isAiActive, setIsAiActive] = useState(false);
-    const [autoGain, setAutoGain] = useState(0);
+    const [_autoGain, setAutoGain] = useState(0);
     const autoGainRef = useRef(0);
     const [isCompareActive, setIsCompareActive] = useState(false);
     const [flashActive, setFlashActive] = useState(false);
@@ -189,7 +189,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             try {
                 ctx.drawImage(video, video.videoWidth/2 - 16, video.videoHeight/2 - 16, 32, 32, 0, 0, 32, 32);
                 const data = ctx.getImageData(0, 0, 32, 32).data;
-                let totalLum = 0; for (let i = 0; i < data.length; i += 4) totalLum += 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+                let totalLum = 0; for (let i = 0; i < data.length; i += 4) totalLum += 0.2126 * (data[i] ?? 0) + 0.7152 * (data[i+1] ?? 0) + 0.0722 * (data[i+2] ?? 0);
                 const avg = totalLum / 1024; const target = 110;
                 let gain = 0; if (avg < target) gain = ((target - avg) / target) * 80;
                 const prev = autoGainRef.current; const diff = gain - prev;
@@ -227,7 +227,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                     }
                     if (videoRef.current) {
                         videoRef.current.srcObject = stream;
-                        await videoRef.current.play().catch(e => {});
+                        await videoRef.current.play().catch(_e => {});
                         videoRef.current.onloadedmetadata = () => { if (videoRef.current && canvasRef.current) { canvasRef.current.width = videoRef.current.videoWidth; canvasRef.current.height = videoRef.current.videoHeight; videoRef.current.width = videoRef.current.videoWidth; videoRef.current.height = videoRef.current.videoHeight; } };
                     }
                 } catch (err: any) { setLoadingError(err.name === 'NotReadableError' ? "Camera is in use." : "Could not start camera."); }
@@ -357,7 +357,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                     const effectiveBrightness = activeHardwareRef.current.brightness ? 100 : settingsRef.current.brightness;
                     const totalBrightness = effectiveBrightness + autoGainRef.current;
                     baseFilter += `brightness(${totalBrightness}%) contrast(${effectiveContrast}%) saturate(${effectiveSaturation}%) grayscale(${settingsRef.current.grayscale}%) sepia(${settingsRef.current.sepia}%) hue-rotate(${settingsRef.current.hue}deg) `;
-                    baseFilter += filterPreset.css;
+                    if (filterPreset) baseFilter += filterPreset.css;
 
                     const segmentationMask = segmentationMaskRef.current;
                     const isAiNeeded = blur > 0 || portraitLighting > 0 || faceSmoothing > 0 || autoFrame || virtualBackground;
@@ -386,7 +386,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                         ctx.drawImage(tempCanvas, 0, 0); ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
                     } else { ctx.filter = baseFilter || 'none'; ctx.drawImage(video, 0, 0); ctx.filter = 'none'; }
 
-                    if (filterPreset.overlay) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = filterPreset.blend || 'overlay'; ctx.globalAlpha = filterPreset.alpha || 0.2; ctx.fillStyle = filterPreset.overlay; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1.0; }
+                    if (filterPreset?.overlay) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = filterPreset.blend || 'overlay'; ctx.globalAlpha = filterPreset.alpha || 0.2; ctx.fillStyle = filterPreset.overlay; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1.0; }
                 }
             }
             if (isLoopActive) requestRef.current = requestAnimationFrame(processVideo);
@@ -408,7 +408,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             clearInterval(recordingTimerRef.current); setIsRecording(false);
         } else {
             if (!canvasRef.current) return; recordedChunksRef.current = []; const stream = canvasRef.current.captureStream(30);
-            if (activeStreamRef.current && settings.enableAudio) { const audioTracks = activeStreamRef.current.getAudioTracks(); if (audioTracks.length > 0) stream.addTrack(audioTracks[0]); }
+            if (activeStreamRef.current && settings.enableAudio) { const audioTracks = activeStreamRef.current.getAudioTracks(); const firstTrack = audioTracks[0]; if (firstTrack) stream.addTrack(firstTrack); }
             try {
                 const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
                 recorder.ondataavailable = (event) => { if (event.data.size > 0) recordedChunksRef.current.push(event.data); };
