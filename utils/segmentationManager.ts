@@ -1,14 +1,3 @@
-/**
- * Segmentation Manager
- *
- * Manages body segmentation with automatic fallback between:
- * 1. Web Worker (preferred - off main thread)
- * 2. Main Thread (fallback - if worker fails)
- *
- * This addresses the MediaPipe CDN loading issues mentioned in the codebase
- * by providing graceful degradation and proper error handling.
- */
-
 import type {
   SegmentationWorkerMessage,
   SegmentationWorkerResponse,
@@ -135,19 +124,19 @@ class SegmentationManager {
           resolve(false);
         }, 10000); // 10 second timeout
 
-        this.worker.onmessage = (event: MessageEvent<SegmentationWorkerResponse>) => {
+        this.worker.onmessage = (event: MessageEvent<any>) => {
           const response = event.data;
 
-          if (response.type === 'ready') {
+          if (response.type === 'init-complete') {
             clearTimeout(timeoutId);
-            this.setupWorkerMessageHandler();
-            resolve(true);
-          } else if (response.type === 'error' && !this.pendingCallbacks.size) {
-            // Error during init
-            clearTimeout(timeoutId);
-            console.warn('[SegmentationManager] Worker ready but failed:', response.payload?.error);
-            this.terminateWorker();
-            resolve(false);
+            if (response.success) {
+                this.setupWorkerMessageHandler();
+                resolve(true);
+            } else {
+                console.warn('[SegmentationManager] Worker initialization failed:', response.error);
+                this.terminateWorker();
+                resolve(false);
+            }
           }
         };
 
@@ -159,8 +148,9 @@ class SegmentationManager {
         };
 
         // Send init message with timestamp
-        const initMessage: SegmentationWorkerMessage = {
+        const initMessage = {
           type: 'init',
+          config: { modelType: 'general' },
           timestamp: performance.now(),
         };
         this.worker.postMessage(initMessage);
@@ -177,57 +167,45 @@ class SegmentationManager {
   private setupWorkerMessageHandler(): void {
     if (!this.worker) return;
 
-    this.worker.onmessage = (event: MessageEvent<SegmentationWorkerResponse>) => {
+    this.worker.onmessage = (event: MessageEvent<any>) => {
       const response = event.data;
 
       switch (response.type) {
-        case 'result': {
-          if (response.payload?.maskData && response.payload.width && response.payload.height) {
-            // Create ImageData from the transferred array
-            const imageData = new ImageData(
-              new Uint8ClampedArray(response.payload.maskData),
-              response.payload.width,
-              response.payload.height
-            );
+        case 'mask': {
+          if (response.mask) {
+            // Convert ImageBitmap to ImageData for compatibility with existing renderer
+            // In Phase 1.2 (OffscreenCanvas), we would use the ImageBitmap directly
+            const canvas = document.createElement('canvas');
+            canvas.width = response.mask.width;
+            canvas.height = response.mask.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(response.mask, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-            // Update performance metrics
-            if (response.payload.fps !== undefined) {
-              this.currentFps = response.payload.fps;
-            }
-            if (response.payload.latency !== undefined) {
-              this.currentLatency = response.payload.latency;
+                // Resolve pending callbacks (LIFO mostly, but we just take the oldest)
+                // Actually, since we don't pass ID back from worker yet, just call the first one
+                const keys = Array.from(this.pendingCallbacks.keys());
+                if (keys.length > 0) {
+                    const callback = this.pendingCallbacks.get(keys[0]);
+                    if (callback) {
+                        callback({ mask: imageData });
+                        this.pendingCallbacks.delete(keys[0]);
+                    }
+                }
             }
 
-            // Resolve pending callbacks
-            this.pendingCallbacks.forEach((callback) => {
-              callback({
-                mask: imageData,
-                fps: this.currentFps,
-                latency: this.currentLatency,
-              });
-            });
-            this.pendingCallbacks.clear();
-          }
-          break;
-        }
-
-        case 'performance': {
-          if (response.payload?.fps !== undefined) {
-            this.currentFps = response.payload.fps;
-            if (response.payload.latency !== undefined) {
-              this.currentLatency = response.payload.latency;
-            }
-            if (this.onPerformanceUpdate) {
-              this.onPerformanceUpdate(this.currentFps, this.currentLatency);
-            }
+            // Close the bitmap to avoid leaks
+            response.mask.close();
           }
           break;
         }
 
         case 'error': {
-          console.error('[SegmentationManager] Worker error:', response.payload?.error);
+          console.error('[SegmentationManager] Worker error:', response.error);
+          // Clear all pending callbacks
           this.pendingCallbacks.forEach((callback) => {
-            callback({ mask: null, error: response.payload?.error });
+            callback({ mask: null, error: response.error });
           });
           this.pendingCallbacks.clear();
           break;
@@ -255,11 +233,9 @@ class SegmentationManager {
       // Create ImageBitmap from video frame
       createImageBitmap(video)
         .then((imageBitmap) => {
-          const message: SegmentationWorkerMessage = {
-            type: 'segment',
-            payload: {
-              imageBitmap,
-            },
+          const message = {
+            type: 'process',
+            image: imageBitmap,
             timestamp: performance.now(),
           };
 
@@ -284,14 +260,7 @@ class SegmentationManager {
    * Update segmentation configuration
    */
   updateConfig(config: Partial<SegmentationConfig>): void {
-    if (this.worker && this.mode === 'worker') {
-      const message: SegmentationWorkerMessage = {
-        type: 'updateConfig',
-        payload: { config: config as SegmentationConfig },
-        timestamp: performance.now(),
-      };
-      this.worker.postMessage(message);
-    }
+    // Not fully implemented in worker yet
   }
 
   /**
@@ -313,9 +282,8 @@ class SegmentationManager {
    */
   terminateWorker(): void {
     if (this.worker) {
-      const message: SegmentationWorkerMessage = {
-        type: 'dispose',
-        timestamp: performance.now(),
+      const message = {
+        type: 'close',
       };
       this.worker.postMessage(message);
       this.worker.terminate();
