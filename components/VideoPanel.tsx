@@ -47,6 +47,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
   const [isCompareActive, setIsCompareActive] = useState(false);
   const [bgImageError, setBgImageError] = useState<string | null>(null);
   const [isMobileToolbarVisible, setIsMobileToolbarVisible] = useState(false);
+
   const [_supportedFrameRates, setSupportedFrameRates] = useState<number[]>([]);
   const [_supportedResolutions, setSupportedResolutions] = useState<
     { width: number; height: number }[]

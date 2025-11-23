@@ -5,6 +5,7 @@ import type { HardwareCapabilities } from './useCameraStream';
 import type { AutoFrameTransform } from './useBodySegmentation';
 import { useProOverlays } from './useProOverlays';
 import { useWebGLRenderer } from './useWebGLRenderer';
+import { usePerformanceMonitor } from './usePerformanceMonitor';
 
 interface FilterDef {
   css: string;
@@ -295,6 +296,11 @@ export interface UseVideoRendererReturn {
   tempCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   currentTransformRef: React.RefObject<AutoFrameTransform>;
   isWebGLActive: boolean;
+  performanceMetrics: {
+    fps: number;
+    frameTime: number;
+    memoryUsage?: number;
+  };
 }
 
 /**
@@ -363,6 +369,9 @@ export function useVideoRenderer({
     lutPreset: settings.cinematicLut,
     lutIntensity: settings.cinematicLutIntensity,
   });
+
+  // Performance monitoring
+  const performanceMetrics = usePerformanceMonitor(true);
 
   // Keep settings ref updated
   useEffect(() => {
@@ -688,7 +697,10 @@ export function useVideoRenderer({
           if (cinematicLut !== 'none' && isWebGLReady) {
             const lutCanvas = applyLutGrading(canvas);
             if (lutCanvas) {
+              console.log('[useVideoRenderer] Applying LUT to canvas');
               ctx.drawImage(lutCanvas, 0, 0);
+            } else {
+              console.warn('[useVideoRenderer] LUT grading returned null canvas');
             }
           }
 
@@ -756,6 +768,7 @@ export function useVideoRenderer({
     tempCanvasRef,
     currentTransformRef,
     isWebGLActive: isWebGLReady && settings.cinematicLut !== 'none',
+    performanceMetrics,
   };
 }
 
