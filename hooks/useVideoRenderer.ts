@@ -55,20 +55,54 @@ const FILTER_PRESETS: Record<string, FilterDef> = {
 };
 
 /**
- * Draw a vignette effect on the canvas
+ * Cache for vignette gradient to avoid recreation every frame
+ */
+interface VignetteCache {
+    gradient: CanvasGradient | null;
+    width: number;
+    height: number;
+    intensity: number;
+}
+
+/**
+ * Cache for computed filter strings to avoid string concatenation every frame
+ */
+interface FilterCache {
+    baseFilter: string;
+    // Settings that affect the filter string
+    denoise: boolean;
+    contrast: number;
+    saturation: number;
+    brightness: number;
+    grayscale: number;
+    sepia: number;
+    hue: number;
+    activeFilter: string;
+    autoGain: number;
+    // Hardware capability flags
+    hwContrast: boolean;
+    hwSaturation: boolean;
+    hwBrightness: boolean;
+}
+
+/**
+ * Create a vignette gradient (cached version)
  * @param ctx - Canvas 2D context
  * @param width - Canvas width
  * @param height - Canvas height
  * @param intensity - Vignette intensity (0-100)
+ * @returns The created gradient
  */
-function drawVignette(ctx: CanvasRenderingContext2D, width: number, height: number, intensity: number): void {
-    if (intensity <= 0) return;
-
+function createVignetteGradient(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    intensity: number
+): CanvasGradient {
     const centerX = width / 2;
     const centerY = height / 2;
     const radius = Math.max(width, height) * 0.7;
 
-    // Create radial gradient
     const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.3, centerX, centerY, radius);
 
     // Scale intensity (0-100) to opacity (0-0.8)
@@ -79,11 +113,66 @@ function drawVignette(ctx: CanvasRenderingContext2D, width: number, height: numb
     gradient.addColorStop(0.8, `rgba(0, 0, 0, ${opacity * 0.6})`);
     gradient.addColorStop(1, `rgba(0, 0, 0, ${opacity})`);
 
+    return gradient;
+}
+
+/**
+ * Draw a vignette effect on the canvas using cached gradient
+ * @param ctx - Canvas 2D context
+ * @param width - Canvas width
+ * @param height - Canvas height
+ * @param gradient - Pre-created gradient (from cache)
+ */
+function drawVignette(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    gradient: CanvasGradient
+): void {
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     ctx.restore();
+}
+
+/**
+ * Build the base filter string from settings
+ * Extracted for caching purposes
+ */
+function buildBaseFilterString(
+    denoise: boolean,
+    hwContrast: boolean,
+    hwSaturation: boolean,
+    hwBrightness: boolean,
+    contrast: number,
+    saturation: number,
+    brightness: number,
+    grayscale: number,
+    sepia: number,
+    hue: number,
+    autoGain: number,
+    filterPresetCss: string
+): string {
+    let baseFilter = '';
+
+    if (denoise) {
+        const contrastBoost = hwContrast ? '100%' : '105%';
+        baseFilter += `blur(0.5px) contrast(${contrastBoost}) `;
+    }
+
+    const effectiveContrast = hwContrast ? 100 : contrast;
+    const effectiveSaturation = hwSaturation ? 100 : saturation;
+    const effectiveBrightness = hwBrightness ? 100 : brightness;
+    const totalBrightness = effectiveBrightness + autoGain;
+
+    baseFilter += `brightness(${totalBrightness}%) contrast(${effectiveContrast}%) saturate(${effectiveSaturation}%) grayscale(${grayscale}%) sepia(${sepia}%) hue-rotate(${hue}deg) `;
+
+    if (filterPresetCss) {
+        baseFilter += filterPresetCss;
+    }
+
+    return baseFilter;
 }
 
 /**
@@ -175,6 +264,29 @@ export function useVideoRenderer({
     const currentTransformRef = useRef<AutoFrameTransform>({ panX: 0, panY: 0, zoom: 1 });
     const requestRef = useRef<number | null>(null);
     const settingsRef = useRef(settings);
+
+    // Performance optimization: Cache vignette gradient and filter string
+    const vignetteCacheRef = useRef<VignetteCache>({
+        gradient: null,
+        width: 0,
+        height: 0,
+        intensity: 0,
+    });
+    const filterCacheRef = useRef<FilterCache>({
+        baseFilter: '',
+        denoise: false,
+        contrast: 100,
+        saturation: 100,
+        brightness: 100,
+        grayscale: 0,
+        sepia: 0,
+        hue: 0,
+        activeFilter: 'none',
+        autoGain: 0,
+        hwContrast: false,
+        hwSaturation: false,
+        hwBrightness: false,
+    });
 
     const { drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking } = useProOverlays();
 
@@ -284,18 +396,59 @@ export function useVideoRenderer({
                     ctx.translate(xOffset, yOffset);
                     ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
-                    // Build base filter string
-                    let baseFilter = '';
-                    if (denoise) {
-                        const contrastBoost = hardwareCapabilities.contrast ? '100%' : '105%';
-                        baseFilter += `blur(0.5px) contrast(${contrastBoost}) `;
+                    // Build base filter string with caching to avoid string concatenation every frame
+                    const filterCache = filterCacheRef.current;
+                    const cacheValid =
+                        filterCache.denoise === denoise &&
+                        filterCache.contrast === settingsRef.current.contrast &&
+                        filterCache.saturation === settingsRef.current.saturation &&
+                        filterCache.brightness === settingsRef.current.brightness &&
+                        filterCache.grayscale === settingsRef.current.grayscale &&
+                        filterCache.sepia === settingsRef.current.sepia &&
+                        filterCache.hue === settingsRef.current.hue &&
+                        filterCache.activeFilter === activeFilter &&
+                        filterCache.autoGain === autoGain &&
+                        filterCache.hwContrast === hardwareCapabilities.contrast &&
+                        filterCache.hwSaturation === hardwareCapabilities.saturation &&
+                        filterCache.hwBrightness === hardwareCapabilities.brightness;
+
+                    let baseFilter: string;
+                    if (cacheValid) {
+                        baseFilter = filterCache.baseFilter;
+                    } else {
+                        // Rebuild filter string and update cache
+                        baseFilter = buildBaseFilterString(
+                            denoise,
+                            hardwareCapabilities.contrast,
+                            hardwareCapabilities.saturation,
+                            hardwareCapabilities.brightness,
+                            settingsRef.current.contrast,
+                            settingsRef.current.saturation,
+                            settingsRef.current.brightness,
+                            settingsRef.current.grayscale,
+                            settingsRef.current.sepia,
+                            settingsRef.current.hue,
+                            autoGain,
+                            filterPreset?.css || ''
+                        );
+
+                        // Update cache
+                        filterCacheRef.current = {
+                            baseFilter,
+                            denoise,
+                            contrast: settingsRef.current.contrast,
+                            saturation: settingsRef.current.saturation,
+                            brightness: settingsRef.current.brightness,
+                            grayscale: settingsRef.current.grayscale,
+                            sepia: settingsRef.current.sepia,
+                            hue: settingsRef.current.hue,
+                            activeFilter,
+                            autoGain,
+                            hwContrast: hardwareCapabilities.contrast,
+                            hwSaturation: hardwareCapabilities.saturation,
+                            hwBrightness: hardwareCapabilities.brightness,
+                        };
                     }
-                    const effectiveContrast = hardwareCapabilities.contrast ? 100 : settingsRef.current.contrast;
-                    const effectiveSaturation = hardwareCapabilities.saturation ? 100 : settingsRef.current.saturation;
-                    const effectiveBrightness = hardwareCapabilities.brightness ? 100 : settingsRef.current.brightness;
-                    const totalBrightness = effectiveBrightness + autoGain;
-                    baseFilter += `brightness(${totalBrightness}%) contrast(${effectiveContrast}%) saturate(${effectiveSaturation}%) grayscale(${settingsRef.current.grayscale}%) sepia(${settingsRef.current.sepia}%) hue-rotate(${settingsRef.current.hue}deg) `;
-                    if (filterPreset) baseFilter += filterPreset.css;
 
                     const segmentationMask = segmentationMaskRef.current;
                     const isAiNeeded = blur > 0 || portraitLighting > 0 || faceSmoothing > 0 || autoFrame || virtualBackground;
@@ -378,9 +531,29 @@ export function useVideoRenderer({
                         applySoftwareSharpness(ctx, canvas, softwareSharpness);
                     }
 
-                    // Apply vignette effect
+                    // Apply vignette effect with gradient caching
                     if (vignette > 0) {
-                        drawVignette(ctx, canvas.width, canvas.height, vignette);
+                        const vignetteCache = vignetteCacheRef.current;
+                        const needsNewGradient =
+                            !vignetteCache.gradient ||
+                            vignetteCache.width !== canvas.width ||
+                            vignetteCache.height !== canvas.height ||
+                            vignetteCache.intensity !== vignette;
+
+                        if (needsNewGradient) {
+                            // Create and cache new gradient
+                            const gradient = createVignetteGradient(ctx, canvas.width, canvas.height, vignette);
+                            vignetteCacheRef.current = {
+                                gradient,
+                                width: canvas.width,
+                                height: canvas.height,
+                                intensity: vignette,
+                            };
+                            drawVignette(ctx, canvas.width, canvas.height, gradient);
+                        } else {
+                            // Use cached gradient
+                            drawVignette(ctx, canvas.width, canvas.height, vignetteCache.gradient!);
+                        }
                     }
 
                     // Draw professional overlays
