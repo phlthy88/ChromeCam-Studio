@@ -272,8 +272,13 @@ export function useCameraStream({
         }
 
         if (videoRef.current) {
+          console.log('[useCameraStream] Assigning stream to video element');
           videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
+          await videoRef.current
+            .play()
+            .catch((e) => console.warn('[useCameraStream] Play failed:', e));
+        } else {
+          console.error('[useCameraStream] Video element not available');
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Unknown error');

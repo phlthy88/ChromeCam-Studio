@@ -45,6 +45,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   onCapabilitiesChange,
   onProcessedAudioStream,
 }) => {
+  console.log('[VideoPanel] Rendering with deviceId:', deviceId, 'settings:', settings);
+
   // Canvas ref for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);

@@ -76,6 +76,7 @@ const WebcamAppInner: React.FC = () => {
   // Handle settings change with toast notifications
   const handleSettingsChange = useCallback(
     (newSettings: CameraSettings) => {
+      console.log('[WebcamApp] handleSettingsChange called with:', newSettings);
       if (!isInitializedRef.current) {
         isInitializedRef.current = true;
         prevSettingsRef.current = newSettings;

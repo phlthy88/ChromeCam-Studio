@@ -429,6 +429,7 @@ export function useVideoRenderer({
 
   // Main render loop
   useEffect(() => {
+    console.log('[useVideoRenderer] Starting render loop');
     let isLoopActive = true;
 
     const processVideo = () => {
@@ -440,8 +441,15 @@ export function useVideoRenderer({
         return;
       }
 
+      console.log('[useVideoRenderer] Processing video frame');
       const video = videoRef.current;
       const canvas = canvasRef.current;
+      console.log(
+        '[useVideoRenderer] Video dimensions:',
+        video?.videoWidth,
+        'x',
+        video?.videoHeight
+      );
       // Use willReadFrequently: true since we call getImageData for overlays
       const ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
       const maskCanvas = maskCanvasRef.current;
@@ -507,6 +515,21 @@ export function useVideoRenderer({
       }
 
       const { panX, panY, zoom } = currentTransformRef.current;
+
+      if (canvas && ctx && video && video.readyState >= 2) {
+        console.log('[useVideoRenderer] Video ready, rendering frame');
+      } else {
+        console.log(
+          '[useVideoRenderer] Video not ready - canvas:',
+          !!canvas,
+          'ctx:',
+          !!ctx,
+          'video:',
+          !!video,
+          'readyState:',
+          video?.readyState
+        );
+      }
 
       if (canvas && ctx && video && video.readyState >= 2) {
         // Resize canvas to match video dimensions
