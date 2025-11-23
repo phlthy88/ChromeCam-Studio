@@ -39,7 +39,7 @@ const WebcamApp: React.FC = () => {
                 const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
                 setDevices(videoDevices);
                 if (videoDevices.length > 0) {
-                    setSelectedDeviceId(currentId => currentId ?? videoDevices[0].deviceId);
+                    setSelectedDeviceId(currentId => currentId ?? videoDevices[0]?.deviceId ?? null);
                 }
             } catch (err) {
                 console.error("Error enumerating devices: ", err);
