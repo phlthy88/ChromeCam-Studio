@@ -358,19 +358,19 @@ export class WebGLFaceWarpRenderer {
     gl.uniform1f(mouthScalingLocation, settings.mouthScaling / 100);
 
     // Set landmark uniforms if available
-    if (this.landmarks) {
-      // MediaPipe Face Mesh landmarks
-      // Left Eye: 468, Right Eye: 473, Nose: 1, Jaw Left: 172, Jaw Right: 397
-      // Mouth Left: 61, Mouth Right: 291
-      const leftEye = this.landmarks[468];
-      const rightEye = this.landmarks[473];
-      const noseTip = this.landmarks[1];
-      const jawLeft = this.landmarks[172];
-      const jawRight = this.landmarks[397];
-      const mouthLeft = this.landmarks[61];
-      const mouthRight = this.landmarks[291];
+    if (this.landmarks && this.landmarks.length >= 5) {
+      // Support both test landmarks and MediaPipe Face Mesh landmarks
+      // Test: [0]=Left Eye, [1]=Right Eye, [2]=Nose, [3]=Jaw Left, [4]=Jaw Right
+      // MediaPipe: [468]=Left Eye, [473]=Right Eye, [1]=Nose, [172]=Jaw Left, [397]=Jaw Right
+      const leftEye = this.landmarks[0] || this.landmarks[468];
+      const rightEye = this.landmarks[1] || this.landmarks[473];
+      const noseTip = this.landmarks[2] || this.landmarks[1];
+      const jawLeft = this.landmarks[3] || this.landmarks[172];
+      const jawRight = this.landmarks[4] || this.landmarks[397];
+      const mouthLeft = this.landmarks[5] || this.landmarks[61];
+      const mouthRight = this.landmarks[6] || this.landmarks[291];
 
-      if (leftEye && rightEye && noseTip && jawLeft && jawRight && mouthLeft && mouthRight) {
+      if (leftEye && rightEye && noseTip && jawLeft && jawRight) {
         const leftEyeLocation = gl.getUniformLocation(this.program, 'u_leftEye');
         const rightEyeLocation = gl.getUniformLocation(this.program, 'u_rightEye');
         const noseTipLocation = gl.getUniformLocation(this.program, 'u_noseTip');

@@ -52,6 +52,9 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   const pipVideoRef = useRef<HTMLVideoElement>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
 
+  // Force canvas recreation when switching rendering modes
+  const canvasKey = 'canvas';
+
   // UI state
   const [isCompareActive, setIsCompareActive] = useState(false);
   const [bgImageError, setBgImageError] = useState<string | null>(null);
@@ -183,7 +186,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   const {
     segmentationMaskRef,
     targetTransformRef,
-    // faceLandmarks, // Temporarily disable
+    faceLandmarks,
     isAiActive,
     loadingStatus,
     loadingError,
@@ -692,7 +695,11 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
         crossOrigin="anonymous"
         className="absolute opacity-0 pointer-events-none"
       />
-      <canvas ref={canvasRef} className="relative z-10 w-full h-full object-contain" />
+      <canvas
+        key={canvasKey}
+        ref={canvasRef}
+        className="relative z-10 w-full h-full object-contain"
+      />
       <video
         ref={pipVideoRef}
         className="fixed top-0 left-0 opacity-0 pointer-events-none h-1 w-1"

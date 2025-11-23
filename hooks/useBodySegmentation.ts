@@ -302,10 +302,19 @@ export function useBodySegmentation({
     };
   }, []);
 
+  // Temporary: Return test face landmarks for debugging
+  const testLandmarks = [
+    { x: 0.3, y: 0.4 }, // Left eye
+    { x: 0.7, y: 0.4 }, // Right eye
+    { x: 0.5, y: 0.6 }, // Nose
+    { x: 0.2, y: 0.7 }, // Jaw left
+    { x: 0.8, y: 0.7 }, // Jaw right
+  ];
+
   return {
     segmentationMaskRef,
     targetTransformRef,
-    faceLandmarks,
+    faceLandmarks: faceLandmarks || testLandmarks, // Use test landmarks if none detected
     isAiActive,
     loadingStatus,
     loadingError,
