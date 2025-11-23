@@ -24,6 +24,14 @@ interface OklchColor {
   h: number; // hue 0-360
 }
 
+// Define the specific tone keys used in M3 schemes
+type TonalPalette = {
+  0: string; 4: string; 6: string; 10: string; 12: string; 17: string;
+  20: string; 22: string; 24: string; 30: string; 40: string; 50: string;
+  60: string; 70: string; 80: string; 87: string; 90: string; 92: string;
+  94: string; 95: string; 96: string; 98: string; 99: string; 100: string;
+};
+
 // Convert hex to OKLCH (simplified approximation for runtime)
 function hexToOklch(hex: string): OklchColor {
   const rgb = hexToRgb(hex);
@@ -57,11 +65,12 @@ function hexToOklch(hex: string): OklchColor {
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
+  if (!result || !result[1] || !result[2] || !result[3]) return null;
+  return {
     r: parseInt(result[1], 16),
     g: parseInt(result[2], 16),
     b: parseInt(result[3], 16)
-  } : null;
+  };
 }
 
 function srgbToLinear(c: number): number {
@@ -104,9 +113,9 @@ function oklchToHex(oklch: OklchColor): string {
 }
 
 // Generate M3 tonal palette from seed color
-function generateTonalPalette(seedOklch: OklchColor): Record<number, string> {
-  const tones = [0, 4, 6, 10, 12, 17, 20, 22, 24, 30, 40, 50, 60, 70, 80, 87, 90, 92, 94, 95, 96, 98, 99, 100];
-  const palette: Record<number, string> = {};
+function generateTonalPalette(seedOklch: OklchColor): TonalPalette {
+  const tones = [0, 4, 6, 10, 12, 17, 20, 22, 24, 30, 40, 50, 60, 70, 80, 87, 90, 92, 94, 95, 96, 98, 99, 100] as const;
+  const palette = {} as TonalPalette;
 
   for (const tone of tones) {
     // Softer chroma curve - reduces saturation at extremes for softer appearance
@@ -321,7 +330,7 @@ function detectSystemAccentColor(): string | null {
   }
 
   // Method 2: Check for color-scheme meta tag or computed value
-  const colorScheme = computed.getPropertyValue('color-scheme').trim();
+  // Note: colorScheme detection is handled by media queries elsewhere
 
   // Method 3: Try to get accent from a hidden input
   const testInput = document.createElement('input');
@@ -339,7 +348,7 @@ function detectSystemAccentColor(): string | null {
   if (inputAccent && inputAccent !== 'auto' && inputAccent !== 'rgb(0, 0, 0)') {
     // Convert RGB to hex
     const rgbMatch = inputAccent.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-    if (rgbMatch) {
+    if (rgbMatch && rgbMatch[1] && rgbMatch[2] && rgbMatch[3]) {
       const r = parseInt(rgbMatch[1]).toString(16).padStart(2, '0');
       const g = parseInt(rgbMatch[2]).toString(16).padStart(2, '0');
       const b = parseInt(rgbMatch[3]).toString(16).padStart(2, '0');
