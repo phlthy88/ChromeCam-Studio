@@ -18,7 +18,7 @@ const ControlSection: React.FC<ControlSectionProps> = ({
     onReset
 }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
-    const [contentHeight, setContentHeight] = useState<number | null>(null);
+    const [_contentHeight, setContentHeight] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {

@@ -208,7 +208,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             } catch(e) {}
         };
         lowLightIntervalRef.current = setInterval(analyzeBrightness, 500);
-        return () => clearInterval(lowLightIntervalRef.current);
+        return () => { if (lowLightIntervalRef.current) clearInterval(lowLightIntervalRef.current); };
     }, [settings.autoLowLight]);
 
     useEffect(() => {
@@ -440,12 +440,12 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
             if (video && video.readyState >= 2 && !video.paused) {
                  try {
                      if (qrMode && barcodeDetectorRef.current && video.videoWidth > 0) {
-                         try { const barcodes = await barcodeDetectorRef.current.detect(video); if (barcodes.length > 0) setQrResult(barcodes[0].rawValue); } catch (e) {}
+                         try { const barcodes = await barcodeDetectorRef.current.detect(video); if (barcodes.length > 0 && barcodes[0]?.rawValue) setQrResult(barcodes[0].rawValue); } catch (e) {}
                      } else if (!qrMode && qrResult) { setQrResult(null); }
 
                      if (isAiNeeded && segmenter && !aiRuntimeError && video.videoWidth > 0) {
                         const segmentation = await segmenter.segmentPeople(video);
-                        const mask = await window.bodySegmentation.toBinaryMask(segmentation, FOREGROUND_COLOR, BACKGROUND_COLOR);
+                        const mask = await window.bodySegmentation!.toBinaryMask(segmentation, FOREGROUND_COLOR, BACKGROUND_COLOR);
                         segmentationMaskRef.current = mask; setIsAiActive(true);
 
                         if (settingsRef.current.autoFrame) {
@@ -453,7 +453,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
                             let minX = width, maxX = 0, minY = height, maxY = 0; let found = false;
                             for (let y = 0; y < height; y += 8) {
                                 for (let x = 0; x < width; x += 8) {
-                                     if (data[(y * width + x) * 4] > 128) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; found = true; }
+                                     if ((data[(y * width + x) * 4] ?? 0) > 128) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; found = true; }
                                 }
                             }
                             if (found) {
@@ -592,7 +592,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ deviceId, settings, onCapabilit
     const toggleRecording = () => {
         if (isRecording) {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') { mediaRecorderRef.current.stop(); }
-            clearInterval(recordingTimerRef.current); setIsRecording(false);
+            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current); setIsRecording(false);
         } else {
             if (!canvasRef.current) return;
             recordedChunksRef.current = [];

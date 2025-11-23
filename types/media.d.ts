@@ -55,10 +55,10 @@ export interface ExtendedMediaTrackCapabilities extends MediaTrackCapabilities {
  * Extended constraint set for applying camera settings
  */
 export interface ExtendedMediaTrackConstraintSet extends MediaTrackConstraintSet {
-  // PTZ (Pan-Tilt-Zoom) controls
-  zoom?: ConstrainDouble;
-  pan?: ConstrainDouble;
-  tilt?: ConstrainDouble;
+  // PTZ (Pan-Tilt-Zoom) controls - boolean is used to request permission for the capability
+  zoom?: ConstrainDouble | boolean;
+  pan?: ConstrainDouble | boolean;
+  tilt?: ConstrainDouble | boolean;
 
   // Image adjustment
   brightness?: ConstrainDouble;
