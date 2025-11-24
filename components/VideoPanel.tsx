@@ -492,7 +492,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
       {/* M3 FLOATING TOOLBAR - Responsive for mobile/tablet/desktop */}
       <div
         className={`
-                absolute left-1/2 -translate-x-1/2 z-40
+                absolute left-1/2 -translate-x-1/2 z-20
                 transition-transform duration-300 ease-out
                 /* Mobile: bottom-4, always show when tapped */
                 bottom-4 sm:bottom-6 lg:bottom-8
@@ -698,33 +698,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-            </button>
-            {/* PiP button on mobile (moved from left for better reach) */}
-            <button
-              onClick={togglePiP}
-              className="
-                                sm:hidden p-2 rounded-full
-                                text-on-surface-variant hover:bg-on-surface-variant/10
-                                active:bg-on-surface-variant/20 transition-colors
-                            "
-              title="Picture-in-Picture"
-              aria-label="Toggle Picture-in-Picture mode"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
                 />
               </svg>
             </button>
