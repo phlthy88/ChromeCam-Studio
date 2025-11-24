@@ -484,7 +484,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
 
       {/* Mobile/Tablet tap zone to toggle toolbar visibility */}
       <div
-        className="absolute inset-0 z-30 lg:hidden"
+        className="absolute inset-0 z-10 lg:hidden"
         onClick={() => setIsMobileToolbarVisible((prev) => !prev)}
         aria-hidden="true"
       />
