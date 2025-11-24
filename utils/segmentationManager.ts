@@ -1,6 +1,4 @@
 import type {
-  SegmentationWorkerMessage,
-  SegmentationWorkerResponse,
   SegmentationConfig,
 } from '../types/media';
 
@@ -23,7 +21,6 @@ class SegmentationManager {
   private pendingCallbacks: Map<number, (result: SegmentationResult) => void> = new Map();
   private messageId = 0;
   private _onFaceLandmarks?: (landmarks: any[]) => void;
-  private onPerformanceUpdate?: (fps: number, latency: number) => void;
   private currentFps = 0;
   private currentLatency = 0;
 
@@ -92,13 +89,6 @@ class SegmentationManager {
    */
   getFaceLandmarksCallback(): ((landmarks: any[]) => void) | undefined {
     return this._onFaceLandmarks;
-  }
-
-  /**
-   * Set callback for performance updates
-   */
-  setPerformanceCallback(callback: (fps: number, latency: number) => void): void {
-    this.onPerformanceUpdate = callback;
   }
 
   /**
@@ -187,10 +177,13 @@ class SegmentationManager {
                 // Actually, since we don't pass ID back from worker yet, just call the first one
                 const keys = Array.from(this.pendingCallbacks.keys());
                 if (keys.length > 0) {
-                    const callback = this.pendingCallbacks.get(keys[0]);
-                    if (callback) {
-                        callback({ mask: imageData });
-                        this.pendingCallbacks.delete(keys[0]);
+                    const firstKey = keys[0];
+                    if (firstKey !== undefined) {
+                        const callback = this.pendingCallbacks.get(firstKey);
+                        if (callback) {
+                            callback({ mask: imageData });
+                            this.pendingCallbacks.delete(firstKey);
+                        }
                     }
                 }
             }
@@ -259,7 +252,7 @@ class SegmentationManager {
   /**
    * Update segmentation configuration
    */
-  updateConfig(config: Partial<SegmentationConfig>): void {
+  updateConfig(_config: Partial<SegmentationConfig>): void {
     // Not fully implemented in worker yet
   }
 

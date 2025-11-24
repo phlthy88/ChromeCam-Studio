@@ -1,5 +1,3 @@
-import { AIFeatures } from './aiWorker';
-
 // Define types for messages
 export type WorkerMessage =
   | { type: 'init'; config: { modelType: 'general' | 'landscape' } }
@@ -24,7 +22,7 @@ let isInitialized = false;
 
 // Load the MediaPipe script
 async function loadMediaPipe() {
-  if (typeof self.SelfieSegmentation === 'undefined') {
+  if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
     // Import the local script
     importScripts('/mediapipe/selfie_segmentation.js');
   }
@@ -35,7 +33,12 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    const selfieSegmentation = new self.SelfieSegmentation({
+    const SelfieSegmentationConstructor = (self as DedicatedWorkerGlobalScope).SelfieSegmentation;
+    if (!SelfieSegmentationConstructor) {
+      throw new Error('SelfieSegmentation is not available');
+    }
+
+    const selfieSegmentation = new SelfieSegmentationConstructor({
       locateFile: LOCATE_FILE,
     });
 
@@ -54,8 +57,8 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
                 type: 'mask',
                 mask: maskBitmap,
                 timestamp: performance.now(),
-              },
-              [maskBitmap]
+              } as WorkerResponse,
+              { transfer: [maskBitmap] }
             );
           })
           .catch((err) => {
@@ -80,7 +83,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
 }
 
 // Process a frame
-async function processFrame(image: ImageBitmap, timestamp: number) {
+async function processFrame(image: ImageBitmap) {
   if (!isInitialized || !segmenter) return;
 
   try {
@@ -102,7 +105,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       await initSegmenter(msg.config.modelType);
       break;
     case 'process':
-      await processFrame(msg.image, msg.timestamp);
+      await processFrame(msg.image);
       break;
     case 'close':
       if (segmenter) {
