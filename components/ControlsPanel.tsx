@@ -23,7 +23,6 @@ interface ControlsPanelProps {
   onCloseMobile?: () => void;
   capabilities?: ExtendedMediaTrackCapabilities | null;
   detectedCapabilities?: DetectedCapabilities | null;
-  audioDevices?: MediaDeviceInfo[];
 }
 
 // Defined Defaults for Granular Resets
@@ -140,7 +139,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onCloseMobile,
   capabilities,
   detectedCapabilities,
-  audioDevices,
 }) => {
   // OBS Integration
   const { connected, connecting, connect, disconnect, startRecording, startStreaming } =
@@ -445,109 +443,13 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         <ControlSection title="Camera Hardware" onReset={resetCameraHardware}>
           <div className="space-y-5">
             <Toggle
-              label="Enable Microphone"
-              enabled={settings.enableAudio}
-              onChange={(v) => update('enableAudio', v)}
+              label="Bandwidth Saver"
+              enabled={settings.bandwidthSaver}
+              onChange={(v) => update('bandwidthSaver', v)}
             />
-
-            <div
-              className={`space-y-5 transition-opacity duration-medium2 ease-standard ${settings.enableAudio ? 'opacity-100' : 'opacity-[0.38] pointer-events-none'}`}
-            >
-              {/* Microphone Selection */}
-              {audioDevices && audioDevices.length > 0 && (
-                <div>
-                  <label className="md-label-large text-on-surface mb-2 block">Microphone</label>
-                  <div className="relative">
-                    <select
-                      value={settings.audioDeviceId || ''}
-                      onChange={(e) => update('audioDeviceId', e.target.value || null)}
-                      className="w-full appearance-none bg-surface-container-highest hover:bg-surface-high text-on-surface md-body-medium rounded-xl py-2.5 px-3 pr-8 border border-outline-variant/40 focus:border-primary/60 focus:ring-1 focus:ring-primary/15 outline-none font-medium cursor-pointer transition-all duration-short2 ease-standard"
-                    >
-                      <option value="">Default Microphone</option>
-                      {audioDevices.map((device, idx) => (
-                        <option key={device.deviceId} value={device.deviceId}>
-                          {device.label || `Microphone ${idx + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                    {/* Dropdown Arrow */}
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                      <svg
-                        className="w-4 h-4 text-on-surface-variant"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <Toggle
-                label="Noise Suppression"
-                enabled={settings.noiseSuppression}
-                onChange={(v) => update('noiseSuppression', v)}
-              />
-
-              <Toggle
-                label="Echo Cancellation"
-                enabled={settings.echoCancellation}
-                onChange={(v) => update('echoCancellation', v)}
-              />
-
-              <Toggle
-                label="Auto Gain Control"
-                enabled={settings.autoGainControl}
-                onChange={(v) => update('autoGainControl', v)}
-              />
-
-              <div className="pt-4 border-t border-outline-variant">
-                <label className="md-label-large text-on-surface mb-3 block">Sample Rate</label>
-                <div className="flex gap-2">
-                  {[44100, 48000].map((rate) => (
-                    <Chip
-                      key={rate}
-                      label={`${rate / 1000}kHz`}
-                      selected={settings.sampleRate === rate}
-                      onClick={() => update('sampleRate', rate)}
-                      variant="filter"
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-outline-variant">
-                <label className="md-label-large text-on-surface mb-3 block">Channels</label>
-                <div className="flex gap-2">
-                  <Chip
-                    label="Mono"
-                    selected={settings.channelCount === 1}
-                    onClick={() => update('channelCount', 1)}
-                    variant="filter"
-                  />
-                  <Chip
-                    label="Stereo"
-                    selected={settings.channelCount === 2}
-                    onClick={() => update('channelCount', 2)}
-                    variant="filter"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-outline-variant">
-              <Toggle
-                label="Bandwidth Saver"
-                enabled={settings.bandwidthSaver}
-                onChange={(v) => update('bandwidthSaver', v)}
-              />
-              <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-                Reduces resolution to 480p/24fps to prioritize connection stability.
-              </p>
-            </div>
+            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+              Reduces resolution to 480p/24fps to prioritize connection stability.
+            </p>
           </div>
         </ControlSection>
 

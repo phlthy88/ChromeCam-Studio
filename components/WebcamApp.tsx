@@ -1,63 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './Header';
 import ControlsPanel from './ControlsPanel';
 import VideoPanel from './VideoPanel';
 import { CameraSettings, DEFAULT_SETTINGS, GRID_OVERLAYS } from './settings';
 import { useTheme } from '../hooks/useTheme';
 import { useSystemAccentColor } from '../hooks/useSystemAccentColor';
-import { ToastProvider, ToastContainer, useToast } from '../hooks/useToast';
 import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
 
-// Setting labels for toast notifications
-const SETTING_LABELS: Record<string, { enabled: string; disabled: string } | string> = {
-  enableAudio: { enabled: 'Microphone enabled', disabled: 'Microphone disabled' },
-  noiseSuppression: {
-    enabled: 'Noise suppression enabled',
-    disabled: 'Noise suppression disabled',
-  },
-  echoCancellation: {
-    enabled: 'Echo cancellation enabled',
-    disabled: 'Echo cancellation disabled',
-  },
-  autoGainControl: { enabled: 'Auto gain control enabled', disabled: 'Auto gain control disabled' },
-  bandwidthSaver: { enabled: 'Bandwidth saver enabled', disabled: 'Bandwidth saver disabled' },
-  autoLowLight: {
-    enabled: 'Auto low light boost enabled',
-    disabled: 'Auto low light boost disabled',
-  },
-  autoFrame: { enabled: 'Auto frame enabled', disabled: 'Auto frame disabled' },
-  denoise: { enabled: 'Noise reduction enabled', disabled: 'Noise reduction disabled' },
-  virtualBackground: {
-    enabled: 'Virtual background enabled',
-    disabled: 'Virtual background disabled',
-  },
-  mirror: { enabled: 'Mirror enabled', disabled: 'Mirror disabled' },
-  torch: { enabled: 'Camera light enabled', disabled: 'Camera light disabled' },
-  backlightCompensation: {
-    enabled: 'Backlight compensation enabled',
-    disabled: 'Backlight compensation disabled',
-  },
-  showHistogram: { enabled: 'Histogram enabled', disabled: 'Histogram disabled' },
-  showZebraStripes: { enabled: 'Zebra stripes enabled', disabled: 'Zebra stripes disabled' },
-  showFocusPeaking: { enabled: 'Focus peaking enabled', disabled: 'Focus peaking disabled' },
-  qrMode: { enabled: 'QR code scanner enabled', disabled: 'QR code scanner disabled' },
-  resolution: 'Resolution changed',
-  frameRate: 'Frame rate changed',
-  aspectRatioLock: 'Aspect ratio changed',
-  facingMode: 'Camera direction changed',
-  exposureMode: 'Exposure mode changed',
-  whiteBalanceMode: 'White balance mode changed',
-  focusMode: 'Focus mode changed',
-  activeFilter: 'Filter changed',
-  gridOverlay: 'Grid overlay changed',
-  videoCodec: 'Video codec changed',
-  audioCodec: 'Audio codec changed',
-};
-
 /**
- * Inner App Component with Toast Functionality
+ * Main Application Component
  */
-const WebcamAppInner: React.FC = () => {
+const WebcamApp: React.FC = () => {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -67,67 +20,34 @@ const WebcamAppInner: React.FC = () => {
   const [detectedCapabilities, setDetectedCapabilities] = useState<import('./settings').DetectedCapabilities | null>(null);
   const [processedAudioStream, setProcessedAudioStream] = useState<MediaStream | null>(null);
   const { theme, setTheme } = useTheme();
-  const { showToast } = useToast();
-  const prevSettingsRef = useRef<CameraSettings>(DEFAULT_SETTINGS);
-  const isInitializedRef = useRef(false);
 
   // Initialize dynamic color theming from ChromeOS/system
   useSystemAccentColor();
 
-  // Handle settings change with toast notifications
+  // Handle settings change
   const handleSettingsChange = useCallback(
     (newSettings: CameraSettings) => {
       console.log('[WebcamApp] handleSettingsChange called with:', newSettings);
-      if (!isInitializedRef.current) {
-        isInitializedRef.current = true;
-        prevSettingsRef.current = newSettings;
-        setSettings(newSettings);
-        return;
-      }
-
-      const prevSettings = prevSettingsRef.current;
-
-      // Check for specific changes and show toasts
-      for (const key of Object.keys(SETTING_LABELS) as Array<keyof typeof SETTING_LABELS>) {
-        const prevValue = prevSettings[key as keyof CameraSettings];
-        const newValue = newSettings[key as keyof CameraSettings];
-
-        if (prevValue !== newValue) {
-          const label = SETTING_LABELS[key];
-
-          if (typeof label === 'object') {
-            // Boolean toggle
-            const message = newValue ? label.enabled : label.disabled;
-            showToast(message, newValue ? 'success' : 'info', 2000);
-          } else if (typeof label === 'string') {
-            // Non-boolean setting
-            showToast(label, 'info', 2000);
-          }
-
-          // Only show one toast per change batch
-          break;
-        }
-      }
-
-      prevSettingsRef.current = newSettings;
       setSettings(newSettings);
     },
-    [showToast]
+    []
   );
 
   // Handle keyboard shortcut events from VideoPanel
   useEffect(() => {
     const handleToggleMirror = () => {
-      handleSettingsChange({ ...prevSettingsRef.current, mirror: !prevSettingsRef.current.mirror });
+      setSettings((prev) => ({ ...prev, mirror: !prev.mirror }));
     };
 
     const handleCycleGrid = () => {
-      const gridIds = GRID_OVERLAYS.map((g) => g.id);
-      const currentIndex = gridIds.indexOf(prevSettingsRef.current.gridOverlay);
-      const nextIndex = (currentIndex + 1) % gridIds.length;
-      handleSettingsChange({
-        ...prevSettingsRef.current,
-        gridOverlay: gridIds[nextIndex] ?? 'none',
+      setSettings((prev) => {
+        const gridIds = GRID_OVERLAYS.map((g) => g.id);
+        const currentIndex = gridIds.indexOf(prev.gridOverlay);
+        const nextIndex = (currentIndex + 1) % gridIds.length;
+        return {
+          ...prev,
+          gridOverlay: gridIds[nextIndex] ?? 'none',
+        };
       });
     };
 
@@ -138,7 +58,7 @@ const WebcamAppInner: React.FC = () => {
       window.removeEventListener('chromecam-toggle-mirror', handleToggleMirror);
       window.removeEventListener('chromecam-cycle-grid', handleCycleGrid);
     };
-  }, [handleSettingsChange]);
+  }, []);
 
   // Responsive Sidebar Logic
   useEffect(() => {
@@ -213,7 +133,9 @@ const WebcamAppInner: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           theme={theme}
           onThemeChange={setTheme}
-          audioEnabled={settings.enableAudio}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          audioDevices={audioDevices}
           processedAudioStream={processedAudioStream}
         />
       </div>
@@ -263,7 +185,6 @@ const WebcamAppInner: React.FC = () => {
                 onCloseMobile={() => setIsSidebarOpen(false)}
                 capabilities={capabilities}
                 detectedCapabilities={detectedCapabilities}
-                audioDevices={audioDevices}
               />
             </div>
           </aside>
@@ -291,27 +212,7 @@ const WebcamAppInner: React.FC = () => {
         </div>
       </main>
 
-      {/* Toast Notifications */}
-      <ToastContainer />
     </div>
-  );
-};
-
-/**
- * Main Application Container
- *
- * Material 3 Refactor with ChromeOS Dynamic Theming:
- * - Softer appearance with reduced blur and contrast
- * - Dynamic color theming from system accent colors
- * - Uses "Large" shape (16px) for gentler rounded corners
- * - Proper spacing to simulate floating panels
- * - Toast notifications for settings changes
- */
-const WebcamApp: React.FC = () => {
-  return (
-    <ToastProvider>
-      <WebcamAppInner />
-    </ToastProvider>
   );
 };
 
