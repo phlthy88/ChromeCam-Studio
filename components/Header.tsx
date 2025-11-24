@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import VUMeter from './ui/VUMeter';
+import MicrophoneWidget from './ui/MicrophoneWidget';
 import { Theme } from '../hooks/useTheme';
+import { CameraSettings } from './settings';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -14,7 +15,9 @@ interface HeaderProps {
   onToggleSidebar?: () => void;
   theme?: Theme;
   onThemeChange?: (theme: Theme) => void;
-  audioEnabled?: boolean;
+  settings: CameraSettings;
+  onSettingsChange: (settings: CameraSettings) => void;
+  audioDevices?: MediaDeviceInfo[];
   processedAudioStream?: MediaStream | null;
 }
 
@@ -35,7 +38,9 @@ const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   theme,
   onThemeChange,
-  audioEnabled,
+  settings,
+  onSettingsChange,
+  audioDevices,
   processedAudioStream,
 }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -222,8 +227,13 @@ const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* VU Meter - only show when audio is enabled */}
-          {audioEnabled && <VUMeter audioStream={processedAudioStream || undefined} />}
+          {/* Microphone Widget - always visible */}
+          <MicrophoneWidget
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            audioDevices={audioDevices}
+            audioStream={processedAudioStream || undefined}
+          />
 
           {/* Camera Status */}
           {devices.length === 0 && (
