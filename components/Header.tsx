@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MicrophoneWidget from './ui/MicrophoneWidget';
+import CameraWidget from './ui/CameraWidget';
 import { Theme } from '../hooks/useTheme';
 import { CameraSettings } from './settings';
 
@@ -87,7 +88,7 @@ const Header: React.FC<HeaderProps> = ({
                 flex items-center justify-between
                 px-4 lg:px-5
                 pt-[env(titlebar-area-height,10px)] pb-2.5
-                shrink-0 z-40 relative
+                shrink-0 relative
             "
       style={{ minHeight: '56px' }}
     >
@@ -235,31 +236,6 @@ const Header: React.FC<HeaderProps> = ({
             audioStream={processedAudioStream || undefined}
           />
 
-          {/* Camera Status */}
-          {devices.length === 0 && (
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.mediaDevices.getUserMedia({ video: true });
-                  window.location.reload(); // Reload to re-enumerate devices
-                } catch (err) {
-                  console.error('Failed to get camera permission:', err);
-                }
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-error-container hover:bg-error-container/80 text-on-error-container rounded-full text-sm transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-              Allow Camera
-            </button>
-          )}
-
           {/* OBS Status - Show if OBS integration is available */}
           <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container text-on-surface-container rounded-full text-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -273,70 +249,12 @@ const Header: React.FC<HeaderProps> = ({
             OBS Ready
           </div>
 
-          {/* Camera Selector - M3 Filled Select / Dropdown style */}
-          <div className="relative group">
-            {/* Leading Icon */}
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg
-                className="w-5 h-5 text-on-surface-variant"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-
-            <select
-              value={selectedDeviceId || ''}
-              onChange={(e) => onDeviceChange(e.target.value)}
-              className="
-                                appearance-none
-                                bg-surface-container-highest
-                                hover:bg-surface-high
-                                text-on-surface
-                                md-label-large
-                                font-medium
-                                rounded-xl
-                                py-2 pl-9 pr-8
-                                border border-outline-variant/40
-                                outline-none
-                                focus:border-primary/60 focus:ring-1 focus:ring-primary/15
-                                transition-all duration-short2 ease-standard
-                                cursor-pointer
-                                min-w-[140px] max-w-[200px] truncate
-                            "
-              aria-label="Select Camera"
-            >
-              {devices.length > 0 ? (
-                devices.map((device, index) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || `Camera ${index + 1}`}
-                  </option>
-                ))
-              ) : (
-                <option disabled>No cameras found</option>
-              )}
-            </select>
-
-            {/* Trailing Icon (Dropdown Arrow) */}
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <svg
-                className="w-4 h-4 text-on-surface-variant"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
+          {/* Camera Widget */}
+          <CameraWidget
+            devices={devices}
+            selectedDeviceId={selectedDeviceId}
+            onDeviceChange={onDeviceChange}
+          />
         </div>
       </div>
     </header>

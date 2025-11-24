@@ -125,7 +125,7 @@ const WebcamApp: React.FC = () => {
   return (
     <div className="flex flex-col h-full w-full bg-background text-on-background font-sans overflow-hidden p-1 sm:p-2 md:p-3 gap-2 sm:gap-3">
       {/* Header - Floating on Desktop, standard on Mobile */}
-      <div className="rounded-xl overflow-hidden shadow-elevation-0 shrink-0">
+      <div className="rounded-xl overflow-visible shadow-elevation-0 shrink-0 relative z-[100]">
         <Header
           devices={devices}
           selectedDeviceId={selectedDeviceId}

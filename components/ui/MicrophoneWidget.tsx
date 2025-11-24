@@ -261,7 +261,7 @@ const MicrophoneWidget: React.FC<MicrophoneWidgetProps> = ({
                         bg-surface-container rounded-xl
                         border border-outline-variant
                         shadow-elevation-3
-                        z-50
+                        z-[200]
                         p-4
                     "
                 >
