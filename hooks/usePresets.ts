@@ -158,14 +158,28 @@ export const usePresets = () => {
   const [userPresets, setUserPresets] = useState<CameraPreset[]>([]);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
-  // Load presets from localStorage
+  interface StoredPreset {
+  id: string;
+  name: string;
+  icon?: string;
+  settings: Partial<CameraSettings>;
+  metadata: {
+    createdAt: string;
+    updatedAt: string;
+    isBuiltIn: boolean;
+  };
+}
+
+// ...
+
+// Load presets from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem(PRESETS_STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
+        const parsed = JSON.parse(stored) as StoredPreset[];
         // Convert date strings back to Date objects
-        const presets = parsed.map((p: any) => ({
+        const presets = parsed.map((p) => ({
           ...p,
           metadata: {
             ...p.metadata,

@@ -279,6 +279,10 @@ function calculateAspectRatioCrop(
   return { sx, sy, sw, sh, dx, dy, dw, dh };
 }
 
+import { FaceLandmarks } from '../types/face';
+
+// ...
+
 export interface UseVideoRendererOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -290,7 +294,7 @@ export interface UseVideoRendererOptions {
   isAiActive: boolean;
   isCompareActive: boolean;
   autoGain: number;
-  faceLandmarks?: any[] | null;
+  faceLandmarks?: FaceLandmarks | null;
 }
 
 export interface UseVideoRendererReturn {
@@ -727,7 +731,7 @@ export function useVideoRenderer({
               drawVignette(ctx, canvas.width, canvas.height, gradient);
             } else {
               // Use cached gradient
-              drawVignette(ctx, canvas.width, canvas.height, vignetteCache.gradient!);
+              drawVignette(ctx, canvas.width, canvas.height, vignetteCache.gradient);
             }
           }
 

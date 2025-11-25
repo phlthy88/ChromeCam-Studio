@@ -21,6 +21,7 @@ export type {
   UseBodySegmentationOptions,
   UseBodySegmentationReturn,
 } from './useBodySegmentation';
+export { useFaceTracking } from './useFaceTracking';
 export { useProOverlays } from './useProOverlays';
 export type { ProOverlaySettings, UseProOverlaysReturn } from './useProOverlays';
 export { useVideoRenderer } from './useVideoRenderer';

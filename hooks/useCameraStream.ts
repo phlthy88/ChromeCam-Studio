@@ -272,12 +272,9 @@ export function useCameraStream({
         }
 
         if (videoRef.current) {
-          console.log('[useCameraStream] Assigning stream to video element');
           videoRef.current.srcObject = stream;
-          console.log('[useCameraStream] Stream assigned, attempting to play');
           await videoRef.current
             .play()
-            .then(() => console.log('[useCameraStream] Video playing successfully'))
             .catch((e) => console.warn('[useCameraStream] Play failed:', e));
         } else {
           console.error('[useCameraStream] Video element not available');

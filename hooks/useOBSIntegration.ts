@@ -11,9 +11,9 @@ interface OBSConnection {
 interface OBSWebSocket {
   connect(address: string, password?: string): Promise<void>;
   disconnect(): Promise<void>;
-  call(requestType: string, requestData?: any): Promise<any>;
-  on(event: string, callback: (data: any) => void): void;
-  off(event: string, callback: (data: any) => void): void;
+  call(requestType: string, requestData?: unknown): Promise<unknown>;
+  on(event: string, callback: (data: unknown) => void): void;
+  off(event: string, callback: (data: unknown) => void): void;
 }
 
 /**
@@ -38,16 +38,14 @@ export const useOBSIntegration = () => {
     // In production, import obs-websocket-js dynamically
     // For now, create a mock implementation
     const mockOBS: OBSWebSocket = {
-      connect: async (address: string, _password?: string) => {
+      connect: async (_address: string, _password?: string) => {
         // Simulate connection
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        console.log('OBS connected to', address);
       },
       disconnect: async () => {
-        console.log('OBS disconnected');
+        // Simulate disconnection
       },
-      call: async (requestType: string, requestData?: any) => {
-        console.log('OBS call:', requestType, requestData);
+      call: async (requestType: string, _requestData?: unknown) => {
         // Mock responses
         switch (requestType) {
           case 'GetSceneList':
@@ -84,15 +82,30 @@ export const useOBSIntegration = () => {
     try {
       await obsRef.current.connect(`ws://${address}`, _password);
 
+      interface OBSScene {
+  sceneName: string;
+}
+
+interface OBSSceneList {
+  scenes: OBSScene[];
+  currentScene: string;
+}
+
+interface OBSCurrentScene {
+  name: string;
+}
+
+// ...
+
       // Get initial scene list
-      const sceneData = await obsRef.current.call('GetSceneList');
-      const currentSceneData = await obsRef.current.call('GetCurrentScene');
+      const sceneData = (await obsRef.current.call('GetSceneList')) as OBSSceneList;
+      const currentSceneData = (await obsRef.current.call('GetCurrentScene')) as OBSCurrentScene;
 
       setConnection({
         connected: true,
         connecting: false,
         error: null,
-        scenes: sceneData.scenes?.map((s: any) => s.sceneName) || [],
+        scenes: sceneData.scenes?.map((s) => s.sceneName) || [],
         currentScene: currentSceneData.name || null,
       });
     } catch (error) {

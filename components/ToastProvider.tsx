@@ -1,41 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Toast, ToastContextType, ToastType } from '../hooks/useToast';
 
-export type ToastType = 'success' | 'info' | 'warning' | 'error';
+const ToastContext = React.createContext<ToastContextType | null>(null);
 
-export interface Toast {
-  id: string;
-  message: string;
-  type: ToastType;
-  duration?: number;
-}
-
-export interface ToastContextType {
-  toasts: Toast[];
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
-  dismissToast: (id: string) => void;
-}
-
-export const ToastContext = createContext<ToastContextType | null>(null);
-
-export const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    // Provide a fallback implementation to prevent crashes
-    console.warn('useToast must be used within a ToastProvider. Using fallback implementation.');
-    return {
-      toasts: [],
-      showToast: () => {},
-      dismissToast: () => {},
-    };
-  }
-  return context;
-};
-
-interface ToastProviderProps {
-  children: React.ReactNode;
-}
-
-export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
+export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timeoutRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -94,5 +62,3 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     </ToastContext.Provider>
   );
 };
-
-export default useToast;

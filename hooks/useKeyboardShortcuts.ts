@@ -91,9 +91,15 @@ export const useKeyboardShortcuts = () => {
     [shortcuts]
   );
 
+  export type ShortcutData = {
+  key: string;
+};
+
+// ...
+
   // Handle key events
   const handleKeyDown = useCallback(
-    (event: KeyboardEvent, onAction?: (action: ShortcutAction, data?: any) => void) => {
+    (event: KeyboardEvent, onAction?: (action: ShortcutAction, data?: ShortcutData) => void) => {
       const key = event.key;
 
       // Update pressed keys
