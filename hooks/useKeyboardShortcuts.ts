@@ -113,7 +113,7 @@ export const useKeyboardShortcuts = () => {
 
   // Handle key events
   const handleKeyDown = useCallback(
-    (event: KeyboardEvent, onAction?: (action: ShortcutAction, data?: any) => void) => {
+    (event: KeyboardEvent, onAction?: (action: ShortcutAction, data?: { key: string }) => void) => {
       const { action, key } = getActionForEvent(event);
 
       // Update pressed keys

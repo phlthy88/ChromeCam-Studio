@@ -76,7 +76,6 @@ export function useBodySegmentation({
             document.head.appendChild(script);
           });
         }
-        console.log('[useBodySegmentation] Scripts loaded successfully');
       } catch (error) {
         console.error('[useBodySegmentation] Failed to load scripts:', error);
       }

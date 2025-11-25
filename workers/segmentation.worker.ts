@@ -49,8 +49,8 @@ let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
 let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
 
 // Polyfill importScripts for ES module workers (MediaPipe needs this)
-if (typeof (self as any).importScripts === 'undefined') {
-  (self as any).importScripts = function (...urls: string[]) {
+if (typeof (self as DedicatedWorkerGlobalScope).importScripts === 'undefined') {
+  (self as unknown as { importScripts: (...urls: string[]) => void }).importScripts = function (...urls: string[]) {
     for (const url of urls) {
       const xhr = new XMLHttpRequest();
       xhr.open('GET', url, false); // Synchronous request
