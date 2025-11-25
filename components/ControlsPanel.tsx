@@ -439,19 +439,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
       {/* Controls Scroll Area - Responsive spacing */}
       <div className="flex-1 overflow-y-auto md-scrollbar px-2 sm:px-3 pb-6 space-y-2 sm:space-y-3">
         {/* Basic Settings - Always Visible */}
-        {/* Camera Hardware */}
-        <ControlSection title="Camera Hardware" onReset={resetCameraHardware}>
-          <div className="space-y-5">
-            <Toggle
-              label="Bandwidth Saver"
-              enabled={settings.bandwidthSaver}
-              onChange={(v) => update('bandwidthSaver', v)}
-            />
-            <p className="md-body-small text-on-surface-variant mt-2 ml-1">
-              Reduces resolution to 480p/24fps to prioritize connection stability.
-            </p>
-          </div>
-        </ControlSection>
 
         {/* Audio Studio */}
         <ControlSection title="Audio Studio" onReset={resetAudioProcessor}>
@@ -725,6 +712,16 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
           hasCapability('torch')) && (
           <ControlSection title="Camera Hardware" onReset={resetCameraHardware}>
             <div className="space-y-5">
+              {/* Bandwidth Saver */}
+              <Toggle
+                label="Bandwidth Saver"
+                enabled={settings.bandwidthSaver}
+                onChange={(v) => update('bandwidthSaver', v)}
+              />
+              <p className="md-body-small text-on-surface-variant mt-2 ml-1">
+                Reduces resolution to 480p/24fps to prioritize connection stability.
+              </p>
+
               {/* White Balance */}
               {hasCapability('whiteBalanceMode') && (
                 <div>
@@ -897,7 +894,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 Resolution
                 {detectedCapabilities?.maxResolution && (
                   <span className="text-outline ml-2 text-sm">
-                    (max: {detectedCapabilities.maxResolution.width}x{detectedCapabilities.maxResolution.height})
+                    (max: {detectedCapabilities.maxResolution.width}x
+                    {detectedCapabilities.maxResolution.height})
                   </span>
                 )}
               </label>
