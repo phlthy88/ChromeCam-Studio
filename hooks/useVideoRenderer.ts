@@ -379,24 +379,30 @@ export function useVideoRenderer({
     settingsRef.current.jawSlimming > 0 ||
     settingsRef.current.mouthScaling > 0;
 
-  // Memoize beautySettings to prevent unnecessary WebGL re-initialization
-  const beautySettings = useMemo(
-    () => ({
+  // FIX: Memoize options to prevent infinite WebGL context creation loop
+  const webGLOptions = React.useMemo(() => ({
+    enabled: settings.cinematicLut !== 'none' || beautyEnabled,
+    lutPreset: settings.cinematicLut,
+    lutIntensity: settings.cinematicLutIntensity,
+    faceLandmarks,
+    beautySettings: {
       eyeEnlargement: settings.eyeEnlargement,
       noseSlimming: settings.noseSlimming,
       jawSlimming: settings.jawSlimming,
       mouthScaling: settings.mouthScaling,
-    }),
-    [settings.eyeEnlargement, settings.noseSlimming, settings.jawSlimming, settings.mouthScaling]
-  );
-
-  const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
-    enabled: settingsRef.current.cinematicLut !== 'none' || beautyEnabled,
-    lutPreset: settings.cinematicLut,
-    lutIntensity: settings.cinematicLutIntensity,
+    },
+  }), [
+    settings.cinematicLut,
+    settings.cinematicLutIntensity,
+    beautyEnabled,
     faceLandmarks,
-    beautySettings,
-  });
+    settings.eyeEnlargement,
+    settings.noseSlimming,
+    settings.jawSlimming,
+    settings.mouthScaling
+  ]);
+
+  const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer(webGLOptions);
 
   // Performance monitoring
   const performanceMetrics = usePerformanceMonitor(true);
