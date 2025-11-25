@@ -372,6 +372,13 @@ export function useVideoRenderer({
 
   const { drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking } = useProOverlays();
 
+  // FIX 1: Stabilize faceLandmarks to prevent infinite loops
+  // We only update this ref if the landmarks are actually different
+  const stableLandmarksRef = useRef<FaceLandmarks | null>(null);
+  if (faceLandmarks !== stableLandmarksRef.current) {
+    stableLandmarksRef.current = faceLandmarks;
+  }
+
   // Initialize WebGL renderer with LUT and face warping
   const beautyEnabled =
     settingsRef.current.eyeEnlargement > 0 ||
@@ -385,7 +392,7 @@ export function useVideoRenderer({
       enabled: settings.cinematicLut !== 'none' || beautyEnabled,
       lutPreset: settings.cinematicLut,
       lutIntensity: settings.cinematicLutIntensity,
-      faceLandmarks,
+      faceLandmarks: stableLandmarksRef.current, // Use the stable ref
       beautySettings: {
         eyeEnlargement: settings.eyeEnlargement,
         noseSlimming: settings.noseSlimming,
@@ -397,7 +404,7 @@ export function useVideoRenderer({
       settings.cinematicLut,
       settings.cinematicLutIntensity,
       beautyEnabled,
-      faceLandmarks,
+      // Removed faceLandmarks from dependency array to stop the loop
       settings.eyeEnlargement,
       settings.noseSlimming,
       settings.jawSlimming,
@@ -446,7 +453,8 @@ export function useVideoRenderer({
     let isLoopActive = true;
 
     const processVideo = () => {
-      if (!isLoopActive) return;
+      // FIX 2: Race Condition / Mount Check - strict check before any canvas operations
+      if (!isLoopActive || !canvasRef.current || !videoRef.current) return;
 
       // Frame rate limiting for performance mode
       const skipFactor =

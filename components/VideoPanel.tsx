@@ -65,11 +65,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   const [bgImageError, setBgImageError] = useState<string | null>(null);
   const [isMobileToolbarVisible, setIsMobileToolbarVisible] = useState(false);
 
-  const [_supportedFrameRates, setSupportedFrameRates] = useState<number[]>([]);
-  const [_supportedResolutions, setSupportedResolutions] = useState<
-    { width: number; height: number }[]
-  >([]);
-
   // Toast notifications
   const { showToast } = useToast();
 
@@ -87,50 +82,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   const handleCapabilitiesChange = useCallback(
     (capabilities: ExtendedMediaTrackCapabilities | null) => {
       if (capabilities) {
-        // Extract supported frame rates
-        const frameRates: number[] = [];
-        if (capabilities.frameRate) {
-          const fr = capabilities.frameRate;
-          if (typeof fr === 'object' && 'min' in fr && 'max' in fr) {
-            for (let rate = fr.min || 15; rate <= (fr.max || 60); rate += 1) {
-              frameRates.push(rate);
-            }
-          }
-        }
-        setSupportedFrameRates(frameRates);
-
-        // Extract supported resolutions
-        const resolutions: { width: number; height: number }[] = [];
-        if (capabilities.width && capabilities.height) {
-          // Add common resolutions that fit within max
-          const maxWidth =
-            typeof capabilities.width === 'object' && 'max' in capabilities.width
-              ? capabilities.width.max || 1920
-              : 1920;
-          const maxHeight =
-            typeof capabilities.height === 'object' && 'max' in capabilities.height
-              ? capabilities.height.max || 1080
-              : 1080;
-
-          const commonResolutions = [
-            { width: 640, height: 480 },
-            { width: 1280, height: 720 },
-            { width: 1920, height: 1080 },
-          ];
-
-          commonResolutions.forEach((res) => {
-            if (res.width <= maxWidth && res.height <= maxHeight) {
-              resolutions.push(res);
-            }
-          });
-        }
-        setSupportedResolutions(resolutions);
-
         // Show success toast
         showToast('Camera capabilities detected successfully', 'success');
-      } else {
-        setSupportedFrameRates([]);
-        setSupportedResolutions([]);
       }
 
       // Call original callback if provided
