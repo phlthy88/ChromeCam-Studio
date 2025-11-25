@@ -94,8 +94,8 @@ export function useAutoLowLight({
         for (let x = 0; x < sampleSize; x++) {
           const i = (y * sampleSize + x) * 4;
           // Calculate luminance (Rec. 709 coefficients)
-          const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-
+          const luminance =
+            0.2126 * (data[i] || 0) + 0.7152 * (data[i + 1] || 0) + 0.0722 * (data[i + 2] || 0);
           // Calculate distance from center (normalized 0.0 to 0.5)
           const cx = x / sampleSize - 0.5;
           const cy = y / sampleSize - 0.5;

@@ -96,3 +96,4 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
 };
 
 export default useToast;
+export { ToastContainer };
