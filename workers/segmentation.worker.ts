@@ -1,13 +1,16 @@
 // Define types for messages
 export type WorkerMessage =
   | { type: 'init'; config: { modelType: 'general' | 'landscape' } }
-  | { type: 'process'; image: ImageBitmap; timestamp: number }
+  | { type: 'process'; image: ImageBitmap; timestamp: number; autoFrame: boolean }
   | { type: 'close' };
 
 export type WorkerResponse =
   | { type: 'init-complete'; success: boolean; error?: string }
-  | { type: 'mask'; mask: ImageBitmap; timestamp: number }
+  | { type: 'mask'; mask: ImageBitmap; timestamp: number; autoFrameTransform?: { panX: number; panY: number; zoom: number } }
   | { type: 'error'; error: string };
+
+// Load the MediaPipe script URLs using Vite's import syntax
+import selfieSegmentationUrl from '/mediapipe/selfie_segmentation.js?url';
 
 // WASM file location configuration
 const LOCATE_FILE = (file: string) => {
@@ -19,12 +22,14 @@ const LOCATE_FILE = (file: string) => {
 // Internal state
 let segmenter: any = null;
 let isInitialized = false;
+let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
+let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
 
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
-    // Import the local script
-    importScripts('/mediapipe/selfie_segmentation.js');
+    // Import the local script using Vite's asset URL
+    importScripts(selfieSegmentationUrl);
   }
 }
 
@@ -52,18 +57,51 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
         // Convert mask to ImageBitmap for zero-copy transfer
         createImageBitmap(results.segmentationMask)
           .then((maskBitmap) => {
-            self.postMessage(
-              {
-                type: 'mask',
-                mask: maskBitmap,
-                timestamp: performance.now(),
-              } as WorkerResponse,
-              { transfer: [maskBitmap] }
-            );
+            let autoFrameTransform = undefined;
+
+            // If autoFrame was enabled for this frame, calculate the transform using the original input image
+            if (autoFrameEnabled && inputImageBitmap) {
+              // Create temporary canvas to get ImageData from the input image
+              const tempCanvas = new OffscreenCanvas(inputImageBitmap.width, inputImageBitmap.height);
+              const tempCtx = tempCanvas.getContext('2d');
+              if (tempCtx) {
+                tempCtx.drawImage(inputImageBitmap, 0, 0);
+                const imageData = tempCtx.getImageData(0, 0, inputImageBitmap.width, inputImageBitmap.height);
+                autoFrameTransform = calculateAutoFrameTransform(imageData);
+              }
+            }
+
+            // Send the mask along with auto frame transform if needed
+            const response: WorkerResponse = {
+              type: 'mask',
+              mask: maskBitmap,
+              timestamp: performance.now(),
+              autoFrameTransform: autoFrameTransform
+            };
+
+            self.postMessage(response, { transfer: [maskBitmap] });
+
+            // Clean up the input image bitmap after processing
+            if (inputImageBitmap) {
+              inputImageBitmap.close();
+              inputImageBitmap = null;
+            }
           })
           .catch((err) => {
             console.error('Worker: Failed to create mask bitmap', err);
+
+            // Clean up the input image bitmap on error
+            if (inputImageBitmap) {
+              inputImageBitmap.close();
+              inputImageBitmap = null;
+            }
           });
+      } else {
+        // Clean up the input image bitmap if no segmentation results
+        if (inputImageBitmap) {
+          inputImageBitmap.close();
+          inputImageBitmap = null;
+        }
       }
     });
 
@@ -82,16 +120,78 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   }
 }
 
+// Calculate auto frame transform from mask data
+function calculateAutoFrameTransform(maskData: ImageData): { panX: number; panY: number; zoom: number } | null {
+  const width = maskData.width;
+  const height = maskData.height;
+  const data = maskData.data;
+  let minX = width,
+    maxX = 0,
+    minY = height,
+    maxY = 0;
+  let found = false;
+
+  // Sample every 8th pixel for performance
+  for (let y = 0; y < height; y += 8) {
+    for (let x = 0; x < width; x += 8) {
+      if ((data[(y * width + x) * 4] ?? 0) > 128) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        found = true;
+      }
+    }
+  }
+
+  if (found) {
+    const boxCenterX = (minX + maxX) / 2;
+    const boxHeight = maxY - minY;
+    // Focus on the face/head area (upper ~25% of detected body)
+    const faceY = minY + boxHeight * 0.25;
+    const centerXPercent = boxCenterX / width;
+    const faceYPercent = faceY / height;
+    const targetPanX = (0.5 - centerXPercent) * 100;
+    const targetPanY = (0.5 - faceYPercent) * 100;
+    let targetZoom = (height * 0.6) / boxHeight;
+    targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
+
+    return {
+      panX: targetPanX,
+      panY: targetPanY,
+      zoom: targetZoom,
+    };
+  }
+
+  return null;
+}
+
 // Process a frame
-async function processFrame(image: ImageBitmap) {
+async function processFrame(image: ImageBitmap, autoFrame: boolean) {
   if (!isInitialized || !segmenter) return;
 
   try {
+    // Store the autoFrame setting and input image for later use in onResults callback
+    autoFrameEnabled = autoFrame;
+
+    // Clean up any previous input image bitmap if it wasn't cleaned up properly
+    if (inputImageBitmap) {
+      inputImageBitmap.close();
+    }
+    inputImageBitmap = image;
+
+    // Send the image to MediaPipe for segmentation
     await segmenter.send({ image });
-    // ImageBitmap must be closed to avoid leaks
-    image.close();
+
   } catch (error) {
     console.error('Worker: Processing failed', error);
+
+    // Clean up the input image bitmap on error
+    if (inputImageBitmap) {
+      inputImageBitmap.close();
+      inputImageBitmap = null;
+    }
+
     self.postMessage({ type: 'error', error: String(error) });
   }
 }
@@ -105,7 +205,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       await initSegmenter(msg.config.modelType);
       break;
     case 'process':
-      await processFrame(msg.image);
+      await processFrame(msg.image, msg.autoFrame);
       break;
     case 'close':
       if (segmenter) {

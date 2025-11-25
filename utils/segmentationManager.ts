@@ -7,6 +7,7 @@ export interface SegmentationResult {
   error?: string;
   fps?: number;
   latency?: number;
+  autoFrameTransform?: { panX: number; panY: number; zoom: number };
 }
 
 export type SegmentationMode = 'worker' | 'main-thread' | 'disabled';
@@ -181,7 +182,14 @@ class SegmentationManager {
                     if (firstKey !== undefined) {
                         const callback = this.pendingCallbacks.get(firstKey);
                         if (callback) {
-                            callback({ mask: imageData });
+                            // Include autoFrameTransform if provided by worker
+                            const result: SegmentationResult = {
+                              mask: imageData
+                            };
+                            if (response.autoFrameTransform) {
+                              (result as any).autoFrameTransform = response.autoFrameTransform;
+                            }
+                            callback(result);
                             this.pendingCallbacks.delete(firstKey);
                         }
                     }
@@ -210,7 +218,7 @@ class SegmentationManager {
   /**
    * Process a video frame through the worker
    */
-  async segment(video: HTMLVideoElement): Promise<SegmentationResult> {
+  async segment(video: HTMLVideoElement, autoFrame: boolean = false): Promise<SegmentationResult> {
     if (this.mode !== 'worker' || !this.worker) {
       return { mask: null, error: 'Worker not available' };
     }
@@ -230,6 +238,7 @@ class SegmentationManager {
             type: 'process',
             image: imageBitmap,
             timestamp: performance.now(),
+            autoFrame
           };
 
           this.worker?.postMessage(message, [imageBitmap]);
