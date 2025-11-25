@@ -42,6 +42,7 @@ export const useOBSIntegration = () => {
   });
 
   const obsRef = useRef<OBSWebSocket | null>(null);
+  const virtualCamPollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize OBS instance
   useEffect(() => {
@@ -50,6 +51,9 @@ export const useOBSIntegration = () => {
     return () => {
       if (obsRef.current) {
         obsRef.current.disconnect();
+      }
+      if (virtualCamPollRef.current) {
+        clearInterval(virtualCamPollRef.current);
       }
     };
   }, []);
@@ -67,43 +71,37 @@ export const useOBSIntegration = () => {
 
       try {
         // Attempt connection
-        const { obsWebSocketVersion } = await obsRef.current.connect(
-          `ws://${address}`,
-          password
-        );
+        const { obsWebSocketVersion } = await obsRef.current.connect(`ws://${address}`, password);
         console.log(`Connected to OBS (Version: ${obsWebSocketVersion})`);
 
         // Fetch initial state
-        const [
-          scenesResponse,
-          sceneResponse,
-          streamStatus,
-          recordStatus,
-          virtualCamStatus,
-        ] = await Promise.all([
-          obsRef.current.call('GetSceneList'),
-          obsRef.current.call('GetCurrentProgramScene'),
-          obsRef.current.call('GetStreamStatus'),
-          obsRef.current.call('GetRecordStatus'),
-          obsRef.current.call('GetVirtualCamStatus'),
-        ]);
+        const [scenesResponse, sceneResponse, streamStatus, recordStatus, virtualCamStatus] =
+          await Promise.all([
+            obsRef.current.call('GetSceneList'),
+            obsRef.current.call('GetCurrentProgramScene'),
+            obsRef.current.call('GetStreamStatus'),
+            obsRef.current.call('GetRecordStatus'),
+            obsRef.current.call('GetVirtualCamStatus'),
+          ]);
 
         // Set up event listeners for real-time updates
-        obsRef.current.on('CurrentProgramSceneChanged', (data) => {
+        obsRef.current.on('CurrentProgramSceneChanged', (data: any) => {
           updateState({ currentScene: data.sceneName });
         });
 
-        obsRef.current.on('RecordStateChanged', (data) => {
+        obsRef.current.on('RecordStateChanged', (data: any) => {
           updateState({ isRecording: data.outputActive });
         });
 
-        obsRef.current.on('StreamStateChanged', (data) => {
+        obsRef.current.on('StreamStateChanged', (data: any) => {
           updateState({ isStreaming: data.outputActive });
         });
 
-        obsRef.current.on('VirtualCamStateChanged', (data) => {
-          updateState({ isVirtualCamActive: data.outputActive });
-        });
+        // Note: Virtual camera events may not be available in all OBS versions
+        // We'll update virtual cam status through polling instead of events
+        // obsRef.current.on('VirtualCameraStateChanged', (data: any) => {
+        //   updateState({ isVirtualCamActive: data.outputActive });
+        // });
 
         obsRef.current.on('ConnectionClosed', () => {
           updateState({
@@ -111,7 +109,24 @@ export const useOBSIntegration = () => {
             connecting: false,
             error: 'Connection closed by OBS',
           });
+          // Stop polling when disconnected
+          if (virtualCamPollRef.current) {
+            clearInterval(virtualCamPollRef.current);
+            virtualCamPollRef.current = null;
+          }
         });
+
+        // Start polling virtual camera status every 2 seconds
+        virtualCamPollRef.current = setInterval(async () => {
+          if (obsRef.current) {
+            try {
+              const virtualCamStatus = await obsRef.current.call('GetVirtualCamStatus');
+              updateState({ isVirtualCamActive: virtualCamStatus.outputActive });
+            } catch (_error) {
+              // Ignore polling errors, connection will handle them
+            }
+          }
+        }, 2000);
 
         // Update full state
         updateState({
@@ -141,6 +156,11 @@ export const useOBSIntegration = () => {
     if (obsRef.current) {
       await obsRef.current.disconnect();
       updateState({ connected: false, error: null });
+    }
+    // Stop polling when manually disconnected
+    if (virtualCamPollRef.current) {
+      clearInterval(virtualCamPollRef.current);
+      virtualCamPollRef.current = null;
     }
   }, [updateState]);
 
