@@ -91,11 +91,11 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    const SelfieSegmentationConstructor = (
-      self as DedicatedWorkerGlobalScope & {
-        SelfieSegmentation: WorkerSelfieSegmentationConstructor;
-      }
-    ).SelfieSegmentation;
+    // Access SelfieSegmentation from the global scope
+    // Use simpler type assertion to avoid transpilation issues
+    const globalSelf = self as any;
+    const SelfieSegmentationConstructor = globalSelf.SelfieSegmentation;
+
     if (!SelfieSegmentationConstructor) {
       throw new Error('SelfieSegmentation is not available');
     }
