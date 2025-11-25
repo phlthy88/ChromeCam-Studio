@@ -71,7 +71,7 @@ const Slider: React.FC<SliderProps> = ({
         <div className={`flex flex-col gap-2 ${disabled ? 'opacity-[0.38]' : ''}`}>
             {/* Label and Value Row */}
             <div className="flex justify-between items-center">
-                <label htmlFor={`slider-input-${uniqueId}`} className="md-label-large text-on-surface-variant">
+                <label id={`slider-label-${uniqueId}`} htmlFor={`slider-input-${uniqueId}`} className="md-label-large text-on-surface-variant">
                     {label}
                 </label>
                 {showValue && (
@@ -199,10 +199,11 @@ const Slider: React.FC<SliderProps> = ({
                     onTouchEnd={() => setIsDragging(false)}
                     onFocus={() => setShowTooltip(true)}
                     onBlur={() => { setShowTooltip(false); setIsDragging(false); }}
-                    aria-label={`${label} slider`}
+                    aria-labelledby={`slider-label-${uniqueId}`}
                     aria-valuenow={value}
                     aria-valuemin={min}
                     aria-valuemax={max}
+                    aria-label={`${label} slider`}
                     className={`
                         absolute w-full h-full opacity-0 cursor-pointer z-20
                         disabled:cursor-not-allowed

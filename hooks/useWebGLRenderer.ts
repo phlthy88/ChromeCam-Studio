@@ -57,7 +57,7 @@ export function useWebGLRenderer({
   enabled,
   lutPreset,
   lutIntensity,
-  faceLandmarks: _faceLandmarks,
+  faceLandmarks,
   beautySettings,
 }: UseWebGLRendererOptions): UseWebGLRendererReturn {
   // Enable beauty effects when landmarks are available
@@ -133,9 +133,6 @@ export function useWebGLRenderer({
       setIsWebGLSupported(false);
     }
 
-    // Note: Face warp renderer disabled for now - requires separate canvas and face detection
-    // TODO: Re-enable when proper face landmark detection is implemented
-
     return () => {
       if (rendererRef.current) {
         rendererRef.current.dispose();
@@ -148,6 +145,13 @@ export function useWebGLRenderer({
       setIsReady(false);
     };
   }, [enabled, hasBeautySettings]);
+
+  // Update face landmarks when they change
+  useEffect(() => {
+    if (faceWarpRendererRef.current && faceLandmarks) {
+      faceWarpRendererRef.current.updateLandmarks(faceLandmarks);
+    }
+  }, [faceLandmarks]);
 
   // Load LUT when preset changes
   useEffect(() => {
@@ -178,12 +182,38 @@ export function useWebGLRenderer({
       source: HTMLVideoElement | HTMLCanvasElement | ImageBitmap,
       lutIntensity?: number
     ): HTMLCanvasElement | null => {
+      // Step 1: Apply face warping if beauty settings are enabled
+      let processedSource: HTMLVideoElement | HTMLCanvasElement | ImageBitmap = source;
+
+      if (hasBeautySettings && faceWarpRendererRef.current && beautySettings && faceLandmarks) {
+        try {
+          // Apply face warp rendering
+          faceWarpRendererRef.current.render(source, beautySettings);
+          // Use the warped canvas as the source for LUT processing
+          if (faceWarpRendererRef.current.canvas) {
+            processedSource = faceWarpRendererRef.current.canvas;
+          }
+        } catch (error) {
+          console.warn('[useWebGLRenderer] Face warp rendering failed:', error);
+          // Continue with original source if face warp fails
+        }
+      }
+
+      // Step 2: Apply LUT grading if enabled
       if (!enabled || lutPreset === 'none') {
+        // If only beauty filters are enabled (no LUT), return the warped canvas
+        if (processedSource !== source && processedSource instanceof HTMLCanvasElement) {
+          return processedSource;
+        }
         return null;
       }
 
       const lutData = getCinematicLut(lutPreset);
       if (!lutData) {
+        // If LUT data is missing but we have a warped canvas, return it
+        if (processedSource !== source && processedSource instanceof HTMLCanvasElement) {
+          return processedSource;
+        }
         return null;
       }
 
@@ -195,8 +225,8 @@ export function useWebGLRenderer({
       // Try WebGL first
       if (isReady && rendererRef.current && webglCanvasRef.current) {
         try {
-          // Apply LUT directly to source
-          rendererRef.current.render(source, normalizedIntensity);
+          // Apply LUT to the (potentially warped) source
+          rendererRef.current.render(processedSource, normalizedIntensity);
           return webglCanvasRef.current;
         } catch (error) {
           console.warn('[useWebGLRenderer] WebGL render failed, falling back to software:', error);
@@ -252,7 +282,7 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [enabled, isReady, lutPreset]
+    [enabled, isReady, lutPreset, hasBeautySettings, beautySettings, faceLandmarks]
   );
 
   return {

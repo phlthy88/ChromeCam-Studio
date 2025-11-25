@@ -198,7 +198,7 @@ export class WebGLFaceWarpRenderer {
   private positionBuffer: WebGLBuffer | null = null;
   private texCoordBuffer: WebGLBuffer | null = null;
   private texture: WebGLTexture | null = null;
-  private canvas: HTMLCanvasElement | null = null;
+  private _canvas: HTMLCanvasElement | null = null;
   private landmarks: FaceLandmarks | null = null;
 
   /**
@@ -217,7 +217,7 @@ export class WebGLFaceWarpRenderer {
    * Initialize the WebGL2 context and shaders
    */
   initialize(canvas: HTMLCanvasElement): boolean {
-    this.canvas = canvas;
+    this._canvas = canvas;
 
     // Get WebGL2 context (required for GLSL ES 3.0 shaders)
     this.gl = canvas.getContext('webgl2', {
@@ -332,7 +332,7 @@ export class WebGLFaceWarpRenderer {
       mouthScaling: number;
     }
   ): void {
-    if (!this.gl || !this.program || !this.canvas) {
+    if (!this.gl || !this.program || !this._canvas) {
       console.error(
         '[WebGLFaceWarpRenderer] Cannot render: missing WebGL context, program, or canvas'
       );
@@ -345,9 +345,9 @@ export class WebGLFaceWarpRenderer {
     const sourceWidth = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
     const sourceHeight = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
 
-    if (this.canvas.width !== sourceWidth || this.canvas.height !== sourceHeight) {
-      this.canvas.width = sourceWidth;
-      this.canvas.height = sourceHeight;
+    if (this._canvas.width !== sourceWidth || this._canvas.height !== sourceHeight) {
+      this._canvas.width = sourceWidth;
+      this._canvas.height = sourceHeight;
       gl.viewport(0, 0, sourceWidth, sourceHeight);
     }
 
@@ -442,7 +442,14 @@ export class WebGLFaceWarpRenderer {
 
     this.gl = null;
     this.program = null;
-    this.canvas = null;
+    this._canvas = null;
+  }
+
+  /**
+   * Get the canvas element used for rendering
+   */
+  get canvas(): HTMLCanvasElement | null {
+    return this._canvas;
   }
 }
 
