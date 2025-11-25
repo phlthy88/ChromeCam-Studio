@@ -27,7 +27,7 @@
 
     "allowImportingTsExtensions": true,
 
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "vitest/globals"],
 
     "baseUrl": ".",
     "paths": {
