@@ -113,6 +113,22 @@ export default defineConfig(({ mode }) => {
   return {
     ...baseConfig,
     mode: 'production',
+    // Ensure same security headers as dev for production
+    server: {
+      headers: {
+        'Content-Security-Policy': [
+          "default-src 'self'",
+          "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
+          "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
+          "img-src 'self' blob: data:",
+          "media-src 'self' blob:",
+          "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
+          "worker-src 'self' blob:",
+        ].join('; '),
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+      },
+    },
     plugins: [
       ...baseConfig.plugins!,
       VitePWA({
@@ -231,6 +247,16 @@ export default defineConfig(({ mode }) => {
       // Minify CSS
       cssMinify: true,
     },
+    // CRITICAL: Worker support for OffscreenCanvas (same as dev)
+    worker: {
+      format: 'es',
+      plugins: () => [react()],
+      rollupOptions: {
+        output: {
+          entryFileNames: 'workers/[name].[hash].js',
+        },
+      },
+    },
     // Production esbuild options
     esbuild: {
       drop: ['console', 'debugger'],
@@ -241,6 +267,21 @@ export default defineConfig(({ mode }) => {
       port: 4173,
       host: '0.0.0.0',
       strictPort: true,
+      cors: true,
+      // Enhanced Content Security Policy for workers and WebGL (same as dev)
+      headers: {
+        'Content-Security-Policy': [
+          "default-src 'self'",
+          "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
+          "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
+          "img-src 'self' blob: data:",
+          "media-src 'self' blob:",
+          "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
+          "worker-src 'self' blob:",
+        ].join('; '),
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+      },
     },
   } satisfies UserConfig;
 });
