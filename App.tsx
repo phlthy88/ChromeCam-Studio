@@ -1,6 +1,5 @@
 import WebcamApp from './components/WebcamApp';
-import { ToastProvider } from './hooks/useToast';
-import { ToastContainer } from './components/ToastContainer';
+import { ToastProvider } from './contexts/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
@@ -18,7 +17,6 @@ function App() {
         <div className="h-screen w-full overflow-hidden">
           <WebcamApp />
         </div>
-        <ToastContainer />
       </ToastProvider>
     </ErrorBoundary>
   );

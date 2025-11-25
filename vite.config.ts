@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => {
         headers: {
           'Content-Security-Policy': [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
             "img-src 'self' blob: data:",
             "media-src 'self' blob:",
@@ -272,7 +272,7 @@ export default defineConfig(({ mode }) => {
       headers: {
         'Content-Security-Policy': [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
+          "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
           "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
           "img-src 'self' blob: data:",
           "media-src 'self' blob:",

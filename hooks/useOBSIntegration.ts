@@ -71,8 +71,7 @@ export const useOBSIntegration = () => {
 
       try {
         // Attempt connection
-        const { obsWebSocketVersion } = await obsRef.current.connect(`ws://${address}`, password);
-        console.log(`Connected to OBS (Version: ${obsWebSocketVersion})`);
+        await obsRef.current.connect(`ws://${address}`, password);
 
         // Fetch initial state
         const [scenesResponse, sceneResponse, streamStatus, recordStatus, virtualCamStatus] =
@@ -85,12 +84,9 @@ export const useOBSIntegration = () => {
           ]);
 
         // Set up event listeners for real-time updates
-        obsRef.current.on(
-          'CurrentProgramSceneChanged',
-          (data: EventTypes['CurrentProgramSceneChanged']) => {
-            updateState({ currentScene: data.sceneName });
-          }
-        );
+        obsRef.current.on('CurrentProgramSceneChanged', (data: EventTypes['CurrentProgramSceneChanged']) => {
+          updateState({ currentScene: data.sceneName });
+        });
 
         obsRef.current.on('RecordStateChanged', (data: EventTypes['RecordStateChanged']) => {
           updateState({ isRecording: data.outputActive });

@@ -57,11 +57,10 @@ export function useWebGLRenderer({
   enabled,
   lutPreset,
   lutIntensity,
-  faceLandmarks,
+  faceLandmarks: _faceLandmarks,
   beautySettings,
 }: UseWebGLRendererOptions): UseWebGLRendererReturn {
   // Enable beauty effects when landmarks are available
-  const hasFaceLandmarks = faceLandmarks && faceLandmarks.length > 0;
   const hasBeautySettings =
     beautySettings &&
     (beautySettings.eyeEnlargement > 0 ||
