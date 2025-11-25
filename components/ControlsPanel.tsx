@@ -1336,10 +1336,11 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   />
                   {settings.virtualBackground && (
                     <div className="mt-4">
-                      <label className="md-label-large text-on-surface mb-2 block">
+                      <label htmlFor="virtual-background-image" className="md-label-large text-on-surface mb-2 block">
                         Select Image
                       </label>
                       <input
+                        id="virtual-background-image"
                         type="file"
                         accept="image/*"
                         onChange={handleImageUpload}

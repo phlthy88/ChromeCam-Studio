@@ -1,12 +1,12 @@
 /// <reference lib="webworker" />
 
 // Define types for messages
-export type WorkerMessage =
+type WorkerMessage =
   | { type: 'init'; config: { modelType: 'general' | 'landscape' } }
   | { type: 'process'; image: ImageBitmap; timestamp: number; autoFrame: boolean }
   | { type: 'close' };
 
-export type WorkerResponse =
+type WorkerResponse =
   | { type: 'init-complete'; success: boolean; error?: string }
   | {
       type: 'mask';
@@ -26,8 +26,30 @@ const LOCATE_FILE = (file: string) => {
   return `/mediapipe/${file}`;
 };
 
+// --- FIX START: Force Polyfill importScripts ---
+// In Module Workers, importScripts exists but throws an error.
+// We must overwrite it unconditionally to use our XHR+eval workaround.
+(self as any).importScripts = function (...urls: string[]) {
+  for (const url of urls) {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false); // Synchronous request
+    xhr.send();
+    if (xhr.status === 200) {
+      // Use indirect eval to execute in global scope
+      (0, eval)(xhr.responseText);
+    } else {
+      throw new Error(`Failed to load script: ${url} (status: ${xhr.status})`);
+    }
+  }
+};
+// --- FIX END ---
+
 interface WorkerSegmentationResults {
-  segmentationMask: ImageBitmap;
+  segmentationMask: ImageData | ImageBitmap;
+}
+
+interface WorkerSelfieSegmentationConstructor {
+  new (config: { locateFile: (file: string) => string }): WorkerSelfieSegmentation;
 }
 
 interface WorkerSelfieSegmentation {
@@ -44,41 +66,22 @@ let isInitialized = false;
 let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
 let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
 
-// FORCE polyfill because native importScripts throws in module workers
-// Do NOT wrap this in an 'if' check.
-(self as any).importScripts = function (...urls: string[]) {
-  for (const url of urls) {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, false);
-    xhr.send();
-    if (xhr.status === 200) {
-      (0, eval)(xhr.responseText);
-    } else {
-      throw new Error(`Failed to load script: ${url}`);
-    }
-  }
-};
-
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
-    // Fetch the script
+    // Fetch and evaluate the script (MediaPipe is UMD, not an ES module)
     const response = await fetch(selfieSegmentationUrl);
 
     // FIX: Check if the file actually exists before executing
     if (!response.ok) {
-      throw new Error(
-        `Failed to load MediaPipe from ${selfieSegmentationUrl}: ${response.status} ${response.statusText}`
-      );
+      throw new Error(`Failed to load MediaPipe from ${selfieSegmentationUrl}: ${response.status} ${response.statusText}`);
     }
 
     const scriptText = await response.text();
 
     // FIX: Ensure we aren't trying to execute an HTML 404 page
-    if (scriptText.trim().startsWith('<!DOCTYPE')) {
-      throw new Error(
-        `Failed to load MediaPipe: Server returned HTML (404) instead of JavaScript at ${selfieSegmentationUrl}`
-      );
+    if (scriptText.trim().startsWith('<!DOCTYPE') || scriptText.trim().startsWith('<html')) {
+       throw new Error(`Failed to load MediaPipe: Server returned HTML (404) instead of JavaScript at ${selfieSegmentationUrl}`);
     }
 
     // Use indirect eval to execute in global scope
@@ -91,14 +94,13 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    // Access SelfieSegmentation from the global scope
-    // Use simpler type assertion to avoid transpilation issues
-    const globalSelf = self as any;
-    const SelfieSegmentationConstructor = globalSelf.SelfieSegmentation;
-
-    if (!SelfieSegmentationConstructor) {
+    // Type assertion simplified to avoid potential parsing issues
+    const workerSelfieSegmentation = (self as any).SelfieSegmentation;
+    if (!workerSelfieSegmentation) {
       throw new Error('SelfieSegmentation is not available');
     }
+
+    const SelfieSegmentationConstructor: WorkerSelfieSegmentationConstructor = workerSelfieSegmentation;
 
     const selfieSegmentation = new SelfieSegmentationConstructor({
       locateFile: LOCATE_FILE,

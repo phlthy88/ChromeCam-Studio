@@ -759,7 +759,7 @@ export function useVideoRenderer({
           // Apply WebGL LUT cinematic color grading
           const { cinematicLut } = settingsRef.current;
           if (cinematicLut !== 'none' && isWebGLReady) {
-            const lutCanvas = applyLutGrading(canvas);
+            const lutCanvas = applyLutGrading(canvas, settings.cinematicLutIntensity);
             if (lutCanvas) {
               ctx.drawImage(lutCanvas, 0, 0);
             }

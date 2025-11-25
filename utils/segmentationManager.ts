@@ -2,6 +2,9 @@ import type { FaceLandmarks } from '../types/face';
 import type { SegmentationConfig } from '../types/media';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
 
+// Import the worker using Vite's worker import syntax
+import SegmentationWorker from '../workers/segmentation.worker.ts?worker';
+
 export interface SegmentationResult {
   mask: ImageData | null;
   autoFrameTransform?: AutoFrameTransform;
@@ -103,9 +106,8 @@ class SegmentationManager {
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        // Create worker from the worker file using Vite's worker import
-        const workerUrl = new URL('../workers/segmentation.worker.ts', import.meta.url);
-        this.worker = new Worker(workerUrl, { type: 'module' });
+        // Create worker using Vite's worker import syntax
+        this.worker = new SegmentationWorker();
 
         const timeoutId = setTimeout(() => {
           console.warn('[SegmentationManager] Worker init timeout');

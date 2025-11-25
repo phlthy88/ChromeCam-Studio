@@ -278,9 +278,10 @@ const MicrophoneWidget: React.FC<MicrophoneWidgetProps> = ({
                             {/* Microphone Selection */}
                             {audioDevices && audioDevices.length > 0 && (
                                 <div>
-                                    <label className="md-label-large text-on-surface mb-2 block">Microphone</label>
+                                    <label htmlFor="microphone-select" className="md-label-large text-on-surface mb-2 block">Microphone</label>
                                     <div className="relative">
                                         <select
+                                            id="microphone-select"
                                             value={settings.audioDeviceId || ''}
                                             onChange={(e) => update('audioDeviceId', e.target.value || null)}
                                             className="w-full appearance-none bg-surface-container-highest hover:bg-surface-high text-on-surface md-body-medium rounded-xl py-2.5 px-3 pr-8 border border-outline-variant/40 focus:border-primary/60 focus:ring-1 focus:ring-primary/15 outline-none cursor-pointer transition-all"
