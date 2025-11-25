@@ -66,9 +66,21 @@ let inputImageBitmap: ImageBitmap | null = null; // Store the input image for au
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
-    // Fetch and evaluate the script (MediaPipe is UMD, not an ES module)
+    // Fetch the script
     const response = await fetch(selfieSegmentationUrl);
+
+    // FIX: Check if the file actually exists before executing
+    if (!response.ok) {
+      throw new Error(`Failed to load MediaPipe from ${selfieSegmentationUrl}: ${response.status} ${response.statusText}`);
+    }
+
     const scriptText = await response.text();
+
+    // FIX: Ensure we aren't trying to execute an HTML 404 page
+    if (scriptText.trim().startsWith('<!DOCTYPE')) {
+       throw new Error(`Failed to load MediaPipe: Server returned HTML (404) instead of JavaScript at ${selfieSegmentationUrl}`);
+    }
+
     // Use indirect eval to execute in global scope
     (0, eval)(scriptText);
   }
@@ -79,11 +91,11 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    const SelfieSegmentationConstructor = (
-      self as DedicatedWorkerGlobalScope & {
-        SelfieSegmentation: WorkerSelfieSegmentationConstructor;
-      }
-    ).SelfieSegmentation;
+    // Access SelfieSegmentation from the global scope
+    // Use simpler type assertion to avoid transpilation issues
+    const globalSelf = self as any;
+    const SelfieSegmentationConstructor = globalSelf.SelfieSegmentation;
+
     if (!SelfieSegmentationConstructor) {
       throw new Error('SelfieSegmentation is not available');
     }
