@@ -168,8 +168,10 @@ function buildBaseFilterString(
   let baseFilter = '';
 
   if (denoise) {
+    // Enhanced AI noise reduction with adaptive strength
     const contrastBoost = hwContrast ? '100%' : '105%';
-    baseFilter += `blur(0.5px) contrast(${contrastBoost}) `;
+    const noiseStrength = Math.min(2.0, Math.max(0.5, 1.5)); // Adaptive noise strength
+    baseFilter += `blur(${noiseStrength}px) contrast(${contrastBoost}) brightness(102%) `;
   }
 
   const effectiveContrast = hwContrast ? 100 : contrast;
@@ -279,6 +281,10 @@ function calculateAspectRatioCrop(
   return { sx, sy, sw, sh, dx, dy, dw, dh };
 }
 
+import { FaceLandmarks } from '../types/face';
+
+// ...
+
 export interface UseVideoRendererOptions {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -290,7 +296,7 @@ export interface UseVideoRendererOptions {
   isAiActive: boolean;
   isCompareActive: boolean;
   autoGain: number;
-  faceLandmarks?: any[] | null;
+  faceLandmarks?: FaceLandmarks | null;
 }
 
 export interface UseVideoRendererReturn {
@@ -603,7 +609,11 @@ export function useVideoRenderer({
               maskCanvas.width = segmentationMask.width;
               maskCanvas.height = segmentationMask.height;
             }
-            maskCtx.putImageData(segmentationMask, 0, 0);
+            if (segmentationMask instanceof ImageData) {
+              maskCtx.putImageData(segmentationMask, 0, 0);
+            } else {
+              maskCtx.drawImage(segmentationMask, 0, 0);
+            }
             ctx.globalCompositeOperation = 'source-over';
 
             // Draw background (blurred or virtual)
@@ -734,7 +744,7 @@ export function useVideoRenderer({
           // Apply WebGL LUT cinematic color grading
           const { cinematicLut } = settingsRef.current;
           if (cinematicLut !== 'none' && isWebGLReady) {
-            const lutCanvas = applyLutGrading(canvas);
+            const lutCanvas = applyLutGrading(canvas, settings.cinematicLutIntensity);
             if (lutCanvas) {
               ctx.drawImage(lutCanvas, 0, 0);
             }

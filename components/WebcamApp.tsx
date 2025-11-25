@@ -27,7 +27,6 @@ const WebcamApp: React.FC = () => {
   // Handle settings change
   const handleSettingsChange = useCallback(
     (newSettings: CameraSettings) => {
-      console.log('[WebcamApp] handleSettingsChange called with:', newSettings);
       setSettings(newSettings);
     },
     []
@@ -75,23 +74,18 @@ const WebcamApp: React.FC = () => {
   useEffect(() => {
     const getDevices = async () => {
       try {
-        console.log('[WebcamApp] Requesting camera permissions...');
         // Request permissions to get device labels
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        console.log('[WebcamApp] Permissions granted, enumerating devices...');
         // Close the temporary stream
         stream.getTracks().forEach((track) => track.stop());
 
         const allDevices = await navigator.mediaDevices.enumerateDevices();
-        console.log('[WebcamApp] Found devices:', allDevices);
 
         // Get video devices
         const videoDevices = allDevices.filter((device) => device.kind === 'videoinput');
-        console.log('[WebcamApp] Video devices:', videoDevices);
         setDevices(videoDevices);
         if (videoDevices.length > 0) {
           const firstDeviceId = videoDevices[0]?.deviceId;
-          console.log('[WebcamApp] Selecting first device:', firstDeviceId);
           if (firstDeviceId) {
             setSelectedDeviceId((currentId) => currentId ?? firstDeviceId);
           }

@@ -1,6 +1,6 @@
-
 import WebcamApp from './components/WebcamApp';
-import { ToastProvider, ToastContainer } from './hooks/useToast';
+import { ToastProvider } from './hooks/useToast';
+import { ToastContainer } from './components/ToastContainer';
 
 function App() {
   // You can add theme switching logic here if desired

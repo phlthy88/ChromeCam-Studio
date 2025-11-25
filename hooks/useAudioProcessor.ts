@@ -185,8 +185,14 @@ export function useAudioProcessor({
     enabled,
     compressorEnabled,
     noiseGateEnabled,
-    // Only rebuild when these change significantly (not on every slider move)
-    // Real-time updates are handled below
+    compressorThreshold,
+    compressorKnee,
+    compressorRatio,
+    compressorAttack,
+    compressorRelease,
+    noiseGateThreshold,
+    noiseGateAttack,
+    noiseGateRelease,
     cleanup,
   ]);
 

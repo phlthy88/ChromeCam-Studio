@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CameraSettings } from '../components/settings';
 import type { BodySegmenter, BarcodeDetector } from '../types/media';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
+import { FaceLandmarks } from '../types/face';
 
 // Constants to avoid GC in the inference loop
 const FOREGROUND_COLOR = { r: 255, g: 255, b: 255, a: 255 };
@@ -21,7 +22,7 @@ export interface UseBodySegmentationOptions {
 export interface UseBodySegmentationReturn {
   segmentationMaskRef: React.RefObject<ImageData | null>;
   targetTransformRef: React.RefObject<AutoFrameTransform>;
-  faceLandmarks: any[] | null;
+  faceLandmarks: FaceLandmarks | null;
   isAiActive: boolean;
   loadingStatus: string;
   loadingError: string | null;
@@ -50,7 +51,7 @@ export function useBodySegmentation({
   const targetTransformRef = useRef<AutoFrameTransform>({ panX: 0, panY: 0, zoom: 1 });
   const barcodeDetectorRef = useRef<BarcodeDetector | null>(null);
 
-  // Load MediaPipe scripts if not already loaded
+  // Load MediaPipe scripts if not already loaded - only for main thread fallback
   const loadScripts = useCallback(async () => {
     if (typeof window !== 'undefined' && !window.bodySegmentation) {
       try {
@@ -88,7 +89,7 @@ export function useBodySegmentation({
   const [isAiActive, setIsAiActive] = useState(false);
   const [qrResult, setQrResult] = useState<string | null>(null);
   const [segmentationMode, setSegmentationMode] = useState<SegmentationMode>('disabled');
-  const [faceLandmarks, setFaceLandmarks] = useState<any[] | null>(null);
+  const [faceLandmarks, setFaceLandmarks] = useState<FaceLandmarks | null>(null);
 
   const settingsRef = useRef(settings);
   useEffect(() => {
@@ -135,11 +136,9 @@ export function useBodySegmentation({
           setSegmentationMode('worker');
           setLoadingStatus('AI Ready (Worker)');
           setLoadingError(null);
-          console.log('[AI] Using Web Worker for segmentation');
 
           // Set up face landmarks callback
           segmentationManager.setFaceLandmarksCallback((landmarks) => {
-            console.log('[useBodySegmentation] Received face landmarks:', landmarks.length);
             if (isMounted) {
               setFaceLandmarks(landmarks);
             }
@@ -171,7 +170,6 @@ export function useBodySegmentation({
           setSegmentationMode('main-thread');
           setLoadingStatus('AI Ready (Main Thread)');
           setLoadingError(null);
-          console.log('[AI] Using main thread for segmentation');
         } catch (e) {
           console.error('[AI] Failed to initialize:', e);
           setLoadingError('Failed to load AI Engine');
@@ -245,10 +243,18 @@ export function useBodySegmentation({
 
             if (canRunWorker) {
               // Use Web Worker for off-main-thread processing
-              const result = await segmentationManager.segment(video);
+              const result = await segmentationManager.segment(
+                video,
+                settingsRef.current.autoFrame
+              );
               mask = result.mask;
               if (result.error) {
                 console.warn('[AI] Worker segmentation error:', result.error);
+              }
+
+              // Use autoFrameTransform from worker if available
+              if (result.autoFrameTransform) {
+                targetTransformRef.current = result.autoFrameTransform;
               }
             } else if (canRunMainThread && segmenter) {
               // Fallback to main thread processing
@@ -267,48 +273,8 @@ export function useBodySegmentation({
               setIsAiActive(true);
             }
 
-            // Auto-framing calculation
-            if (settingsRef.current.autoFrame && mask) {
-              const width = mask.width;
-              const height = mask.height;
-              const data = mask.data;
-              let minX = width,
-                maxX = 0,
-                minY = height,
-                maxY = 0;
-              let found = false;
-
-              // Sample every 8th pixel for performance
-              for (let y = 0; y < height; y += 8) {
-                for (let x = 0; x < width; x += 8) {
-                  if ((data[(y * width + x) * 4] ?? 0) > 128) {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                    found = true;
-                  }
-                }
-              }
-
-              if (found) {
-                const boxCenterX = (minX + maxX) / 2;
-                const boxHeight = maxY - minY;
-                // Focus on the face/head area (upper ~25% of detected body)
-                const faceY = minY + boxHeight * 0.25;
-                const centerXPercent = boxCenterX / width;
-                const faceYPercent = faceY / height;
-                const targetPanX = (0.5 - centerXPercent) * 100;
-                const targetPanY = (0.5 - faceYPercent) * 100;
-                let targetZoom = (height * 0.6) / boxHeight;
-                targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
-                targetTransformRef.current = {
-                  panX: targetPanX,
-                  panY: targetPanY,
-                  zoom: targetZoom,
-                };
-              }
-            } else {
+            // Reset transform if autoFrame is disabled
+            if (!settingsRef.current.autoFrame) {
               targetTransformRef.current = { panX: 0, panY: 0, zoom: 1 };
             }
           } else if (!isAiNeeded) {

@@ -5,6 +5,8 @@
  * 3D LUTs map input RGB values to output RGB values for precise color manipulation.
  */
 
+import { FaceLandmarks } from '../types/face';
+
 // Vertex shader - simple pass-through for full-screen quad (GLSL ES 1.0 for LUT)
 const VERTEX_SHADER = `
     attribute vec2 a_position;
@@ -197,7 +199,7 @@ export class WebGLFaceWarpRenderer {
   private texCoordBuffer: WebGLBuffer | null = null;
   private texture: WebGLTexture | null = null;
   private canvas: HTMLCanvasElement | null = null;
-  private landmarks: any = null;
+  private landmarks: FaceLandmarks | null = null;
 
   /**
    * Check if WebGL2 is supported (required for GLSL ES 3.0)
@@ -215,7 +217,6 @@ export class WebGLFaceWarpRenderer {
    * Initialize the WebGL2 context and shaders
    */
   initialize(canvas: HTMLCanvasElement): boolean {
-    console.log('[WebGLFaceWarpRenderer] Initializing WebGL2 face warp renderer...');
     this.canvas = canvas;
 
     // Get WebGL2 context (required for GLSL ES 3.0 shaders)
@@ -226,7 +227,9 @@ export class WebGLFaceWarpRenderer {
     }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
-      console.error('[WebGLFaceWarpRenderer] WebGL2 context creation failed - beauty effects unavailable');
+      console.error(
+        '[WebGLFaceWarpRenderer] WebGL2 context creation failed - beauty effects unavailable'
+      );
       return false;
     }
 
@@ -258,13 +261,18 @@ export class WebGLFaceWarpRenderer {
       return false;
     }
 
-    console.log('[WebGLFaceWarpRenderer] Shader program linked successfully');
-
     // Setup buffers
     this.setupBuffers();
 
-    // Create texture
+    // Create texture and set parameters once
     this.texture = this.gl.createTexture();
+    if (this.texture) {
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    }
 
     return true;
   }
@@ -308,7 +316,7 @@ export class WebGLFaceWarpRenderer {
   /**
    * Update landmarks from AI worker
    */
-  updateLandmarks(landmarks: any) {
+  updateLandmarks(landmarks: FaceLandmarks) {
     this.landmarks = landmarks;
   }
 
@@ -345,13 +353,9 @@ export class WebGLFaceWarpRenderer {
 
     gl.useProgram(this.program);
 
-    // Upload video frame to texture
+    // Upload video frame to texture (parameters already set during initialization)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
 
     // Set uniforms
@@ -382,7 +386,7 @@ export class WebGLFaceWarpRenderer {
       const mouthLeft = this.landmarks[5] || this.landmarks[61];
       const mouthRight = this.landmarks[6] || this.landmarks[291];
 
-      if (leftEye && rightEye && noseTip && jawLeft && jawRight) {
+      if (leftEye && rightEye && noseTip && jawLeft && jawRight && mouthLeft && mouthRight) {
         const leftEyeLocation = gl.getUniformLocation(this.program, 'u_leftEye');
         const rightEyeLocation = gl.getUniformLocation(this.program, 'u_rightEye');
         const noseTipLocation = gl.getUniformLocation(this.program, 'u_noseTip');
@@ -472,7 +476,6 @@ export class WebGLLutRenderer {
    * Initialize the WebGL context and shaders
    */
   initialize(canvas: HTMLCanvasElement): boolean {
-    console.log('[WebGLLutRenderer] Initializing WebGL renderer...');
     this.canvas = canvas;
 
     // Get WebGL context
@@ -487,10 +490,7 @@ export class WebGLLutRenderer {
       return false;
     }
 
-    console.log('[WebGLLutRenderer] WebGL context created successfully');
-
     // Compile shaders
-    console.log('[WebGLLutRenderer] Compiling shaders...');
     const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, VERTEX_SHADER);
     const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
 
@@ -499,10 +499,7 @@ export class WebGLLutRenderer {
       return false;
     }
 
-    console.log('[WebGLLutRenderer] Shaders compiled successfully');
-
     // Create and link program
-    console.log('[WebGLLutRenderer] Creating and linking shader program...');
     this.program = this.gl.createProgram();
     if (!this.program) {
       console.error('[WebGLLutRenderer] Failed to create shader program');
@@ -521,13 +518,19 @@ export class WebGLLutRenderer {
       return false;
     }
 
-    console.log('[WebGLLutRenderer] Shader program linked successfully');
-
     // Setup buffers
     this.setupBuffers();
 
-    // Create textures
+    // Create textures and set parameters once
     this.imageTexture = this.gl.createTexture();
+    if (this.imageTexture) {
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.imageTexture);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    }
+
     this.lutTexture = this.gl.createTexture();
 
     return true;
@@ -573,9 +576,6 @@ export class WebGLLutRenderer {
    * Load a LUT from data
    */
   loadLut(lutData: LutData): void {
-    console.log(
-      `[WebGLLutRenderer] Loading LUT: ${lutData.name} (${lutData.size}x${lutData.size}x${lutData.size})`
-    );
     if (!this.gl || !this.lutTexture) {
       console.error('[WebGLLutRenderer] Cannot load LUT: WebGL context or texture not available');
       return;
@@ -647,13 +647,9 @@ export class WebGLLutRenderer {
 
     gl.useProgram(this.program);
 
-    // Upload video frame to texture
+    // Upload video frame to texture (parameters already set during initialization)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.imageTexture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
 
     // Set uniforms
@@ -716,9 +712,9 @@ export function applyLutSoftware(imageData: ImageData, lutData: LutData): ImageD
   const lut = lutData.data;
 
   for (let i = 0; i < data.length; i += 4) {
-    const r = data[i]! / 255;
-    const g = data[i + 1]! / 255;
-    const b = data[i + 2]! / 255;
+    const r = (data[i] ?? 0) / 255;
+    const g = (data[i + 1] ?? 0) / 255;
+    const b = (data[i + 2] ?? 0) / 255;
 
     // Find nearest LUT indices (simplified, no interpolation for performance)
     const rIndex = Math.min(Math.floor(r * (lutSize - 1)), lutSize - 1);
@@ -738,7 +734,7 @@ export function applyLutSoftware(imageData: ImageData, lutData: LutData): ImageD
     resultData[i] = Math.round(newR);
     resultData[i + 1] = Math.round(newG);
     resultData[i + 2] = Math.round(newB);
-    resultData[i + 3] = data[i + 3]!;
+    resultData[i + 3] = data[i + 3] ?? 255;
   }
 
   return result;
