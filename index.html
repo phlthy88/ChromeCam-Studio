@@ -11,7 +11,7 @@
       content="
       default-src 'self';
       script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com;
-      connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com;
+      connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com;
       img-src 'self' blob: data:;
       media-src 'self' blob:;
       worker-src 'self' blob:;
