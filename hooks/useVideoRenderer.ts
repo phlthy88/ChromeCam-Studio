@@ -741,9 +741,9 @@ export function useVideoRenderer({
                 intensity: vignette,
               };
               drawVignette(ctx, canvas.width, canvas.height, gradient);
-            } else {
+            } else if (vignetteCache.gradient) {
               // Use cached gradient
-              drawVignette(ctx, canvas.width, canvas.height, vignetteCache.gradient!);
+              drawVignette(ctx, canvas.width, canvas.height, vignetteCache.gradient);
             }
           }
 

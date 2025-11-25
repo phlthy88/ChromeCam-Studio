@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { BodySegmentationAPI, BarcodeDetectorConstructor } from './types/media';
+import { TensorFlowLibrary } from './types/tensorflow';
 
 interface ImportMetaEnv {
   readonly GEMINI_API_KEY: string;
@@ -14,7 +15,7 @@ declare global {
   interface Window {
     bodySegmentation?: BodySegmentationAPI;
     BarcodeDetector?: BarcodeDetectorConstructor;
-    tf?: any;
+    tf?: TensorFlowLibrary;
   }
 }
 

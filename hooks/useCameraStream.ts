@@ -243,21 +243,21 @@ export function useCameraStream({
 
           // Apply initial focus/exposure modes if supported
           const caps = videoTrack.getCapabilities() as ExtendedMediaTrackCapabilities;
-          const initialConstraints: MediaTrackConstraints = {};
+          const initialConstraints: ExtendedMediaTrackConstraints = {};
 
           if (caps?.focusMode?.includes('continuous')) {
-            (initialConstraints as any).advanced = [{ focusMode: 'continuous' }];
+            initialConstraints.advanced = [{ focusMode: 'continuous' }];
           }
 
           if (caps?.exposureMode?.includes('continuous')) {
-            const advanced = (initialConstraints as any).advanced || [];
+            const advanced = initialConstraints.advanced || [];
             advanced.push({ exposureMode: 'continuous' });
-            (initialConstraints as any).advanced = advanced;
+            initialConstraints.advanced = advanced;
           }
 
           try {
             if (Object.keys(initialConstraints).length > 0) {
-              await videoTrack.applyConstraints(initialConstraints);
+              await videoTrack.applyConstraints(initialConstraints as MediaTrackConstraints);
             }
           } catch (e) {
             console.warn('[Camera] Initial constraints not supported:', e);

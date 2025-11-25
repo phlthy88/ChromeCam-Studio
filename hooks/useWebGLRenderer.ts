@@ -114,15 +114,11 @@ export function useWebGLRenderer({
 
     // Initialize face warp renderer when beauty effects are enabled
     if (hasBeautySettings && !faceWarpRendererRef.current) {
-      console.log('[useWebGLRenderer] Initializing face warp renderer for beauty effects');
       const faceWarpRenderer = new WebGLFaceWarpRenderer();
       const initialized = faceWarpRenderer.initialize(webglCanvasRef.current);
       if (initialized) {
         faceWarpRendererRef.current = faceWarpRenderer;
-        console.log('[useWebGLRenderer] Face warp renderer initialized successfully');
         setIsReady(true);
-      } else {
-        console.error('[useWebGLRenderer] Failed to initialize face warp renderer');
       }
     }
 
@@ -152,7 +148,7 @@ export function useWebGLRenderer({
       }
       setIsReady(false);
     };
-  }, [enabled]);
+  }, [enabled, hasBeautySettings]);
 
   // Load LUT when preset changes
   useEffect(() => {
@@ -257,7 +253,7 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [enabled, isReady, lutPreset, applyLutSoftware, hasFaceLandmarks, hasBeautySettings]
+    [enabled, isReady, lutPreset]
   );
 
   return {
