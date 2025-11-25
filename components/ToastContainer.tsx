@@ -1,5 +1,5 @@
 import React from 'react';
-import { useToast, ToastType } from '../hooks/useToast';
+import { ToastType } from '../contexts/ToastContext';
 
 // Internal Toast Container Component that receives props directly
 const ToastContainerInternal: React.FC<{
@@ -108,8 +108,10 @@ const ToastContainerInternal: React.FC<{
   );
 };
 
-// Public Toast Container Component that uses the hook
-export const ToastContainer: React.FC = () => {
-  const { toasts, dismissToast } = useToast();
+// Public Toast Container Component that receives props directly
+export const ToastContainer: React.FC<{
+  toasts: { id: string; message: string; type: ToastType }[];
+  dismissToast: (id: string) => void;
+}> = ({ toasts, dismissToast }) => {
   return <ToastContainerInternal toasts={toasts} onDismiss={dismissToast} />;
 };

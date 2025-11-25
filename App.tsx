@@ -1,5 +1,5 @@
 import WebcamApp from './components/WebcamApp';
-import { ToastProvider } from './contexts/ToastProvider';
+import { ToastProvider } from './hooks/useToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
