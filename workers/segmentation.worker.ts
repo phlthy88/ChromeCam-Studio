@@ -8,7 +8,12 @@ export type WorkerMessage =
 
 export type WorkerResponse =
   | { type: 'init-complete'; success: boolean; error?: string }
-  | { type: 'mask'; mask: ImageBitmap; timestamp: number; autoFrameTransform?: { panX: number; panY: number; zoom: number } }
+  | {
+      type: 'mask';
+      mask: ImageBitmap;
+      timestamp: number;
+      autoFrameTransform?: { panX: number; panY: number; zoom: number };
+    }
   | { type: 'error'; error: string };
 
 // Load the MediaPipe script URLs using Vite's import syntax
@@ -46,8 +51,8 @@ let inputImageBitmap: ImageBitmap | null = null; // Store the input image for au
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
-    // Import the local script using Vite's asset URL
-    importScripts(selfieSegmentationUrl);
+    // Import the local script using dynamic import for module workers
+    await import(selfieSegmentationUrl);
   }
 }
 
@@ -56,7 +61,11 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    const SelfieSegmentationConstructor = (self as DedicatedWorkerGlobalScope & { SelfieSegmentation: WorkerSelfieSegmentationConstructor }).SelfieSegmentation;
+    const SelfieSegmentationConstructor = (
+      self as DedicatedWorkerGlobalScope & {
+        SelfieSegmentation: WorkerSelfieSegmentationConstructor;
+      }
+    ).SelfieSegmentation;
     if (!SelfieSegmentationConstructor) {
       throw new Error('SelfieSegmentation is not available');
     }
@@ -75,16 +84,25 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
         // Convert mask to ImageBitmap for zero-copy transfer
         createImageBitmap(results.segmentationMask)
           .then((maskBitmap) => {
-            let autoFrameTransform: { panX: number; panY: number; zoom: number } | undefined = undefined;
+            let autoFrameTransform: { panX: number; panY: number; zoom: number } | undefined =
+              undefined;
 
             // If autoFrame was enabled for this frame, calculate the transform using the original input image
             if (autoFrameEnabled && inputImageBitmap) {
               // Create temporary canvas to get ImageData from the input image
-              const tempCanvas = new OffscreenCanvas(inputImageBitmap.width, inputImageBitmap.height);
+              const tempCanvas = new OffscreenCanvas(
+                inputImageBitmap.width,
+                inputImageBitmap.height
+              );
               const tempCtx = tempCanvas.getContext('2d');
               if (tempCtx) {
                 tempCtx.drawImage(inputImageBitmap, 0, 0);
-                const imageData = tempCtx.getImageData(0, 0, inputImageBitmap.width, inputImageBitmap.height);
+                const imageData = tempCtx.getImageData(
+                  0,
+                  0,
+                  inputImageBitmap.width,
+                  inputImageBitmap.height
+                );
                 const transform = calculateAutoFrameTransform(imageData);
                 if (transform) {
                   autoFrameTransform = transform;
@@ -97,7 +115,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
               type: 'mask',
               mask: maskBitmap,
               timestamp: performance.now(),
-              ...(autoFrameTransform ? { autoFrameTransform } : {})
+              ...(autoFrameTransform ? { autoFrameTransform } : {}),
             };
 
             self.postMessage(response, { transfer: [maskBitmap] });
@@ -142,7 +160,9 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
 }
 
 // Calculate auto frame transform from mask data
-function calculateAutoFrameTransform(maskData: ImageData): { panX: number; panY: number; zoom: number } | null {
+function calculateAutoFrameTransform(
+  maskData: ImageData
+): { panX: number; panY: number; zoom: number } | null {
   const width = maskData.width;
   const height = maskData.height;
   const data = maskData.data;
@@ -203,7 +223,6 @@ async function processFrame(image: ImageBitmap, autoFrame: boolean) {
 
     // Send the image to MediaPipe for segmentation
     await segmenter.send({ image });
-
   } catch (error) {
     console.error('Worker: Processing failed', error);
 

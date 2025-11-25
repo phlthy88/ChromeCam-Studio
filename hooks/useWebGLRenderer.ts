@@ -93,20 +93,6 @@ export function useWebGLRenderer({
       return;
     }
 
-    // Initialize face warp renderer when beauty effects are enabled
-    if (hasBeautySettings && !faceWarpRendererRef.current) {
-      console.log('[useWebGLRenderer] Initializing face warp renderer for beauty effects');
-      const faceWarpRenderer = new WebGLFaceWarpRenderer();
-      const initialized = faceWarpRenderer.initialize(webglCanvasRef.current!);
-      if (initialized) {
-        faceWarpRendererRef.current = faceWarpRenderer;
-        console.log('[useWebGLRenderer] Face warp renderer initialized successfully');
-        setIsReady(true);
-      } else {
-        console.error('[useWebGLRenderer] Failed to initialize face warp renderer');
-      }
-    }
-
     // Check WebGL support
     const supported = WebGLLutRenderer.isSupported();
     setIsWebGLSupported(supported);
@@ -118,6 +104,20 @@ export function useWebGLRenderer({
     // Create canvas for LUT renderer
     if (!webglCanvasRef.current) {
       webglCanvasRef.current = document.createElement('canvas');
+    }
+
+    // Initialize face warp renderer when beauty effects are enabled
+    if (hasBeautySettings && !faceWarpRendererRef.current) {
+      console.log('[useWebGLRenderer] Initializing face warp renderer for beauty effects');
+      const faceWarpRenderer = new WebGLFaceWarpRenderer();
+      const initialized = faceWarpRenderer.initialize(webglCanvasRef.current);
+      if (initialized) {
+        faceWarpRendererRef.current = faceWarpRenderer;
+        console.log('[useWebGLRenderer] Face warp renderer initialized successfully');
+        setIsReady(true);
+      } else {
+        console.error('[useWebGLRenderer] Failed to initialize face warp renderer');
+      }
     }
 
     // Initialize LUT renderer
