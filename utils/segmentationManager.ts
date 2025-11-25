@@ -157,7 +157,12 @@ class SegmentationManager {
     if (!this.worker) return;
 
     this.worker.onmessage = (event: MessageEvent<unknown>) => {
-      const response = event.data as { type: string; mask: ImageBitmap; error: string };
+      const response = event.data as {
+        type: string;
+        mask: ImageBitmap;
+        error: string;
+        autoFrameTransform?: AutoFrameTransform;
+      };
 
       switch (response.type) {
         case 'mask': {
@@ -185,7 +190,7 @@ class SegmentationManager {
                               mask: imageData
                             };
                             if (response.autoFrameTransform) {
-                              (result as any).autoFrameTransform = response.autoFrameTransform;
+                              result.autoFrameTransform = response.autoFrameTransform;
                             }
                             callback(result);
                             this.pendingCallbacks.delete(firstKey);

@@ -311,11 +311,11 @@ export class WebGLVideoRenderer {
     const maskTextureData = new Uint8Array(mask.width * mask.height * 4);
     for (let i = 0; i < mask.data.length; i += 4) {
       // Use red channel as mask value (as expected by fragment shader)
-      const maskValue = mask.data[i] / 255; // Normalize to 0-1
-      maskTextureData[i] = mask.data[i];     // R
-      maskTextureData[i + 1] = mask.data[i]; // G  
-      maskTextureData[i + 2] = mask.data[i]; // B
-      maskTextureData[i + 3] = 255;          // A
+      const maskValue = mask.data[i] ?? 0;
+      maskTextureData[i] = maskValue;     // R
+      maskTextureData[i + 1] = maskValue; // G
+      maskTextureData[i + 2] = maskValue; // B
+      maskTextureData[i + 3] = 255;       // A
     }
 
     gl.texImage2D(
@@ -384,10 +384,12 @@ export class WebGLVideoRenderer {
     const gl = this.gl;
 
     // Resize canvas if needed
-    if (this.canvas.width !== video.videoWidth || this.canvas.height !== video.videoHeight) {
-      this.canvas.width = video.videoWidth;
-      this.canvas.height = video.videoHeight;
-      gl.viewport(0, 0, video.videoWidth, video.videoHeight);
+    const width = video instanceof HTMLVideoElement ? video.videoWidth : video.width;
+    const height = video instanceof HTMLVideoElement ? video.videoHeight : video.height;
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+      gl.viewport(0, 0, width, height);
     }
 
     // Upload video texture

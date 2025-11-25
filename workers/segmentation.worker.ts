@@ -21,24 +21,24 @@ const LOCATE_FILE = (file: string) => {
   return `/mediapipe/${file}`;
 };
 
-interface SegmentationResults {
+interface WorkerSegmentationResults {
   segmentationMask: ImageBitmap;
 }
 
-interface SelfieSegmentationConstructor {
-  new (config: { locateFile: (file: string) => string }): SelfieSegmentation;
+interface WorkerSelfieSegmentationConstructor {
+  new (config: { locateFile: (file: string) => string }): WorkerSelfieSegmentation;
 }
 
-interface SelfieSegmentation {
-  setOptions(options: { modelSelection: number; selfieMode: boolean }): void;
-  onResults(callback: (results: SegmentationResults) => void): void;
+interface WorkerSelfieSegmentation {
+  setOptions(options: { modelSelection: 0 | 1; selfieMode: boolean }): void;
+  onResults(callback: (results: WorkerSegmentationResults) => void): void;
   initialize(): Promise<void>;
   send(data: { image: ImageBitmap }): Promise<void>;
   close(): Promise<void>;
 }
 
 // Internal state
-let segmenter: SelfieSegmentation | null = null;
+let segmenter: WorkerSelfieSegmentation | null = null;
 let isInitialized = false;
 let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
 let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
@@ -56,7 +56,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    const SelfieSegmentationConstructor = (self as DedicatedWorkerGlobalScope & { SelfieSegmentation: SelfieSegmentationConstructor }).SelfieSegmentation;
+    const SelfieSegmentationConstructor = (self as DedicatedWorkerGlobalScope & { SelfieSegmentation: WorkerSelfieSegmentationConstructor }).SelfieSegmentation;
     if (!SelfieSegmentationConstructor) {
       throw new Error('SelfieSegmentation is not available');
     }
@@ -75,7 +75,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
         // Convert mask to ImageBitmap for zero-copy transfer
         createImageBitmap(results.segmentationMask)
           .then((maskBitmap) => {
-            let autoFrameTransform = undefined;
+            let autoFrameTransform: { panX: number; panY: number; zoom: number } | undefined = undefined;
 
             // If autoFrame was enabled for this frame, calculate the transform using the original input image
             if (autoFrameEnabled && inputImageBitmap) {
@@ -85,7 +85,10 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
               if (tempCtx) {
                 tempCtx.drawImage(inputImageBitmap, 0, 0);
                 const imageData = tempCtx.getImageData(0, 0, inputImageBitmap.width, inputImageBitmap.height);
-                autoFrameTransform = calculateAutoFrameTransform(imageData);
+                const transform = calculateAutoFrameTransform(imageData);
+                if (transform) {
+                  autoFrameTransform = transform;
+                }
               }
             }
 
@@ -94,7 +97,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
               type: 'mask',
               mask: maskBitmap,
               timestamp: performance.now(),
-              autoFrameTransform: autoFrameTransform
+              ...(autoFrameTransform ? { autoFrameTransform } : {})
             };
 
             self.postMessage(response, { transfer: [maskBitmap] });
@@ -124,7 +127,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
     });
 
     await selfieSegmentation.initialize();
-    segmenter = selfieSegmentation;
+    segmenter = selfieSegmentation as unknown as WorkerSelfieSegmentation;
     isInitialized = true;
 
     self.postMessage({ type: 'init-complete', success: true });

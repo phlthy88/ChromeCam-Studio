@@ -305,13 +305,13 @@ export interface BarcodeDetectorConstructor {
  * BarcodeDetector instance interface
  */
 export interface BarcodeDetector {
-  BarcodeDetector?: BarcodeDetectorClass;
+  detect(image: ImageBitmapSource): Promise<DetectedBarcode[]>;
 }
 
 // Global BarcodeDetector class for type system
 declare global {
   interface Window {
-    BarcodeDetector?: BarcodeDetectorClass;
+    BarcodeDetector?: BarcodeDetectorConstructor;
   }
 }
 
