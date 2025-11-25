@@ -48,22 +48,23 @@ let isInitialized = false;
 let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
 let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
 
-// Polyfill importScripts for ES module workers (MediaPipe needs this)
-if (typeof (self as any).importScripts === 'undefined') {
-  (self as any).importScripts = function (...urls: string[]) {
-    for (const url of urls) {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', url, false); // Synchronous request
-      xhr.send();
-      if (xhr.status === 200) {
-        // Use indirect eval to execute in global scope
-        (0, eval)(xhr.responseText);
-      } else {
-        throw new Error(`Failed to load script: ${url} (status: ${xhr.status})`);
-      }
+// --- FIX START: Force Polyfill importScripts ---
+// In Module Workers, importScripts exists but throws an error.
+// We must overwrite it unconditionally to use our XHR+eval workaround.
+(self as any).importScripts = function (...urls: string[]) {
+  for (const url of urls) {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false); // Synchronous request
+    xhr.send();
+    if (xhr.status === 200) {
+      // Use indirect eval to execute in global scope
+      (0, eval)(xhr.responseText);
+    } else {
+      throw new Error(`Failed to load script: ${url} (status: ${xhr.status})`);
     }
-  };
-}
+  }
+};
+// --- FIX END ---
 
 // Load the MediaPipe script
 async function loadMediaPipe() {
