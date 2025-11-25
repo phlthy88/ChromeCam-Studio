@@ -10,12 +10,13 @@
       http-equiv="Content-Security-Policy"
       content="
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com;
-      connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com ws://localhost:4455 ws://127.0.0.1:4455;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com ws://localhost:4455 ws://127.0.0.1:4455;
       img-src 'self' blob: data:;
       media-src 'self' blob:;
       worker-src 'self' blob:;
-      style-src 'self' 'unsafe-inline';
     "
     />
 
@@ -37,8 +38,9 @@
     <!-- Material 3 Design Tokens -->
     <link rel="stylesheet" href="/styles/m3-tokens.css" />
 
-    <!-- Main Stylesheet (Tailwind processed by Vite) -->
-    <link rel="stylesheet" href="/styles/main.css" />
+    <!-- Main Stylesheet (Tailwind processed by Vite) - Preloaded for performance -->
+    <link rel="preload" href="/styles/main.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="/styles/main.css"></noscript>
 
     <!-- AI/ML Libraries for Background Blur - Pinned Versions for Stability -->
     <script

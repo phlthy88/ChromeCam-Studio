@@ -716,6 +716,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
         muted={true}
         crossOrigin="anonymous"
         className="absolute opacity-0 pointer-events-none"
+        aria-hidden="true"
       />
       <canvas
         key={canvasKey}

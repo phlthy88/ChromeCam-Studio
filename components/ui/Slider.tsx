@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 
 interface SliderProps {
     label: string;
@@ -30,6 +30,7 @@ const Slider: React.FC<SliderProps> = ({
     disabled = false,
     showValue = true
 }) => {
+    const uniqueId = useId();
     const [inputValue, setInputValue] = useState(value.toString());
     const [isDragging, setIsDragging] = useState(false);
     const [showTooltip, setShowTooltip] = useState(false);
@@ -70,12 +71,13 @@ const Slider: React.FC<SliderProps> = ({
         <div className={`flex flex-col gap-2 ${disabled ? 'opacity-[0.38]' : ''}`}>
             {/* Label and Value Row */}
             <div className="flex justify-between items-center">
-                <label className="md-label-large text-on-surface-variant">
+                <label htmlFor={`slider-input-${uniqueId}`} className="md-label-large text-on-surface-variant">
                     {label}
                 </label>
                 {showValue && (
                     <input
                         type="number"
+                        id={`slider-input-${uniqueId}`}
                         min={min}
                         max={max}
                         step={step}
@@ -83,6 +85,7 @@ const Slider: React.FC<SliderProps> = ({
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         disabled={disabled}
+                        aria-label={`${label} value input`}
                         className={`
                             w-16 px-2 py-1
                             bg-surface-container rounded-sm
@@ -183,6 +186,7 @@ const Slider: React.FC<SliderProps> = ({
                 {/* HTML Range Input (Invisible, handles interaction) */}
                 <input
                     type="range"
+                    id={`slider-range-${uniqueId}`}
                     min={min}
                     max={max}
                     step={step}
@@ -195,7 +199,7 @@ const Slider: React.FC<SliderProps> = ({
                     onTouchEnd={() => setIsDragging(false)}
                     onFocus={() => setShowTooltip(true)}
                     onBlur={() => { setShowTooltip(false); setIsDragging(false); }}
-                    aria-label={label}
+                    aria-label={`${label} slider`}
                     aria-valuenow={value}
                     aria-valuemin={min}
                     aria-valuemax={max}
