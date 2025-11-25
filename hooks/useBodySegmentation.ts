@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CameraSettings } from '../components/settings';
-import type { BodySegmenter, BarcodeDetector } from '../types/media.d.ts';
+import type { BodySegmenter, BarcodeDetector } from '../types/media';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
 
 // Constants to avoid GC in the inference loop
@@ -52,10 +52,10 @@ export function useBodySegmentation({
 
   // Load MediaPipe scripts if not already loaded
   const loadScripts = useCallback(async () => {
-    if (typeof window !== 'undefined' && !(window as any).bodySegmentation) {
+    if (typeof window !== 'undefined' && !window.bodySegmentation) {
       try {
         // Load TensorFlow
-        if (!(window as any).tf) {
+        if (!window.tf) {
           await new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js';
@@ -65,7 +65,7 @@ export function useBodySegmentation({
           });
         }
         // Load MediaPipe Selfie Segmentation
-        if (!(window as any).bodySegmentation) {
+        if (!window.bodySegmentation) {
           await new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src =
@@ -107,8 +107,13 @@ export function useBodySegmentation({
 
   // Initialize BarcodeDetector
   useEffect(() => {
-    if (window.BarcodeDetector) {
-      barcodeDetectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] });
+    // Check if the API exists
+    if ('BarcodeDetector' in window) {
+      // The augmentation in types/media.ts ensures typescript knows about this constructor
+      const BarcodeDetectorClass = window.BarcodeDetector;
+      if (BarcodeDetectorClass) {
+        barcodeDetectorRef.current = new BarcodeDetectorClass({ formats: ['qr_code'] });
+      }
     }
   }, []);
 
@@ -194,7 +199,7 @@ export function useBodySegmentation({
       isMounted = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, []);
+  }, [loadScripts]);
 
   // AI inference loop
   useEffect(() => {
@@ -248,11 +253,13 @@ export function useBodySegmentation({
             } else if (canRunMainThread && segmenter) {
               // Fallback to main thread processing
               const segmentation = await segmenter.segmentPeople(video);
-              mask = await window.bodySegmentation!.toBinaryMask(
-                segmentation,
-                FOREGROUND_COLOR,
-                BACKGROUND_COLOR
-              );
+              if (window.bodySegmentation) {
+                mask = await window.bodySegmentation.toBinaryMask(
+                  segmentation,
+                  FOREGROUND_COLOR,
+                  BACKGROUND_COLOR
+                );
+              }
             }
 
             if (mask) {

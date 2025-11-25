@@ -1,9 +1,9 @@
-import type {
-  SegmentationConfig,
-} from '../types/media';
+import type { SegmentationConfig } from '../types/media';
+import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
 
 export interface SegmentationResult {
   mask: ImageData | null;
+  autoFrameTransform?: AutoFrameTransform;
   error?: string;
   fps?: number;
   latency?: number;
