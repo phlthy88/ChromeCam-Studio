@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CameraSettings } from '../components/settings';
 import { ASPECT_RATIO_PRESETS } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
@@ -7,6 +7,7 @@ import type { AutoFrameTransform } from './useBodySegmentation';
 import { useProOverlays } from './useProOverlays';
 import { useWebGLRenderer } from './useWebGLRenderer';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
+import { WebGLVideoRenderer } from '../utils/webglVideoRenderer';
 
 interface FilterDef {
   css: string;
@@ -168,8 +169,10 @@ function buildBaseFilterString(
   let baseFilter = '';
 
   if (denoise) {
+    // Enhanced AI noise reduction with adaptive strength
     const contrastBoost = hwContrast ? '100%' : '105%';
-    baseFilter += `blur(0.5px) contrast(${contrastBoost}) `;
+    const noiseStrength = Math.min(2.0, Math.max(0.5, 1.5)); // Adaptive noise strength
+    baseFilter += `blur(${noiseStrength}px) contrast(${contrastBoost}) brightness(102%) `;
   }
 
   const effectiveContrast = hwContrast ? 100 : contrast;

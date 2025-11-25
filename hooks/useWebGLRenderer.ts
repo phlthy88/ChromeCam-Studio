@@ -60,10 +60,17 @@ export function useWebGLRenderer({
   enabled,
   lutPreset,
   lutIntensity,
-  // Face warp disabled for now - requires proper face detection
-  faceLandmarks: _faceLandmarks,
-  beautySettings: _beautySettings,
+  faceLandmarks,
+  beautySettings,
 }: UseWebGLRendererOptions): UseWebGLRendererReturn {
+  // Enable beauty effects when landmarks are available
+  const hasFaceLandmarks = faceLandmarks && faceLandmarks.length > 0;
+  const hasBeautySettings =
+    beautySettings &&
+    (beautySettings.eyeEnlargement > 0 ||
+      beautySettings.noseSlimming > 0 ||
+      beautySettings.jawSlimming > 0 ||
+      beautySettings.mouthScaling > 0);
   const rendererRef = useRef<WebGLLutRenderer | null>(null);
   const faceWarpRendererRef = useRef<WebGLFaceWarpRenderer | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -87,6 +94,20 @@ export function useWebGLRenderer({
       }
       setIsReady(false);
       return;
+    }
+
+    // Initialize face warp renderer when beauty effects are enabled
+    if (hasBeautySettings && !faceWarpRendererRef.current) {
+      console.log('[useWebGLRenderer] Initializing face warp renderer for beauty effects');
+      const faceWarpRenderer = new WebGLFaceWarpRenderer();
+      const initialized = faceWarpRenderer.initialize(webglCanvasRef.current!);
+      if (initialized) {
+        faceWarpRendererRef.current = faceWarpRenderer;
+        console.log('[useWebGLRenderer] Face warp renderer initialized successfully');
+        setIsReady(true);
+      } else {
+        console.error('[useWebGLRenderer] Failed to initialize face warp renderer');
+      }
     }
 
     // Check WebGL support
@@ -157,7 +178,10 @@ export function useWebGLRenderer({
 
   // Apply LUT grading to source
   const applyLutGrading = useCallback(
-    (source: HTMLVideoElement | HTMLCanvasElement): HTMLCanvasElement | null => {
+    (
+      source: HTMLVideoElement | HTMLCanvasElement | ImageBitmap,
+      intensity: number
+    ): HTMLCanvasElement | null => {
       if (!enabled || lutPreset === 'none') {
         return null;
       }
@@ -168,7 +192,7 @@ export function useWebGLRenderer({
       }
 
       // Normalize intensity from 0-100 to 0-1
-      const normalizedIntensity = lutIntensity / 100;
+      const normalizedIntensity = Math.max(0, Math.min(1, lutIntensity / 100));
 
       // Try WebGL first
       if (isReady && rendererRef.current && webglCanvasRef.current) {
@@ -241,7 +265,15 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [enabled, isReady, lutPreset, lutIntensity]
+    [
+      enabled,
+      isReady,
+      lutPreset,
+      lutIntensity,
+      applyLutSoftware,
+      hasFaceLandmarks,
+      hasBeautySettings,
+    ]
   );
 
   return {

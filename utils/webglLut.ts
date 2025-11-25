@@ -227,7 +227,9 @@ export class WebGLFaceWarpRenderer {
     }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
-      console.error('[WebGLFaceWarpRenderer] WebGL2 context creation failed - beauty effects unavailable');
+      console.error(
+        '[WebGLFaceWarpRenderer] WebGL2 context creation failed - beauty effects unavailable'
+      );
       return false;
     }
 
@@ -457,6 +459,7 @@ export class WebGLLutRenderer {
   private lutTexture: WebGLTexture | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private currentLutSize: number = 0;
+  private lutTextureCache = new Map<string, { texture: WebGLTexture; size: number }>();
 
   /**
    * Check if WebGL is supported

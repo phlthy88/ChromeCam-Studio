@@ -5,34 +5,56 @@ import { useRef, useCallback } from 'react';
  * This fixes the memory allocation issues identified in the architecture review
  */
 interface HistogramBuffers {
-    rHist: Uint32Array;
-    gHist: Uint32Array;
-    bHist: Uint32Array;
-    lHist: Uint32Array;
+  rHist: Uint32Array;
+  gHist: Uint32Array;
+  bHist: Uint32Array;
+  lHist: Uint32Array;
 }
 
 /**
  * Pre-allocated canvas for zebra pattern (reused to avoid DOM element creation each frame)
  */
 interface PatternCache {
-    canvas: HTMLCanvasElement;
-    pattern: CanvasPattern | null;
+  canvas: HTMLCanvasElement;
+  pattern: CanvasPattern | null;
 }
 
 export interface ProOverlaySettings {
-    gridOverlay: string;
-    showHistogram: boolean;
-    showZebraStripes: boolean;
-    zebraThreshold: number;
-    showFocusPeaking: boolean;
-    focusPeakingColor: string;
+  gridOverlay: string;
+  showHistogram: boolean;
+  showZebraStripes: boolean;
+  zebraThreshold: number;
+  showFocusPeaking: boolean;
+  focusPeakingColor: string;
 }
 
 export interface UseProOverlaysReturn {
-    drawGridOverlay: (ctx: CanvasRenderingContext2D, width: number, height: number, gridOverlay: string) => void;
-    drawHistogram: (ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData) => void;
-    drawZebraStripes: (ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData, zebraThreshold: number) => void;
-    drawFocusPeaking: (ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData, focusPeakingColor: string) => void;
+  drawGridOverlay: (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    gridOverlay: string
+  ) => void;
+  drawHistogram: (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    imageData: ImageData
+  ) => void;
+  drawZebraStripes: (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    imageData: ImageData,
+    zebraThreshold: number
+  ) => void;
+  drawFocusPeaking: (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    imageData: ImageData,
+    focusPeakingColor: string
+  ) => void;
 }
 
 /**
@@ -49,254 +71,302 @@ export interface UseProOverlaysReturn {
  * - Cached zebra pattern canvas (avoids 30 DOM element creations/sec)
  */
 export function useProOverlays(): UseProOverlaysReturn {
-    // Pre-allocate histogram buffers (fixes memory allocation issue)
-    const histogramBuffers = useRef<HistogramBuffers>({
-        rHist: new Uint32Array(256),
-        gHist: new Uint32Array(256),
-        bHist: new Uint32Array(256),
-        lHist: new Uint32Array(256),
-    });
+  // Pre-allocate histogram buffers (fixes memory allocation issue)
+  const histogramBuffers = useRef<HistogramBuffers>({
+    rHist: new Uint32Array(256),
+    gHist: new Uint32Array(256),
+    bHist: new Uint32Array(256),
+    lHist: new Uint32Array(256),
+  });
 
-    // Pre-allocate zebra pattern canvas (fixes DOM element creation per frame)
-    const patternCache = useRef<PatternCache | null>(null);
+  // Pre-allocate zebra pattern canvas (fixes DOM element creation per frame)
+  const patternCache = useRef<Map<number, PatternCache>>(new Map());
 
-    // Initialize zebra pattern canvas once
-    const getZebraPattern = useCallback((ctx: CanvasRenderingContext2D): CanvasPattern | null => {
-        if (!patternCache.current) {
-            const patternCanvas = document.createElement('canvas');
-            patternCanvas.width = 8;
-            patternCanvas.height = 8;
-            const pCtx = patternCanvas.getContext('2d');
-            if (pCtx) {
-                pCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-                pCtx.lineWidth = 2;
-                pCtx.beginPath();
-                pCtx.moveTo(0, 8);
-                pCtx.lineTo(8, 0);
-                pCtx.stroke();
-            }
-            patternCache.current = {
-                canvas: patternCanvas,
-                pattern: ctx.createPattern(patternCanvas, 'repeat'),
-            };
+  // Initialize zebra pattern canvas once with threshold-based caching
+  const getZebraPattern = useCallback(
+    (ctx: CanvasRenderingContext2D, threshold: number): CanvasPattern | null => {
+      if (!patternCache.current.has(threshold)) {
+        const patternCanvas = document.createElement('canvas');
+        patternCanvas.width = 8;
+        patternCanvas.height = 8;
+        const pCtx = patternCanvas.getContext('2d');
+        if (pCtx) {
+          // Adjust pattern opacity based on threshold
+          const opacity = Math.max(0.3, Math.min(0.8, (100 - threshold) / 100));
+          pCtx.strokeStyle = `rgba(255, 0, 0, ${opacity})`;
+          pCtx.lineWidth = 2;
+          pCtx.beginPath();
+          pCtx.moveTo(0, 8);
+          pCtx.lineTo(8, 0);
+          pCtx.stroke();
         }
-        // Recreate pattern if context changed (pattern is context-specific)
-        if (!patternCache.current.pattern) {
-            patternCache.current.pattern = ctx.createPattern(patternCache.current.canvas, 'repeat');
-        }
-        return patternCache.current.pattern;
-    }, []);
+        const cache = {
+          canvas: patternCanvas,
+          pattern: ctx.createPattern(patternCanvas, 'repeat'),
+        };
+        patternCache.current.set(threshold, cache);
+      }
+      // Recreate pattern if context changed (pattern is context-specific)
+      const cache = patternCache.current.get(threshold)!;
+      if (!cache.pattern) {
+        cache.pattern = ctx.createPattern(cache.canvas, 'repeat');
+      }
+      return cache.pattern;
+    },
+    []
+  );
 
-    // Draw grid overlays
-    const drawGridOverlay = useCallback((
-        ctx: CanvasRenderingContext2D,
-        width: number,
-        height: number,
-        gridOverlay: string
-    ) => {
-        if (gridOverlay === 'none') return;
+  // Draw grid overlays
+  const drawGridOverlay = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number, gridOverlay: string) => {
+      if (gridOverlay === 'none') return;
 
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+
+      if (gridOverlay === 'thirds') {
+        const thirdW = width / 3;
+        const thirdH = height / 3;
+        ctx.beginPath();
+        ctx.moveTo(thirdW, 0);
+        ctx.lineTo(thirdW, height);
+        ctx.moveTo(thirdW * 2, 0);
+        ctx.lineTo(thirdW * 2, height);
+        ctx.moveTo(0, thirdH);
+        ctx.lineTo(width, thirdH);
+        ctx.moveTo(0, thirdH * 2);
+        ctx.lineTo(width, thirdH * 2);
+        ctx.stroke();
+      } else if (gridOverlay === 'center') {
+        ctx.beginPath();
+        ctx.moveTo(width / 2, 0);
+        ctx.lineTo(width / 2, height);
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.arc(width / 2, height / 2, Math.min(width, height) / 10, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (gridOverlay === 'golden') {
+        const phi = 1.618;
+        const g1 = width / phi;
+        const g2 = width - g1;
+        const gh1 = height / phi;
+        const gh2 = height - gh1;
+        ctx.beginPath();
+        ctx.moveTo(g2, 0);
+        ctx.lineTo(g2, height);
+        ctx.moveTo(g1, 0);
+        ctx.lineTo(g1, height);
+        ctx.moveTo(0, gh2);
+        ctx.lineTo(width, gh2);
+        ctx.moveTo(0, gh1);
+        ctx.lineTo(width, gh1);
+        ctx.stroke();
+      } else if (gridOverlay === 'safe') {
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.4)';
+        const actionMarginX = width * 0.05;
+        const actionMarginY = height * 0.05;
+        ctx.strokeRect(
+          actionMarginX,
+          actionMarginY,
+          width - actionMarginX * 2,
+          height - actionMarginY * 2
+        );
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.4)';
+        const titleMarginX = width * 0.1;
+        const titleMarginY = height * 0.1;
+        ctx.strokeRect(
+          titleMarginX,
+          titleMarginY,
+          width - titleMarginX * 2,
+          height - titleMarginY * 2
+        );
+      }
+
+      ctx.restore();
+    },
+    []
+  );
+
+  // Draw histogram overlay with pre-allocated buffers
+  const drawHistogram = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number, imageData: ImageData) => {
+      const data = imageData.data;
+      const { rHist, gHist, bHist, lHist } = histogramBuffers.current;
+
+      // Reset buffers (much faster than reallocating)
+      rHist.fill(0);
+      gHist.fill(0);
+      bHist.fill(0);
+      lHist.fill(0);
+
+      // Sample every 4th pixel for performance
+      for (let i = 0; i < data.length; i += 16) {
+        const r = data[i] || 0;
+        const g = data[i + 1] || 0;
+        const b = data[i + 2] || 0;
+        const l = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+        // Increment histogram bins (safe because r,g,b,l are clamped 0-255)
+        rHist[r] = (rHist[r] ?? 0) + 1;
+        gHist[g] = (gHist[g] ?? 0) + 1;
+        bHist[b] = (bHist[b] ?? 0) + 1;
+        lHist[l] = (lHist[l] ?? 0) + 1;
+      }
+
+      // Find max for normalization
+      let maxAll = 0;
+      for (let i = 0; i < 256; i++) {
+        const max = Math.max(rHist[i] ?? 0, gHist[i] ?? 0, bHist[i] ?? 0, lHist[i] ?? 0);
+        if (max > maxAll) maxAll = max;
+      }
+
+      // Draw histogram in bottom-right corner
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const histW = 200;
+      const histH = 80;
+      const histX = width - histW - 10;
+      const histY = height - histH - 10;
+
+      // Background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(histX, histY, histW, histH);
+
+      // Draw channels
+      const drawChannel = (hist: Uint32Array, color: string) => {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
         ctx.lineWidth = 1;
-
-        if (gridOverlay === 'thirds') {
-            const thirdW = width / 3;
-            const thirdH = height / 3;
-            ctx.beginPath();
-            ctx.moveTo(thirdW, 0); ctx.lineTo(thirdW, height);
-            ctx.moveTo(thirdW * 2, 0); ctx.lineTo(thirdW * 2, height);
-            ctx.moveTo(0, thirdH); ctx.lineTo(width, thirdH);
-            ctx.moveTo(0, thirdH * 2); ctx.lineTo(width, thirdH * 2);
-            ctx.stroke();
-        } else if (gridOverlay === 'center') {
-            ctx.beginPath();
-            ctx.moveTo(width / 2, 0); ctx.lineTo(width / 2, height);
-            ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2);
-            ctx.arc(width / 2, height / 2, Math.min(width, height) / 10, 0, Math.PI * 2);
-            ctx.stroke();
-        } else if (gridOverlay === 'golden') {
-            const phi = 1.618;
-            const g1 = width / phi;
-            const g2 = width - g1;
-            const gh1 = height / phi;
-            const gh2 = height - gh1;
-            ctx.beginPath();
-            ctx.moveTo(g2, 0); ctx.lineTo(g2, height);
-            ctx.moveTo(g1, 0); ctx.lineTo(g1, height);
-            ctx.moveTo(0, gh2); ctx.lineTo(width, gh2);
-            ctx.moveTo(0, gh1); ctx.lineTo(width, gh1);
-            ctx.stroke();
-        } else if (gridOverlay === 'safe') {
-            ctx.strokeStyle = 'rgba(255, 255, 0, 0.4)';
-            const actionMarginX = width * 0.05;
-            const actionMarginY = height * 0.05;
-            ctx.strokeRect(actionMarginX, actionMarginY, width - actionMarginX * 2, height - actionMarginY * 2);
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.4)';
-            const titleMarginX = width * 0.1;
-            const titleMarginY = height * 0.1;
-            ctx.strokeRect(titleMarginX, titleMarginY, width - titleMarginX * 2, height - titleMarginY * 2);
-        }
-
-        ctx.restore();
-    }, []);
-
-    // Draw histogram overlay with pre-allocated buffers
-    const drawHistogram = useCallback((
-        ctx: CanvasRenderingContext2D,
-        width: number,
-        height: number,
-        imageData: ImageData
-    ) => {
-        const data = imageData.data;
-        const { rHist, gHist, bHist, lHist } = histogramBuffers.current;
-
-        // Reset buffers (much faster than reallocating)
-        rHist.fill(0);
-        gHist.fill(0);
-        bHist.fill(0);
-        lHist.fill(0);
-
-        // Sample every 4th pixel for performance
-        for (let i = 0; i < data.length; i += 16) {
-            const r = data[i] || 0;
-            const g = data[i + 1] || 0;
-            const b = data[i + 2] || 0;
-            const l = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-            // Increment histogram bins (safe because r,g,b,l are clamped 0-255)
-            rHist[r] = (rHist[r] ?? 0) + 1;
-            gHist[g] = (gHist[g] ?? 0) + 1;
-            bHist[b] = (bHist[b] ?? 0) + 1;
-            lHist[l] = (lHist[l] ?? 0) + 1;
-        }
-
-        // Find max for normalization
-        let maxAll = 0;
         for (let i = 0; i < 256; i++) {
-            const max = Math.max(rHist[i] ?? 0, gHist[i] ?? 0, bHist[i] ?? 0, lHist[i] ?? 0);
-            if (max > maxAll) maxAll = max;
+          const x = histX + (i / 255) * histW;
+          const histVal = hist[i] ?? 0;
+          const y = histY + histH - (histVal / maxAll) * histH;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
+        ctx.stroke();
+      };
 
-        // Draw histogram in bottom-right corner
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        const histW = 200;
-        const histH = 80;
-        const histX = width - histW - 10;
-        const histY = height - histH - 10;
+      drawChannel(lHist, 'rgba(255, 255, 255, 0.8)');
+      drawChannel(rHist, 'rgba(255, 0, 0, 0.5)');
+      drawChannel(gHist, 'rgba(0, 255, 0, 0.5)');
+      drawChannel(bHist, 'rgba(0, 0, 255, 0.5)');
 
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(histX, histY, histW, histH);
+      ctx.restore();
+    },
+    []
+  );
 
-        // Draw channels
-        const drawChannel = (hist: Uint32Array, color: string) => {
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 256; i++) {
-                const x = histX + (i / 255) * histW;
-                const histVal = hist[i] ?? 0;
-                const y = histY + histH - (histVal / maxAll) * histH;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-        };
-
-        drawChannel(lHist, 'rgba(255, 255, 255, 0.8)');
-        drawChannel(rHist, 'rgba(255, 0, 0, 0.5)');
-        drawChannel(gHist, 'rgba(0, 255, 0, 0.5)');
-        drawChannel(bHist, 'rgba(0, 0, 255, 0.5)');
-
-        ctx.restore();
-    }, []);
-
-    // Draw zebra stripes for overexposed areas (with cached pattern)
-    const drawZebraStripes = useCallback((
-        ctx: CanvasRenderingContext2D,
-        width: number,
-        height: number,
-        imageData: ImageData,
-        zebraThreshold: number
+  // Draw zebra stripes for overexposed areas (with cached pattern and optimizations)
+  const drawZebraStripes = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      imageData: ImageData,
+      zebraThreshold: number
     ) => {
-        const threshold = (zebraThreshold / 100) * 255;
-        const data = imageData.data;
+      const threshold = (zebraThreshold / 100) * 255;
+      const data = imageData.data;
 
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        const pattern = getZebraPattern(ctx);
-        const step = 4;
+      const pattern = getZebraPattern(ctx, zebraThreshold);
 
-        for (let y = 0; y < height; y += step) {
-            for (let x = 0; x < width; x += step) {
-                const i = (y * width + x) * 4;
-                const r = data[i] || 0;
-                const g = data[i + 1] || 0;
-                const b = data[i + 2] || 0;
-                if (r > threshold && g > threshold && b > threshold) {
-                    if (pattern) ctx.fillStyle = pattern;
-                    else ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-                    ctx.fillRect(x, y, step, step);
-                }
+      // Adaptive step size based on image resolution and performance needs
+      const pixelCount = width * height;
+      let step = 4;
+      if (pixelCount > 1920 * 1080)
+        step = 6; // Larger step for 4K+
+      else if (pixelCount > 1280 * 720) step = 5; // Medium step for 1080p
+
+      let overexposedPixels = 0;
+      const maxOverexposed = Math.ceil((pixelCount / (step * step)) * 0.1); // Early exit if >10% pixels
+
+      for (let y = 0; y < height; y += step) {
+        for (let x = 0; x < width; x += step) {
+          const i = (y * width + x) * 4;
+          const r = data[i] || 0;
+          const g = data[i + 1] || 0;
+          const b = data[i + 2] || 0;
+
+          if (r > threshold && g > threshold && b > threshold) {
+            overexposedPixels++;
+
+            // Early exit if too many overexposed pixels (performance optimization)
+            if (overexposedPixels > maxOverexposed) {
+              ctx.fillStyle = pattern || 'rgba(255, 0, 0, 0.5)';
+              ctx.fillRect(0, 0, width, height); // Fill entire frame
+              ctx.restore();
+              return;
             }
+
+            ctx.fillStyle = pattern || 'rgba(255, 0, 0, 0.5)';
+            ctx.fillRect(x, y, step, step);
+          }
         }
+      }
 
-        ctx.restore();
-    }, [getZebraPattern]);
+      ctx.restore();
+    },
+    [getZebraPattern]
+  );
 
-    // Draw focus peaking overlay
-    const drawFocusPeaking = useCallback((
-        ctx: CanvasRenderingContext2D,
-        width: number,
-        height: number,
-        imageData: ImageData,
-        focusPeakingColor: string
+  // Draw focus peaking overlay
+  const drawFocusPeaking = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      imageData: ImageData,
+      focusPeakingColor: string
     ) => {
-        const data = imageData.data;
-        const colorMap: Record<string, string> = {
-            red: 'rgba(255, 0, 0, 0.8)',
-            green: 'rgba(0, 255, 0, 0.8)',
-            blue: 'rgba(0, 0, 255, 0.8)',
-            white: 'rgba(255, 255, 255, 0.8)',
-        };
-        const peakColor = colorMap[focusPeakingColor] ?? 'rgba(255, 0, 0, 0.8)';
+      const data = imageData.data;
+      const colorMap: Record<string, string> = {
+        red: 'rgba(255, 0, 0, 0.8)',
+        green: 'rgba(0, 255, 0, 0.8)',
+        blue: 'rgba(0, 0, 255, 0.8)',
+        white: 'rgba(255, 255, 255, 0.8)',
+      };
+      const peakColor = colorMap[focusPeakingColor] ?? 'rgba(255, 0, 0, 0.8)';
 
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = peakColor;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = peakColor;
 
-        const step = 2;
-        const threshold = 50;
+      const step = 2;
+      const threshold = 50;
 
-        for (let y = step; y < height - step; y += step) {
-            for (let x = step; x < width - step; x += step) {
-                const getGray = (px: number, py: number) => {
-                    const i = (py * width + px) * 4;
-                    return 0.299 * (data[i] || 0) + 0.587 * (data[i + 1] || 0) + 0.114 * (data[i + 2] || 0);
-                };
+      for (let y = step; y < height - step; y += step) {
+        for (let x = step; x < width - step; x += step) {
+          const getGray = (px: number, py: number) => {
+            const i = (py * width + px) * 4;
+            return 0.299 * (data[i] || 0) + 0.587 * (data[i + 1] || 0) + 0.114 * (data[i + 2] || 0);
+          };
 
-                const gx = getGray(x + step, y) - getGray(x - step, y);
-                const gy = getGray(x, y + step) - getGray(x, y - step);
-                const mag = Math.sqrt(gx * gx + gy * gy);
+          const gx = getGray(x + step, y) - getGray(x - step, y);
+          const gy = getGray(x, y + step) - getGray(x, y - step);
+          const mag = Math.sqrt(gx * gx + gy * gy);
 
-                if (mag > threshold) {
-                    ctx.fillRect(x, y, step, step);
-                }
-            }
+          if (mag > threshold) {
+            ctx.fillRect(x, y, step, step);
+          }
         }
+      }
 
-        ctx.restore();
-    }, []);
+      ctx.restore();
+    },
+    []
+  );
 
-    return {
-        drawGridOverlay,
-        drawHistogram,
-        drawZebraStripes,
-        drawFocusPeaking,
-    };
+  return {
+    drawGridOverlay,
+    drawHistogram,
+    drawZebraStripes,
+    drawFocusPeaking,
+  };
 }
 
 export default useProOverlays;
