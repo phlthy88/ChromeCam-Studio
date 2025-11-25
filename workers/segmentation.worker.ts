@@ -28,17 +28,28 @@ const LOCATE_FILE = (file: string) => {
 
 // --- FIX START: Force Polyfill importScripts ---
 // In Module Workers, importScripts exists but throws an error.
-// We must overwrite it unconditionally to use our XHR+eval workaround.
-(self as any).importScripts = function (...urls: string[]) {
+// We must overwrite it unconditionally to use our fetch+eval workaround.
+(self as any).importScripts = async function (...urls: string[]) {
   for (const url of urls) {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, false); // Synchronous request
-    xhr.send();
-    if (xhr.status === 200) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to load script: ${url} (status: ${response.status})`);
+      }
+      const scriptText = await response.text();
+
+      // Check if we got HTML instead of JS (404 page)
+      if (scriptText.trim().startsWith('<!DOCTYPE') || scriptText.trim().startsWith('<html')) {
+        throw new Error(
+          `Failed to load script: ${url} - Server returned HTML instead of JavaScript`
+        );
+      }
+
       // Use indirect eval to execute in global scope
-      (0, eval)(xhr.responseText);
-    } else {
-      throw new Error(`Failed to load script: ${url} (status: ${xhr.status})`);
+      (0, eval)(scriptText);
+    } catch (error) {
+      console.error(`Error loading script ${url}:`, error);
+      throw error;
     }
   }
 };
@@ -69,23 +80,14 @@ let inputImageBitmap: ImageBitmap | null = null; // Store the input image for au
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
-    // Fetch and evaluate the script (MediaPipe is UMD, not an ES module)
-    const response = await fetch(selfieSegmentationUrl);
-
-    // FIX: Check if the file actually exists before executing
-    if (!response.ok) {
-      throw new Error(`Failed to load MediaPipe from ${selfieSegmentationUrl}: ${response.status} ${response.statusText}`);
+    try {
+      // Use custom async importScripts function
+      await (self as any).importScripts(selfieSegmentationUrl);
+      console.log('MediaPipe loaded successfully in worker');
+    } catch (error) {
+      console.error('Failed to load MediaPipe in worker:', error);
+      throw error;
     }
-
-    const scriptText = await response.text();
-
-    // FIX: Ensure we aren't trying to execute an HTML 404 page
-    if (scriptText.trim().startsWith('<!DOCTYPE') || scriptText.trim().startsWith('<html')) {
-       throw new Error(`Failed to load MediaPipe: Server returned HTML (404) instead of JavaScript at ${selfieSegmentationUrl}`);
-    }
-
-    // Use indirect eval to execute in global scope
-    (0, eval)(scriptText);
   }
 }
 
@@ -100,7 +102,8 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
       throw new Error('SelfieSegmentation is not available');
     }
 
-    const SelfieSegmentationConstructor: WorkerSelfieSegmentationConstructor = workerSelfieSegmentation;
+    const SelfieSegmentationConstructor: WorkerSelfieSegmentationConstructor =
+      workerSelfieSegmentation;
 
     const selfieSegmentation = new SelfieSegmentationConstructor({
       locateFile: LOCATE_FILE,
