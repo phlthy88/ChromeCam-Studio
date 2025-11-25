@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CameraSettings } from '../components/settings';
 import { ASPECT_RATIO_PRESETS } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
@@ -7,7 +7,6 @@ import type { AutoFrameTransform } from './useBodySegmentation';
 import { useProOverlays } from './useProOverlays';
 import { useWebGLRenderer } from './useWebGLRenderer';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
-import { WebGLVideoRenderer } from '../utils/webglVideoRenderer';
 
 interface FilterDef {
   css: string;

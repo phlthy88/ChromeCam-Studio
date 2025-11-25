@@ -27,16 +27,10 @@ export interface UseAutoLowLightReturn {
 /**
  * useAutoLowLight - Intelligent low-light detection and gain adjustment
  *
- * Analyzes multiple regions of the video frame to determine:
- * - Average brightness across the frame
- * - Contrast ratio (brightest to darkest regions)
- * - Whether the scene is considered "low light"
- * - Suggested gain adjustment for optimal brightness
- *
- * Uses a multi-sample approach for more accurate detection:
- * - Center-weighted sampling (face region typically center)
- * - Edge sampling for background context
- * - Smooth gain transitions to avoid flickering
+ * OPTIMIZED VERSION:
+ * - Uses a single canvas draw/read per interval (downsampling)
+ * - Calculates center-weighting via CPU iteration to avoid multiple GPU readbacks
+ * - Zero DOM element creation in render loop
  */
 export function useAutoLowLight({
   videoRef,
@@ -54,111 +48,84 @@ export function useAutoLowLight({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  // Reusable ImageData buffer to avoid GC churn
-  const imageDataRef = useRef<ImageData | null>(null);
 
-  // Initialize canvas and reusable ImageData buffer for sampling
+  // Initialize single reusable canvas
   useEffect(() => {
     const canvas = document.createElement('canvas');
     canvas.width = sampleSize;
     canvas.height = sampleSize;
     canvasRef.current = canvas;
+    // willReadFrequently optimizes context for frequent getImageData calls
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctxRef.current = ctx;
-
-    // Pre-allocate ImageData buffer to avoid allocations during analysis
-    if (ctx) {
-      imageDataRef.current = ctx.createImageData(sampleSize, sampleSize);
-    }
 
     return () => {
       canvasRef.current = null;
       ctxRef.current = null;
-      imageDataRef.current = null;
     };
   }, [sampleSize]);
 
-  // Analyze brightness from multiple regions
-  // Optimized to reuse ImageData buffer and reduce allocations
+  // Analyze brightness - Single pass optimization
   const analyzeBrightness = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
-    const reusableImageData = imageDataRef.current;
 
-    if (!video || !canvas || !ctx || !reusableImageData || video.paused || video.readyState < 2) {
+    if (!video || !canvas || !ctx || video.paused || video.readyState < 2) {
       return null;
     }
 
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-
-    if (vw === 0 || vh === 0) return null;
-
     try {
-      // Sample regions: center (40%), corners (15% each)
-      // Note: Using static array to avoid allocation per call
-      const regions = [
-        // Center region (weighted more heavily)
-        { x: vw * 0.3, y: vh * 0.3, w: vw * 0.4, h: vh * 0.4, weight: 0.5 },
-        // Top-left
-        { x: 0, y: 0, w: vw * 0.25, h: vh * 0.25, weight: 0.125 },
-        // Top-right
-        { x: vw * 0.75, y: 0, w: vw * 0.25, h: vh * 0.25, weight: 0.125 },
-        // Bottom-left
-        { x: 0, y: vh * 0.75, w: vw * 0.25, h: vh * 0.25, weight: 0.125 },
-        // Bottom-right
-        { x: vw * 0.75, y: vh * 0.75, w: vw * 0.25, h: vh * 0.25, weight: 0.125 },
-      ];
+      // 1. Downsample the entire video frame to sampleSize x sampleSize in ONE draw call
+      // This automatically handles averaging pixels (bilinear filtering)
+      ctx.drawImage(video, 0, 0, sampleSize, sampleSize);
+
+      // 2. Read pixel data ONCE (Single allocation per interval)
+      const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
+      const data = imageData.data;
 
       let totalWeightedBrightness = 0;
+      let totalWeight = 0;
       let minBrightness = 255;
       let maxBrightness = 0;
 
-      // Reuse the same Uint8ClampedArray reference for all regions
-      const data = reusableImageData.data;
-      const pixelCount = sampleSize * sampleSize;
+      // 3. Iterate pixels and apply center-weighting mathematically
+      for (let y = 0; y < sampleSize; y++) {
+        for (let x = 0; x < sampleSize; x++) {
+          const i = (y * sampleSize + x) * 4;
+          // Calculate luminance (Rec. 709 coefficients)
+          const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
 
-      for (const region of regions) {
-        // Draw region to sample canvas
-        ctx.drawImage(video, region.x, region.y, region.w, region.h, 0, 0, sampleSize, sampleSize);
+          // Calculate distance from center (normalized 0.0 to 0.5)
+          const cx = x / sampleSize - 0.5;
+          const cy = y / sampleSize - 0.5;
+          const dist = Math.sqrt(cx * cx + cy * cy);
 
-        // Copy pixel data directly into our reusable buffer
-        // This copies into the existing Uint8ClampedArray instead of allocating new one
-        const freshData = ctx.getImageData(0, 0, sampleSize, sampleSize);
-        data.set(freshData.data);
+          // Weight calculation:
+          // Center pixels get weight ~1.0
+          // Edge pixels get weight ~0.2
+          // Formula: 1.0 - (dist * 1.6), clamped at 0.2
+          const weight = Math.max(0.2, 1.0 - dist * 1.6);
 
-        let regionBrightness = 0;
-
-        // Process pixel data (RGBA format, 4 bytes per pixel)
-        for (let i = 0; i < data.length; i += 4) {
-          // Use perceived brightness formula (ITU-R BT.709)
-          const luminance =
-            0.2126 * (data[i] ?? 0) + 0.7152 * (data[i + 1] ?? 0) + 0.0722 * (data[i + 2] ?? 0);
-          regionBrightness += luminance;
+          totalWeightedBrightness += luminance * weight;
+          totalWeight += weight;
 
           minBrightness = Math.min(minBrightness, luminance);
           maxBrightness = Math.max(maxBrightness, luminance);
         }
-
-        const avgRegionBrightness = regionBrightness / pixelCount;
-        totalWeightedBrightness += avgRegionBrightness * region.weight;
       }
 
-      const averageBrightness = totalWeightedBrightness;
+      const averageBrightness = totalWeightedBrightness / totalWeight;
       const contrastRatio = maxBrightness > 0 ? minBrightness / maxBrightness : 0;
       const isLowLight = averageBrightness < targetBrightness * 0.8;
 
       // Calculate suggested gain
       let suggestedGain = 0;
       if (averageBrightness < targetBrightness) {
-        // Scale gain based on how far below target we are
         const deficit = targetBrightness - averageBrightness;
         const deficitRatio = deficit / targetBrightness;
-        // Max gain of 80, scaled by deficit ratio
         suggestedGain = Math.min(deficitRatio * 100, 80);
 
-        // Reduce gain if contrast is already low (to avoid washing out)
         if (contrastRatio > 0.7) {
           suggestedGain *= 0.7;
         }
@@ -173,7 +140,6 @@ export function useAutoLowLight({
         suggestedGain,
       };
     } catch (_e) {
-      // Canvas might be tainted
       return null;
     }
   }, [videoRef, sampleSize, targetBrightness]);
@@ -199,12 +165,10 @@ export function useAutoLowLight({
       if (result) {
         setAnalysis(result);
 
-        // Smooth transition to new gain value
         const currentGain = autoGainRef.current;
         const targetGain = result.suggestedGain;
         const diff = targetGain - currentGain;
 
-        // Only adjust if difference is significant
         if (Math.abs(diff) > 0.5) {
           const newGain = currentGain + diff * smoothingFactor;
           autoGainRef.current = newGain;
@@ -213,10 +177,7 @@ export function useAutoLowLight({
       }
     };
 
-    // Run immediately
     runAnalysis();
-
-    // Then run on interval
     intervalRef.current = setInterval(runAnalysis, sampleInterval);
 
     return () => {
