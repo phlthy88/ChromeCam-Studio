@@ -6,6 +6,7 @@ import { CameraSettings, DEFAULT_SETTINGS, GRID_OVERLAYS } from './settings';
 import { useTheme } from '../hooks/useTheme';
 import { useSystemAccentColor } from '../hooks/useSystemAccentColor';
 import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
+import { CameraErrorBoundary } from './ErrorBoundary';
 
 /**
  * Main Application Component
@@ -17,7 +18,9 @@ const WebcamApp: React.FC = () => {
   const [settings, setSettings] = useState<CameraSettings>(DEFAULT_SETTINGS);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [capabilities, setCapabilities] = useState<ExtendedMediaTrackCapabilities | null>(null);
-  const [detectedCapabilities, setDetectedCapabilities] = useState<import('./settings').DetectedCapabilities | null>(null);
+  const [detectedCapabilities, setDetectedCapabilities] = useState<
+    import('./settings').DetectedCapabilities | null
+  >(null);
   const [processedAudioStream, setProcessedAudioStream] = useState<MediaStream | null>(null);
   const { theme, setTheme } = useTheme();
 
@@ -25,12 +28,9 @@ const WebcamApp: React.FC = () => {
   useSystemAccentColor();
 
   // Handle settings change
-  const handleSettingsChange = useCallback(
-    (newSettings: CameraSettings) => {
-      setSettings(newSettings);
-    },
-    []
-  );
+  const handleSettingsChange = useCallback((newSettings: CameraSettings) => {
+    setSettings(newSettings);
+  }, []);
 
   // Handle keyboard shortcut events from VideoPanel
   useEffect(() => {
@@ -195,17 +195,24 @@ const WebcamApp: React.FC = () => {
                             lg:h-full lg:flex-1
                         `}
           >
-            <VideoPanel
-              deviceId={selectedDeviceId}
-              settings={settings}
-              onCapabilitiesChange={setCapabilities}
-              onDetectedCapabilitiesChange={setDetectedCapabilities}
-              onProcessedAudioStream={setProcessedAudioStream}
-            />
+            <CameraErrorBoundary
+              onError={(error, errorInfo) => {
+                console.error('Camera component error:', error);
+                console.error('Component stack:', errorInfo.componentStack);
+              }}
+              allowRetry={true}
+            >
+              <VideoPanel
+                deviceId={selectedDeviceId}
+                settings={settings}
+                onCapabilitiesChange={setCapabilities}
+                onDetectedCapabilitiesChange={setDetectedCapabilities}
+                onProcessedAudioStream={setProcessedAudioStream}
+              />
+            </CameraErrorBoundary>
           </div>
         </div>
       </main>
-
     </div>
   );
 };
