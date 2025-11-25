@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 
 /**
  * Pre-allocated buffers for histogram calculations
@@ -361,12 +361,16 @@ export function useProOverlays(): UseProOverlaysReturn {
     []
   );
 
-  return {
-    drawGridOverlay,
-    drawHistogram,
-    drawZebraStripes,
-    drawFocusPeaking,
-  };
+  // Memoize return object to prevent hook consumer re-renders
+  return useMemo(
+    () => ({
+      drawGridOverlay,
+      drawHistogram,
+      drawZebraStripes,
+      drawFocusPeaking,
+    }),
+    [drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking]
+  );
 }
 
 export default useProOverlays;

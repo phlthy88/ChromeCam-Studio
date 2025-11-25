@@ -16,8 +16,8 @@ export type WorkerResponse =
     }
   | { type: 'error'; error: string };
 
-// Load the MediaPipe script URLs using Vite's import syntax
-import selfieSegmentationUrl from '/mediapipe/selfie_segmentation.js?url';
+// MediaPipe script URL - references file from /public directory
+const selfieSegmentationUrl = '/mediapipe/selfie_segmentation.js';
 
 // WASM file location configuration
 const LOCATE_FILE = (file: string) => {
@@ -48,11 +48,31 @@ let isInitialized = false;
 let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
 let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
 
+// Polyfill importScripts for ES module workers (MediaPipe needs this)
+if (typeof (self as any).importScripts === 'undefined') {
+  (self as any).importScripts = function (...urls: string[]) {
+    for (const url of urls) {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, false); // Synchronous request
+      xhr.send();
+      if (xhr.status === 200) {
+        // Use indirect eval to execute in global scope
+        (0, eval)(xhr.responseText);
+      } else {
+        throw new Error(`Failed to load script: ${url} (status: ${xhr.status})`);
+      }
+    }
+  };
+}
+
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
-    // Import the local script using dynamic import for module workers
-    await import(selfieSegmentationUrl);
+    // Fetch and evaluate the script (MediaPipe is UMD, not an ES module)
+    const response = await fetch(selfieSegmentationUrl);
+    const scriptText = await response.text();
+    // Use indirect eval to execute in global scope
+    (0, eval)(scriptText);
   }
 }
 

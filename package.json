@@ -32,6 +32,7 @@
     "@mediapipe/face_mesh": "^0.4.1633559619",
     "@tensorflow-models/body-segmentation": "^1.0.2",
     "@tensorflow-models/face-landmarks-detection": "^1.0.6",
+    "obs-websocket-js": "^5.0.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

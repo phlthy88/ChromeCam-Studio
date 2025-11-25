@@ -1,242 +1,193 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import OBSWebSocket, { OBSWebSocketError } from 'obs-websocket-js';
 
+// Define simplified types for our UI state
 interface OBSConnection {
   connected: boolean;
   connecting: boolean;
   error: string | null;
   scenes: string[];
   currentScene: string | null;
-}
-
-interface OBSWebSocket {
-  connect(address: string, password?: string): Promise<void>;
-  disconnect(): Promise<void>;
-  call(requestType: string, requestData?: unknown): Promise<unknown>;
-  on(event: string, callback: (data: unknown) => void): void;
-  off(event: string, callback: (data: unknown) => void): void;
+  isRecording: boolean;
+  isStreaming: boolean;
+  isVirtualCamActive: boolean;
 }
 
 /**
- * useOBSIntegration - OBS Studio WebSocket integration
+ * useOBSIntegration - Real OBS Studio WebSocket integration
  *
- * Provides control over OBS Studio via WebSocket for scene switching,
- * recording control, and virtual camera management.
+ * Provides professional broadcasting controls:
+ * - Real-time connection to OBS Studio via WebSocket
+ * - Scene switching with live scene list
+ * - Recording/streaming/virtual camera toggles
+ * - Event-driven status updates
+ * - Browser source URL control
+ *
+ * Usage:
+ * 1. Open OBS Studio
+ * 2. Go to Tools > WebSocket Server Settings
+ * 3. Enable the WebSocket server (note port/password)
+ * 4. Call connect('localhost:4455', 'your-password')
  */
 export const useOBSIntegration = () => {
-  const [connection, setConnection] = useState<OBSConnection>({
+  const [state, setState] = useState<OBSConnection>({
     connected: false,
     connecting: false,
     error: null,
     scenes: [],
     currentScene: null,
+    isRecording: false,
+    isStreaming: false,
+    isVirtualCamActive: false,
   });
 
   const obsRef = useRef<OBSWebSocket | null>(null);
 
-  // Initialize OBS WebSocket (would require obs-websocket-js package)
+  // Initialize OBS instance
   useEffect(() => {
-    // In production, import obs-websocket-js dynamically
-    // For now, create a mock implementation
-    const mockOBS: OBSWebSocket = {
-      connect: async (_address: string, _password?: string) => {
-        // Simulate connection
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      },
-      disconnect: async () => {
-        // Simulate disconnection
-      },
-      call: async (requestType: string, _requestData?: unknown) => {
-        // Mock responses
-        switch (requestType) {
-          case 'GetSceneList':
-            return {
-              scenes: [
-                { sceneName: 'Main Scene' },
-                { sceneName: 'Camera Only' },
-                { sceneName: 'Screen Share' },
-              ],
-              currentScene: 'Main Scene',
-            };
-          case 'GetCurrentScene':
-            return { name: 'Main Scene' };
-          default:
-            return {};
-        }
-      },
-      on: (_event: string, _callback: (data: any) => void) => {
-        // Mock event listeners
-      },
-      off: (_event: string, _callback: (data: any) => void) => {
-        // Mock event removal
-      },
-    };
+    obsRef.current = new OBSWebSocket();
 
-    obsRef.current = mockOBS;
-  }, []);
-
-  const connect = useCallback(async (address: string = 'localhost:4455', _password?: string) => {
-    if (!obsRef.current) return;
-
-    setConnection((prev) => ({ ...prev, connecting: true, error: null }));
-
-    try {
-      await obsRef.current.connect(`ws://${address}`, _password);
-
-      interface OBSScene {
-  sceneName: string;
-}
-
-interface OBSSceneList {
-  scenes: OBSScene[];
-  currentScene: string;
-}
-
-interface OBSCurrentScene {
-  name: string;
-}
-
-// ...
-
-      // Get initial scene list
-      const sceneData = (await obsRef.current.call('GetSceneList')) as OBSSceneList;
-      const currentSceneData = (await obsRef.current.call('GetCurrentScene')) as OBSCurrentScene;
-
-      setConnection({
-        connected: true,
-        connecting: false,
-        error: null,
-        scenes: sceneData.scenes?.map((s) => s.sceneName) || [],
-        currentScene: currentSceneData.name || null,
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to connect to OBS';
-      setConnection((prev) => ({
-        ...prev,
-        connecting: false,
-        error: errorMessage,
-      }));
-    }
-  }, []);
-
-  const disconnect = useCallback(async () => {
-    if (!obsRef.current) return;
-
-    try {
-      await obsRef.current.disconnect();
-    } catch (error) {
-      console.error('OBS disconnect error:', error);
-    }
-
-    setConnection({
-      connected: false,
-      connecting: false,
-      error: null,
-      scenes: [],
-      currentScene: null,
-    });
-  }, []);
-
-  const switchScene = useCallback(
-    async (sceneName: string) => {
-      if (!obsRef.current || !connection.connected) return;
-
-      try {
-        await obsRef.current.call('SetCurrentScene', { 'scene-name': sceneName });
-        setConnection((prev) => ({ ...prev, currentScene: sceneName }));
-      } catch (error) {
-        console.error('Failed to switch scene:', error);
+    return () => {
+      if (obsRef.current) {
+        obsRef.current.disconnect();
       }
-    },
-    [connection.connected]
-  );
+    };
+  }, []);
 
-  const startRecording = useCallback(async () => {
-    if (!obsRef.current || !connection.connected) return;
+  // Helper to update state safely
+  const updateState = useCallback((updates: Partial<OBSConnection>) => {
+    setState((prev) => ({ ...prev, ...updates }));
+  }, []);
 
-    try {
-      await obsRef.current.call('StartRecording');
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-    }
-  }, [connection.connected]);
+  const connect = useCallback(
+    async (address: string = 'localhost:4455', password?: string) => {
+      if (!obsRef.current) return;
 
-  const stopRecording = useCallback(async () => {
-    if (!obsRef.current || !connection.connected) return;
-
-    try {
-      await obsRef.current.call('StopRecording');
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-    }
-  }, [connection.connected]);
-
-  const startStreaming = useCallback(async () => {
-    if (!obsRef.current || !connection.connected) return;
-
-    try {
-      await obsRef.current.call('StartStreaming');
-    } catch (error) {
-      console.error('Failed to start streaming:', error);
-    }
-  }, [connection.connected]);
-
-  const stopStreaming = useCallback(async () => {
-    if (!obsRef.current || !connection.connected) return;
-
-    try {
-      await obsRef.current.call('StopStreaming');
-    } catch (error) {
-      console.error('Failed to stop streaming:', error);
-    }
-  }, [connection.connected]);
-
-  const startVirtualCam = useCallback(async () => {
-    if (!obsRef.current || !connection.connected) return;
-
-    try {
-      await obsRef.current.call('StartVirtualCam');
-    } catch (error) {
-      console.error('Failed to start virtual camera:', error);
-    }
-  }, [connection.connected]);
-
-  const stopVirtualCam = useCallback(async () => {
-    if (!obsRef.current || !connection.connected) return;
-
-    try {
-      await obsRef.current.call('StopVirtualCam');
-    } catch (error) {
-      console.error('Failed to stop virtual camera:', error);
-    }
-  }, [connection.connected]);
-
-  const setBrowserSource = useCallback(
-    async (sourceName: string, url: string) => {
-      if (!obsRef.current || !connection.connected) return;
+      updateState({ connecting: true, error: null });
 
       try {
-        await obsRef.current.call('SetInputSettings', {
-          inputName: sourceName,
-          inputSettings: { url },
+        // Attempt connection
+        const { obsWebSocketVersion } = await obsRef.current.connect(
+          `ws://${address}`,
+          password
+        );
+        console.log(`Connected to OBS (Version: ${obsWebSocketVersion})`);
+
+        // Fetch initial state
+        const [
+          scenesResponse,
+          sceneResponse,
+          streamStatus,
+          recordStatus,
+          virtualCamStatus,
+        ] = await Promise.all([
+          obsRef.current.call('GetSceneList'),
+          obsRef.current.call('GetCurrentProgramScene'),
+          obsRef.current.call('GetStreamStatus'),
+          obsRef.current.call('GetRecordStatus'),
+          obsRef.current.call('GetVirtualCamStatus'),
+        ]);
+
+        // Set up event listeners for real-time updates
+        obsRef.current.on('CurrentProgramSceneChanged', (data) => {
+          updateState({ currentScene: data.sceneName });
+        });
+
+        obsRef.current.on('RecordStateChanged', (data) => {
+          updateState({ isRecording: data.outputActive });
+        });
+
+        obsRef.current.on('StreamStateChanged', (data) => {
+          updateState({ isStreaming: data.outputActive });
+        });
+
+        obsRef.current.on('VirtualCamStateChanged', (data) => {
+          updateState({ isVirtualCamActive: data.outputActive });
+        });
+
+        obsRef.current.on('ConnectionClosed', () => {
+          updateState({
+            connected: false,
+            connecting: false,
+            error: 'Connection closed by OBS',
+          });
+        });
+
+        // Update full state
+        updateState({
+          connected: true,
+          connecting: false,
+          scenes: scenesResponse.scenes.map((s) => s.sceneName as string).reverse(), // OBS sends them reversed usually
+          currentScene: sceneResponse.currentProgramSceneName,
+          isStreaming: streamStatus.outputActive,
+          isRecording: recordStatus.outputActive,
+          isVirtualCamActive: virtualCamStatus.outputActive,
         });
       } catch (error) {
-        console.error('Failed to set browser source:', error);
+        const e = error as OBSWebSocketError;
+        console.error('OBS Connection failed:', e);
+        updateState({
+          connecting: false,
+          error:
+            e.message ||
+            'Failed to connect. Ensure OBS WebSocket Server is enabled (Tools -> WebSocket Server Settings).',
+        });
       }
     },
-    [connection.connected]
+    [updateState]
   );
 
+  const disconnect = useCallback(async () => {
+    if (obsRef.current) {
+      await obsRef.current.disconnect();
+      updateState({ connected: false, error: null });
+    }
+  }, [updateState]);
+
+  // --- Actions ---
+
+  const switchScene = useCallback(async (sceneName: string) => {
+    if (!obsRef.current) return;
+    await obsRef.current.call('SetCurrentProgramScene', { sceneName });
+    // State update happens via event listener
+  }, []);
+
+  const toggleRecording = useCallback(async () => {
+    if (!obsRef.current) return;
+    await obsRef.current.call('ToggleRecord');
+  }, []);
+
+  const toggleStreaming = useCallback(async () => {
+    if (!obsRef.current) return;
+    await obsRef.current.call('ToggleStream');
+  }, []);
+
+  const toggleVirtualCam = useCallback(async () => {
+    if (!obsRef.current) return;
+    await obsRef.current.call('ToggleVirtualCam');
+  }, []);
+
+  const setBrowserSourceUrl = useCallback(async (sourceName: string, url: string) => {
+    if (!obsRef.current) return;
+    try {
+      await obsRef.current.call('SetInputSettings', {
+        inputName: sourceName,
+        inputSettings: { url },
+      });
+    } catch (e) {
+      console.warn(`Could not set URL for source "${sourceName}". Ensure it exists in OBS.`);
+      throw e;
+    }
+  }, []);
+
   return {
-    ...connection,
+    ...state,
     connect,
     disconnect,
     switchScene,
-    startRecording,
-    stopRecording,
-    startStreaming,
-    stopStreaming,
-    startVirtualCam,
-    stopVirtualCam,
-    setBrowserSource,
+    toggleRecording,
+    toggleStreaming,
+    toggleVirtualCam,
+    setBrowserSourceUrl,
   };
 };

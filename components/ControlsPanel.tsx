@@ -141,8 +141,16 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   detectedCapabilities,
 }) => {
   // OBS Integration
-  const { connected, connecting, connect, disconnect, startRecording, startStreaming } =
-    useOBSIntegration();
+  const {
+    connected,
+    connecting,
+    connect,
+    disconnect,
+    toggleRecording,
+    toggleStreaming,
+    isRecording,
+    isStreaming,
+  } = useOBSIntegration();
   const [resetConfirm, setResetConfirm] = useState(false);
   const [showCameraInfo, setShowCameraInfo] = useState(false);
   const [supportedCodecs, setSupportedCodecs] = useState<string[]>([]);
@@ -1508,16 +1516,24 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 {connected && (
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={startRecording}
-                      className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                      onClick={toggleRecording}
+                      className={`px-3 py-2 rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all ${
+                        isRecording
+                          ? 'bg-error text-on-error'
+                          : 'bg-secondary-container text-on-secondary-container'
+                      }`}
                     >
-                      Start Recording
+                      {isRecording ? 'Stop Recording' : 'Start Recording'}
                     </button>
                     <button
-                      onClick={startStreaming}
-                      className="px-3 py-2 bg-secondary-container text-on-secondary-container rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                      onClick={toggleStreaming}
+                      className={`px-3 py-2 rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all ${
+                        isStreaming
+                          ? 'bg-error text-on-error'
+                          : 'bg-secondary-container text-on-secondary-container'
+                      }`}
                     >
-                      Start Streaming
+                      {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
                     </button>
                   </div>
                 )}

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import type { CameraSettings } from '../components/settings';
 import { ASPECT_RATIO_PRESETS } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
@@ -379,17 +379,23 @@ export function useVideoRenderer({
     settingsRef.current.jawSlimming > 0 ||
     settingsRef.current.mouthScaling > 0;
 
+  // Memoize beautySettings to prevent unnecessary WebGL re-initialization
+  const beautySettings = useMemo(
+    () => ({
+      eyeEnlargement: settings.eyeEnlargement,
+      noseSlimming: settings.noseSlimming,
+      jawSlimming: settings.jawSlimming,
+      mouthScaling: settings.mouthScaling,
+    }),
+    [settings.eyeEnlargement, settings.noseSlimming, settings.jawSlimming, settings.mouthScaling]
+  );
+
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer({
     enabled: settingsRef.current.cinematicLut !== 'none' || beautyEnabled,
     lutPreset: settings.cinematicLut,
     lutIntensity: settings.cinematicLutIntensity,
     faceLandmarks,
-    beautySettings: {
-      eyeEnlargement: settings.eyeEnlargement,
-      noseSlimming: settings.noseSlimming,
-      jawSlimming: settings.jawSlimming,
-      mouthScaling: settings.mouthScaling,
-    },
+    beautySettings,
   });
 
   // Performance monitoring
@@ -744,7 +750,7 @@ export function useVideoRenderer({
           // Apply WebGL LUT cinematic color grading
           const { cinematicLut } = settingsRef.current;
           if (cinematicLut !== 'none' && isWebGLReady) {
-            const lutCanvas = applyLutGrading(canvas, settings.cinematicLutIntensity);
+            const lutCanvas = applyLutGrading(canvas);
             if (lutCanvas) {
               ctx.drawImage(lutCanvas, 0, 0);
             }

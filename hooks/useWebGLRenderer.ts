@@ -44,7 +44,7 @@ export interface UseWebGLRendererReturn {
   /** Apply LUT grading to a video frame and return the result */
   applyLutGrading: (
     source: HTMLVideoElement | HTMLCanvasElement,
-    lutIntensity: number
+    lutIntensity?: number
   ) => HTMLCanvasElement | null;
   /** Get the current LUT name */
   currentLutName: string;
@@ -73,9 +73,15 @@ export function useWebGLRenderer({
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const softwareFallbackCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentLutRef = useRef<string>('');
+  const lutIntensityRef = useRef(lutIntensity);
   const [isWebGLSupported, setIsWebGLSupported] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [currentLutName, setCurrentLutName] = useState('None');
+
+  // Update lutIntensity ref when prop changes
+  useEffect(() => {
+    lutIntensityRef.current = lutIntensity;
+  }, [lutIntensity]);
 
   // Initialize WebGL renderer
   useEffect(() => {
@@ -175,7 +181,7 @@ export function useWebGLRenderer({
   const applyLutGrading = useCallback(
     (
       source: HTMLVideoElement | HTMLCanvasElement | ImageBitmap,
-      lutIntensity: number
+      lutIntensity?: number
     ): HTMLCanvasElement | null => {
       if (!enabled || lutPreset === 'none') {
         return null;
@@ -186,8 +192,10 @@ export function useWebGLRenderer({
         return null;
       }
 
+      // Use provided intensity or ref value (for stable function signature)
+      const intensity = lutIntensity ?? lutIntensityRef.current;
       // Normalize intensity from 0-100 to 0-1
-      const normalizedIntensity = Math.max(0, Math.min(1, lutIntensity / 100));
+      const normalizedIntensity = Math.max(0, Math.min(1, intensity / 100));
 
       // Try WebGL first
       if (isReady && rendererRef.current && webglCanvasRef.current) {
@@ -249,15 +257,7 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [
-      enabled,
-      isReady,
-      lutPreset,
-      lutIntensity,
-      applyLutSoftware,
-      hasFaceLandmarks,
-      hasBeautySettings,
-    ]
+    [enabled, isReady, lutPreset, applyLutSoftware, hasFaceLandmarks, hasBeautySettings]
   );
 
   return {
