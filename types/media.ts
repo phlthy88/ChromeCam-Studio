@@ -299,7 +299,7 @@ export interface BarcodeDetectorOptions {
 /**
  * BarcodeDetector class interface
  */
-export interface BarcodeDetectorClass {
+export interface BarcodeDetectorConstructor {
   new (options?: BarcodeDetectorOptions): BarcodeDetector;
   getSupportedFormats(): Promise<BarcodeFormat[]>;
 }
@@ -420,7 +420,7 @@ export interface SelfieSegmentationConstructor {
 declare global {
   interface Window {
     bodySegmentation?: BodySegmentationAPI;
-    BarcodeDetector?: BarcodeDetectorClass;
+    BarcodeDetector?: BarcodeDetectorConstructor;
     showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
   }
 

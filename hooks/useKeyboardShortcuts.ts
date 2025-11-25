@@ -20,13 +20,13 @@ const STORAGE_KEY = 'chromecam-shortcuts';
 
 const defaultShortcuts: ShortcutMap = {
   ' ': 'toggleRecording',
-  r: 'takeSnapshot',
-  v: 'toggleVirtualCamera',
-  m: 'toggleMute',
-  f: 'toggleFullscreen',
-  h: 'toggleHistogram',
-  z: 'toggleZebras',
-  g: 'cycleGrid',
+  R: 'takeSnapshot',
+  V: 'toggleVirtualCamera',
+  M: 'toggleMute',
+  F: 'toggleFullscreen',
+  H: 'toggleHistogram',
+  Z: 'toggleZebras',
+  G: 'cycleGrid',
   '1': 'loadPreset',
   '2': 'loadPreset',
   '3': 'loadPreset',
@@ -37,9 +37,9 @@ const defaultShortcuts: ShortcutMap = {
   '8': 'loadPreset',
   '9': 'loadPreset',
   '0': 'loadPreset',
-  Escape: 'stopAll',
-  a: 'toggleAI',
-  c: 'resetSettings',
+  ESCAPE: 'stopAll',
+  A: 'toggleAI',
+  'CTRL+R': 'resetSettings',
 };
 
 export const useKeyboardShortcuts = () => {
@@ -91,20 +91,39 @@ export const useKeyboardShortcuts = () => {
     [shortcuts]
   );
 
+  // New function to get action for a keyboard event
+  const getActionForEvent = useCallback(
+    (event: KeyboardEvent): { action: ShortcutAction | ShortcutAction[] | null; key: string } => {
+      const keyParts: string[] = [];
+      if (event.ctrlKey) keyParts.push('Ctrl');
+      if (event.altKey) keyParts.push('Alt');
+      if (event.shiftKey) keyParts.push('Shift');
+      if (event.metaKey) keyParts.push('Meta');
+
+      // Avoid adding modifiers as the main key
+      if (!['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
+        keyParts.push(event.key.toUpperCase());
+      }
+
+      const key = keyParts.join('+');
+      return { action: shortcuts[key] || null, key };
+    },
+    [shortcuts]
+  );
+
   // Handle key events
   const handleKeyDown = useCallback(
     (event: KeyboardEvent, onAction?: (action: ShortcutAction, data?: any) => void) => {
-      const key = event.key;
+      const { action, key } = getActionForEvent(event);
 
       // Update pressed keys
-      setPressedKeys((prev) => new Set(prev).add(key));
+      setPressedKeys((prev) => new Set(prev).add(event.key));
 
       // Prevent default for our shortcuts
-      if (shortcuts[key]) {
+      if (action) {
         event.preventDefault();
         event.stopPropagation();
 
-        const action = shortcuts[key];
         if (onAction) {
           if (Array.isArray(action)) {
             action.forEach((a) => onAction(a, { key }));
@@ -114,7 +133,7 @@ export const useKeyboardShortcuts = () => {
         }
       }
     },
-    [shortcuts]
+    [getActionForEvent]
   );
 
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
@@ -161,6 +180,7 @@ export const useKeyboardShortcuts = () => {
     updateShortcut,
     resetShortcuts,
     getActionForKey,
+    getActionForEvent,
     handleKeyDown,
     handleKeyUp,
   };
