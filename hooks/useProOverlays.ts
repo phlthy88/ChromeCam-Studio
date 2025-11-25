@@ -107,7 +107,10 @@ export function useProOverlays(): UseProOverlaysReturn {
         patternCache.current.set(threshold, cache);
       }
       // Recreate pattern if context changed (pattern is context-specific)
-      const cache = patternCache.current.get(threshold)!;
+      const cache = patternCache.current.get(threshold);
+      if (!cache) {
+        return null;
+      }
       if (!cache.pattern) {
         cache.pattern = ctx.createPattern(cache.canvas, 'repeat');
       }

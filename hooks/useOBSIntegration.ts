@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import OBSWebSocket, { OBSWebSocketError } from 'obs-websocket-js';
+import OBSWebSocket, { OBSWebSocketError, EventTypes } from 'obs-websocket-js';
 
 // Define simplified types for our UI state
 interface OBSConnection {
@@ -71,8 +71,7 @@ export const useOBSIntegration = () => {
 
       try {
         // Attempt connection
-        const { obsWebSocketVersion } = await obsRef.current.connect(`ws://${address}`, password);
-        console.log(`Connected to OBS (Version: ${obsWebSocketVersion})`);
+        await obsRef.current.connect(`ws://${address}`, password);
 
         // Fetch initial state
         const [scenesResponse, sceneResponse, streamStatus, recordStatus, virtualCamStatus] =
@@ -85,15 +84,15 @@ export const useOBSIntegration = () => {
           ]);
 
         // Set up event listeners for real-time updates
-        obsRef.current.on('CurrentProgramSceneChanged', (data: any) => {
+        obsRef.current.on('CurrentProgramSceneChanged', (data: EventTypes['CurrentProgramSceneChanged']) => {
           updateState({ currentScene: data.sceneName });
         });
 
-        obsRef.current.on('RecordStateChanged', (data: any) => {
+        obsRef.current.on('RecordStateChanged', (data: EventTypes['RecordStateChanged']) => {
           updateState({ isRecording: data.outputActive });
         });
 
-        obsRef.current.on('StreamStateChanged', (data: any) => {
+        obsRef.current.on('StreamStateChanged', (data: EventTypes['StreamStateChanged']) => {
           updateState({ isStreaming: data.outputActive });
         });
 

@@ -157,14 +157,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   // Stabilize hardwareCapabilities to prevent render loop teardown
   const stableHardwareCapabilities = React.useMemo(
     () => hardwareCapabilities,
-    [
-      hardwareCapabilities.zoom,
-      hardwareCapabilities.panX,
-      hardwareCapabilities.panY,
-      hardwareCapabilities.brightness,
-      hardwareCapabilities.contrast,
-      hardwareCapabilities.saturation,
-    ]
+    [hardwareCapabilities]
   );
 
   // Report detected capabilities to parent when they change
