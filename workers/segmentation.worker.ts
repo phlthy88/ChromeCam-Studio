@@ -30,10 +30,6 @@ interface WorkerSegmentationResults {
   segmentationMask: ImageBitmap;
 }
 
-interface WorkerSelfieSegmentationConstructor {
-  new (config: { locateFile: (file: string) => string }): WorkerSelfieSegmentation;
-}
-
 interface WorkerSelfieSegmentation {
   setOptions(options: { modelSelection: 0 | 1; selfieMode: boolean }): void;
   onResults(callback: (results: WorkerSegmentationResults) => void): void;
@@ -71,14 +67,18 @@ async function loadMediaPipe() {
 
     // FIX: Check if the file actually exists before executing
     if (!response.ok) {
-      throw new Error(`Failed to load MediaPipe from ${selfieSegmentationUrl}: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Failed to load MediaPipe from ${selfieSegmentationUrl}: ${response.status} ${response.statusText}`
+      );
     }
 
     const scriptText = await response.text();
 
     // FIX: Ensure we aren't trying to execute an HTML 404 page
     if (scriptText.trim().startsWith('<!DOCTYPE')) {
-       throw new Error(`Failed to load MediaPipe: Server returned HTML (404) instead of JavaScript at ${selfieSegmentationUrl}`);
+      throw new Error(
+        `Failed to load MediaPipe: Server returned HTML (404) instead of JavaScript at ${selfieSegmentationUrl}`
+      );
     }
 
     // Use indirect eval to execute in global scope
@@ -109,7 +109,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
       selfieMode: false, // We handle mirroring in the renderer
     });
 
-    selfieSegmentation.onResults((results) => {
+    selfieSegmentation.onResults((results: WorkerSegmentationResults) => {
       if (results.segmentationMask) {
         // Convert mask to ImageBitmap for zero-copy transfer
         createImageBitmap(results.segmentationMask)

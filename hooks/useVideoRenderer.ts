@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import type { CameraSettings } from '../components/settings';
 import { ASPECT_RATIO_PRESETS } from '../components/settings';
 import type { HardwareCapabilities } from './useCameraStream';
@@ -380,27 +380,30 @@ export function useVideoRenderer({
     settingsRef.current.mouthScaling > 0;
 
   // FIX: Memoize options to prevent infinite WebGL context creation loop
-  const webGLOptions = React.useMemo(() => ({
-    enabled: settings.cinematicLut !== 'none' || beautyEnabled,
-    lutPreset: settings.cinematicLut,
-    lutIntensity: settings.cinematicLutIntensity,
-    faceLandmarks,
-    beautySettings: {
-      eyeEnlargement: settings.eyeEnlargement,
-      noseSlimming: settings.noseSlimming,
-      jawSlimming: settings.jawSlimming,
-      mouthScaling: settings.mouthScaling,
-    },
-  }), [
-    settings.cinematicLut,
-    settings.cinematicLutIntensity,
-    beautyEnabled,
-    faceLandmarks,
-    settings.eyeEnlargement,
-    settings.noseSlimming,
-    settings.jawSlimming,
-    settings.mouthScaling
-  ]);
+  const webGLOptions = useMemo(
+    () => ({
+      enabled: settings.cinematicLut !== 'none' || beautyEnabled,
+      lutPreset: settings.cinematicLut,
+      lutIntensity: settings.cinematicLutIntensity,
+      faceLandmarks,
+      beautySettings: {
+        eyeEnlargement: settings.eyeEnlargement,
+        noseSlimming: settings.noseSlimming,
+        jawSlimming: settings.jawSlimming,
+        mouthScaling: settings.mouthScaling,
+      },
+    }),
+    [
+      settings.cinematicLut,
+      settings.cinematicLutIntensity,
+      beautyEnabled,
+      faceLandmarks,
+      settings.eyeEnlargement,
+      settings.noseSlimming,
+      settings.jawSlimming,
+      settings.mouthScaling,
+    ]
+  );
 
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer(webGLOptions);
 
