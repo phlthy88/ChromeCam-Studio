@@ -40,7 +40,8 @@ export const usePerformanceMonitor = (enabled: boolean = true) => {
         setMetrics({
           fps: Math.round(fps * 10) / 10,
           frameTime: Math.round(avgFrameTime * 100) / 100,
-          memoryUsage: (performance as any).memory?.usedJSHeapSize,
+          memoryUsage: (performance as unknown as { memory: { usedJSHeapSize: number } })?.memory
+            ?.usedJSHeapSize,
         });
 
         frameCountRef.current = 0;

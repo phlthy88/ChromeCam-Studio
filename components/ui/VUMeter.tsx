@@ -35,7 +35,6 @@ const VUMeter: React.FC<VUMeterProps> = ({ audioStream }) => {
 
     useEffect(() => {
         if (!isAudioContextSupported()) {
-            console.log('VU Meter: AudioContext not supported');
             return;
         }
 
@@ -133,8 +132,7 @@ const VUMeter: React.FC<VUMeterProps> = ({ audioStream }) => {
                 };
 
                 draw();
-            } catch (e) {
-                console.log('VU Meter: Audio permission denied or error', e);
+            } catch (_e) {
                 setActive(false);
             }
         };

@@ -23,7 +23,7 @@ const saveFile = async (blob: Blob, filename: string, type: string) => {
       await writable.close();
       return;
     } catch (_err) {
-      console.log('File save cancelled or failed, falling back to download.');
+      // Fallback to download
     }
   }
 

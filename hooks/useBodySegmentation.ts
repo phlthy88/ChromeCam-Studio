@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CameraSettings } from '../components/settings';
 import type { BodySegmenter, BarcodeDetector } from '../types/media.d.ts';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
+import { FaceLandmarks } from '../types/face';
 
 // Constants to avoid GC in the inference loop
 const FOREGROUND_COLOR = { r: 255, g: 255, b: 255, a: 255 };
@@ -21,7 +22,7 @@ export interface UseBodySegmentationOptions {
 export interface UseBodySegmentationReturn {
   segmentationMaskRef: React.RefObject<ImageData | null>;
   targetTransformRef: React.RefObject<AutoFrameTransform>;
-  faceLandmarks: any[] | null;
+  faceLandmarks: FaceLandmarks | null;
   isAiActive: boolean;
   loadingStatus: string;
   loadingError: string | null;
@@ -52,10 +53,10 @@ export function useBodySegmentation({
 
   // Load MediaPipe scripts if not already loaded - only for main thread fallback
   const loadScripts = useCallback(async () => {
-    if (typeof window !== 'undefined' && !(window as any).bodySegmentation) {
+    if (typeof window !== 'undefined' && !window.bodySegmentation) {
       try {
         // Load TensorFlow
-        if (!(window as any).tf) {
+        if (!window.tf) {
           await new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js';
@@ -65,22 +66,11 @@ export function useBodySegmentation({
           });
         }
         // Load MediaPipe Selfie Segmentation
-        if (!(window as any).bodySegmentation) {
+        if (!window.bodySegmentation) {
           await new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src =
               'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        }
-        // Load MediaPipe Face Mesh for beauty effects
-        if (!(window as any).faceMesh) {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src =
-              'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js';
             script.onload = resolve;
             script.onerror = reject;
             document.head.appendChild(script);
@@ -99,7 +89,7 @@ export function useBodySegmentation({
   const [isAiActive, setIsAiActive] = useState(false);
   const [qrResult, setQrResult] = useState<string | null>(null);
   const [segmentationMode, setSegmentationMode] = useState<SegmentationMode>('disabled');
-  const [faceLandmarks, setFaceLandmarks] = useState<any[] | null>(null);
+  const [faceLandmarks, setFaceLandmarks] = useState<FaceLandmarks | null>(null);
 
   const settingsRef = useRef(settings);
   useEffect(() => {
@@ -141,11 +131,9 @@ export function useBodySegmentation({
           setSegmentationMode('worker');
           setLoadingStatus('AI Ready (Worker)');
           setLoadingError(null);
-          console.log('[AI] Using Web Worker for segmentation');
 
           // Set up face landmarks callback
           segmentationManager.setFaceLandmarksCallback((landmarks) => {
-            console.log('[useBodySegmentation] Received face landmarks:', landmarks.length);
             if (isMounted) {
               setFaceLandmarks(landmarks);
             }
@@ -177,7 +165,6 @@ export function useBodySegmentation({
           setSegmentationMode('main-thread');
           setLoadingStatus('AI Ready (Main Thread)');
           setLoadingError(null);
-          console.log('[AI] Using main thread for segmentation');
         } catch (e) {
           console.error('[AI] Failed to initialize:', e);
           setLoadingError('Failed to load AI Engine');
@@ -205,7 +192,7 @@ export function useBodySegmentation({
       isMounted = false;
       if (intervalId) clearInterval(intervalId);
     };
-  }, []);
+  }, [loadScripts]);
 
   // AI inference loop
   useEffect(() => {
@@ -264,7 +251,7 @@ export function useBodySegmentation({
             } else if (canRunMainThread && segmenter) {
               // Fallback to main thread processing
               const segmentation = await segmenter.segmentPeople(video);
-              mask = await window.bodySegmentation!.toBinaryMask(
+              mask = await window.bodySegmentation.toBinaryMask(
                 segmentation,
                 FOREGROUND_COLOR,
                 BACKGROUND_COLOR

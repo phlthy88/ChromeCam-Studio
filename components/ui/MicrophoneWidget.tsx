@@ -159,8 +159,7 @@ const MicrophoneWidget: React.FC<MicrophoneWidgetProps> = ({
                 };
 
                 draw();
-            } catch (e) {
-                console.log('Microphone Widget: Audio permission denied or error', e);
+            } catch (_e) {
                 setActive(false);
             }
         };

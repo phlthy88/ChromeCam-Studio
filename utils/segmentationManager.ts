@@ -1,3 +1,4 @@
+import type { FaceLandmarks } from '../types/face';
 import type {
   SegmentationConfig,
 } from '../types/media';
@@ -21,7 +22,7 @@ class SegmentationManager {
   private isInitializing = false;
   private pendingCallbacks: Map<number, (result: SegmentationResult) => void> = new Map();
   private messageId = 0;
-  private _onFaceLandmarks?: (landmarks: any[]) => void;
+  private _onFaceLandmarks?: (landmarks: FaceLandmarks) => void;
   private currentFps = 0;
   private currentLatency = 0;
 
@@ -61,7 +62,6 @@ class SegmentationManager {
         const workerInitialized = await this.initializeWorker();
         if (workerInitialized) {
           this.mode = 'worker';
-          console.log('[SegmentationManager] Using Web Worker mode');
           this.isInitializing = false;
           return this.mode;
         }
@@ -73,7 +73,6 @@ class SegmentationManager {
     // Fallback to main thread
     // The existing useBodySegmentation hook handles main thread processing
     this.mode = 'main-thread';
-    console.log('[SegmentationManager] Using main thread fallback');
     this.isInitializing = false;
     return this.mode;
   }
@@ -81,14 +80,14 @@ class SegmentationManager {
   /**
    * Set callback for face landmarks
    */
-  setFaceLandmarksCallback(callback: (landmarks: any[]) => void): void {
+  setFaceLandmarksCallback(callback: (landmarks: FaceLandmarks) => void): void {
     this._onFaceLandmarks = callback;
   }
 
   /**
    * Get face landmarks callback (for testing)
    */
-  getFaceLandmarksCallback(): ((landmarks: any[]) => void) | undefined {
+  getFaceLandmarksCallback(): ((landmarks: FaceLandmarks) => void) | undefined {
     return this._onFaceLandmarks;
   }
 
@@ -115,8 +114,8 @@ class SegmentationManager {
           resolve(false);
         }, 10000); // 10 second timeout
 
-        this.worker.onmessage = (event: MessageEvent<any>) => {
-          const response = event.data;
+        this.worker.onmessage = (event: MessageEvent<unknown>) => {
+          const response = event.data as { type: string; success: boolean; error: string };
 
           if (response.type === 'init-complete') {
             clearTimeout(timeoutId);
@@ -158,8 +157,8 @@ class SegmentationManager {
   private setupWorkerMessageHandler(): void {
     if (!this.worker) return;
 
-    this.worker.onmessage = (event: MessageEvent<any>) => {
-      const response = event.data;
+    this.worker.onmessage = (event: MessageEvent<unknown>) => {
+      const response = event.data as { type: string; mask: ImageBitmap; error: string };
 
       switch (response.type) {
         case 'mask': {

@@ -19,8 +19,24 @@ const LOCATE_FILE = (file: string) => {
   return `/mediapipe/${file}`;
 };
 
+interface SegmentationResults {
+  segmentationMask: ImageBitmap;
+}
+
+interface SelfieSegmentationConstructor {
+  new (config: { locateFile: (file: string) => string }): SelfieSegmentation;
+}
+
+interface SelfieSegmentation {
+  setOptions(options: { modelSelection: number; selfieMode: boolean }): void;
+  onResults(callback: (results: SegmentationResults) => void): void;
+  initialize(): Promise<void>;
+  send(data: { image: ImageBitmap }): Promise<void>;
+  close(): Promise<void>;
+}
+
 // Internal state
-let segmenter: any = null;
+let segmenter: SelfieSegmentation | null = null;
 let isInitialized = false;
 let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
 let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
@@ -38,7 +54,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
     await loadMediaPipe();
 
-    const SelfieSegmentationConstructor = (self as DedicatedWorkerGlobalScope).SelfieSegmentation;
+    const SelfieSegmentationConstructor = (self as DedicatedWorkerGlobalScope & { SelfieSegmentation: SelfieSegmentationConstructor }).SelfieSegmentation;
     if (!SelfieSegmentationConstructor) {
       throw new Error('SelfieSegmentation is not available');
     }
@@ -52,7 +68,7 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
       selfieMode: false, // We handle mirroring in the renderer
     });
 
-    selfieSegmentation.onResults((results: any) => {
+    selfieSegmentation.onResults((results) => {
       if (results.segmentationMask) {
         // Convert mask to ImageBitmap for zero-copy transfer
         createImageBitmap(results.segmentationMask)

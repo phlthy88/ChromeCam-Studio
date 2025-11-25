@@ -49,11 +49,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   onDetectedCapabilitiesChange,
   onProcessedAudioStream,
 }) => {
-  console.log('[VideoPanel] Rendering with deviceId:', deviceId, 'settings:', settings);
-
   // Detect ChromeOS
   const isChromeOS = navigator.userAgent.includes('CrOS');
-  console.log('[VideoPanel] Is ChromeOS:', isChromeOS);
 
   // Canvas ref for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);

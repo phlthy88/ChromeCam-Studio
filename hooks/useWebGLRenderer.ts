@@ -12,8 +12,13 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { WebGLLutRenderer, WebGLFaceWarpRenderer, applyLutSoftware } from '../utils/webglLut';
+import {
+  WebGLLutRenderer,
+  WebGLFaceWarpRenderer,
+  applyLutSoftware,
+} from '../utils/webglLut';
 import { getCinematicLut } from '../data/cinematicLuts';
+import { FaceLandmarks } from '../types/face';
 
 export interface UseWebGLRendererOptions {
   /** Whether WebGL rendering is enabled */
@@ -23,7 +28,7 @@ export interface UseWebGLRendererOptions {
   /** LUT intensity (0-100) */
   lutIntensity: number;
   /** Face landmarks for beauty filters */
-  faceLandmarks?: any[] | null;
+  faceLandmarks?: FaceLandmarks | null;
   /** Beauty filter settings */
   beautySettings?: {
     eyeEnlargement: number;
@@ -41,7 +46,9 @@ export interface UseWebGLRendererReturn {
   /** The WebGL canvas element */
   webglCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   /** Apply LUT grading to a video frame and return the result */
-  applyLutGrading: (source: HTMLVideoElement | HTMLCanvasElement) => HTMLCanvasElement | null;
+  applyLutGrading: (
+    source: HTMLVideoElement | HTMLCanvasElement
+  ) => HTMLCanvasElement | null;
   /** Get the current LUT name */
   currentLutName: string;
 }
@@ -67,6 +74,7 @@ export function useWebGLRenderer({
   const rendererRef = useRef<WebGLLutRenderer | null>(null);
   const faceWarpRendererRef = useRef<WebGLFaceWarpRenderer | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const softwareFallbackCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentLutRef = useRef<string>('');
   const [isWebGLSupported, setIsWebGLSupported] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -105,10 +113,10 @@ export function useWebGLRenderer({
     // Check WebGL support
     const supported = WebGLLutRenderer.isSupported();
     setIsWebGLSupported(supported);
-    console.log(`[useWebGLRenderer] WebGL supported: ${supported}`);
-
     if (!supported) {
-      console.warn('[useWebGLRenderer] WebGL not supported, LUT grading will be disabled');
+      console.warn(
+        '[useWebGLRenderer] WebGL not supported, LUT grading will be disabled'
+      );
       return;
     }
 
@@ -119,14 +127,11 @@ export function useWebGLRenderer({
 
     // Initialize LUT renderer
     const renderer = new WebGLLutRenderer();
-    console.log('[useWebGLRenderer] Initializing LUT renderer...');
     const initialized = renderer.initialize(webglCanvasRef.current);
-    console.log('[useWebGLRenderer] LUT renderer initialized:', initialized);
 
     if (initialized) {
       rendererRef.current = renderer;
       setIsReady(true);
-      console.log('[useWebGLRenderer] WebGL LUT renderer initialized successfully');
     } else {
       console.error('[useWebGLRenderer] Failed to initialize WebGL LUT renderer');
       setIsWebGLSupported(false);
@@ -162,14 +167,11 @@ export function useWebGLRenderer({
     }
 
     // Load the LUT
-    console.log(`[useWebGLRenderer] Loading LUT preset: ${lutPreset}`);
     const lutData = getCinematicLut(lutPreset);
     if (lutData) {
-      console.log(`[useWebGLRenderer] LUT data generated: ${lutData.name}`);
       rendererRef.current.loadLut(lutData);
       setCurrentLutName(lutData.name);
     } else {
-      console.log(`[useWebGLRenderer] No LUT data for preset: ${lutPreset}`);
       setCurrentLutName('None');
     }
   }, [isReady, lutPreset]);
@@ -199,17 +201,31 @@ export function useWebGLRenderer({
           rendererRef.current.render(source, normalizedIntensity);
           return webglCanvasRef.current;
         } catch (error) {
-          console.warn('[useWebGLRenderer] WebGL render failed, falling back to software:', error);
+          console.warn(
+            '[useWebGLRenderer] WebGL render failed, falling back to software:',
+            error
+          );
         }
       }
 
-      // Software fallback
-      const canvas = document.createElement('canvas');
+      // Software fallback - reuse canvas to avoid per-frame allocation
+      if (!softwareFallbackCanvasRef.current) {
+        softwareFallbackCanvasRef.current = document.createElement('canvas');
+      }
+      const canvas = softwareFallbackCanvasRef.current;
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
 
-      canvas.width = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
-      canvas.height = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
+      const sourceWidth =
+        source instanceof HTMLVideoElement ? source.videoWidth : source.width;
+      const sourceHeight =
+        source instanceof HTMLVideoElement ? source.videoHeight : source.height;
+
+      // Resize canvas only if dimensions changed
+      if (canvas.width !== sourceWidth || canvas.height !== sourceHeight) {
+        canvas.width = sourceWidth;
+        canvas.height = sourceHeight;
+      }
 
       ctx.drawImage(source, 0, 0);
 
@@ -219,17 +235,20 @@ export function useWebGLRenderer({
 
         // Apply intensity blending
         for (let i = 0; i < processedData.data.length; i += 4) {
-          const originalR = imageData.data[i]! / 255;
-          const originalG = imageData.data[i + 1]! / 255;
-          const originalB = imageData.data[i + 2]! / 255;
+          const originalR = (imageData.data[i] ?? 0) / 255;
+          const originalG = (imageData.data[i + 1] ?? 0) / 255;
+          const originalB = (imageData.data[i + 2] ?? 0) / 255;
 
-          const lutR = processedData.data[i]! / 255;
-          const lutG = processedData.data[i + 1]! / 255;
-          const lutB = processedData.data[i + 2]! / 255;
+          const lutR = (processedData.data[i] ?? 0) / 255;
+          const lutG = (processedData.data[i + 1] ?? 0) / 255;
+          const lutB = (processedData.data[i + 2] ?? 0) / 255;
 
-          const finalR = originalR * (1 - normalizedIntensity) + lutR * normalizedIntensity;
-          const finalG = originalG * (1 - normalizedIntensity) + lutG * normalizedIntensity;
-          const finalB = originalB * (1 - normalizedIntensity) + lutB * normalizedIntensity;
+          const finalR =
+            originalR * (1 - normalizedIntensity) + lutR * normalizedIntensity;
+          const finalG =
+            originalG * (1 - normalizedIntensity) + lutG * normalizedIntensity;
+          const finalB =
+            originalB * (1 - normalizedIntensity) + lutB * normalizedIntensity;
 
           processedData.data[i] = Math.round(finalR * 255);
           processedData.data[i + 1] = Math.round(finalG * 255);
@@ -239,7 +258,10 @@ export function useWebGLRenderer({
         ctx.putImageData(processedData, 0, 0);
         return canvas;
       } catch (error) {
-        console.error('[useWebGLRenderer] Software LUT processing failed:', error);
+        console.error(
+          '[useWebGLRenderer] Software LUT processing failed:',
+          error
+        );
         return null;
       }
     },
