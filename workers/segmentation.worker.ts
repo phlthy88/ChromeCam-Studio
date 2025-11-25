@@ -1,3 +1,5 @@
+/// <reference lib="webworker" />
+
 // Define types for messages
 export type WorkerMessage =
   | { type: 'init'; config: { modelType: 'general' | 'landscape' } }
@@ -213,6 +215,8 @@ async function processFrame(image: ImageBitmap, autoFrame: boolean) {
 }
 
 // Message handler
+declare const self: DedicatedWorkerGlobalScope;
+
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const msg = e.data;
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CameraSettings } from '../components/settings';
-import type { BodySegmenter, BarcodeDetector } from '../types/media.d.ts';
+import type { BodySegmenter, BarcodeDetector } from '../types/media';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
 import { FaceLandmarks } from '../types/face';
 
@@ -53,7 +53,7 @@ export function useBodySegmentation({
 
   // Load MediaPipe scripts if not already loaded - only for main thread fallback
   const loadScripts = useCallback(async () => {
-    if (typeof window !== 'undefined' && (window as any).bodySegmentation) {
+    if (typeof window !== 'undefined' && !window.bodySegmentation) {
       try {
         // Load TensorFlow
         if (!window.tf) {
@@ -108,8 +108,13 @@ export function useBodySegmentation({
 
   // Initialize BarcodeDetector
   useEffect(() => {
-    if (window.BarcodeDetector) {
-      barcodeDetectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] });
+    // Check if the API exists
+    if ('BarcodeDetector' in window) {
+      // The augmentation in types/media.ts ensures typescript knows about this constructor
+      const BarcodeDetectorClass = window.BarcodeDetector;
+      if (BarcodeDetectorClass) {
+        barcodeDetectorRef.current = new BarcodeDetectorClass({ formats: ['qr_code'] });
+      }
     }
   }, []);
 
@@ -254,53 +259,12 @@ export function useBodySegmentation({
             } else if (canRunMainThread && segmenter) {
               // Fallback to main thread processing
               const segmentation = await segmenter.segmentPeople(video);
-              mask = await window.bodySegmentation.toBinaryMask(
-                segmentation,
-                FOREGROUND_COLOR,
-                BACKGROUND_COLOR
-              );
-
-              // Calculate autoFrame on main thread as fallback if needed
-              if (settingsRef.current.autoFrame && mask) {
-                const width = mask.width;
-                const height = mask.height;
-                const data = mask.data;
-                let minX = width,
-                  maxX = 0,
-                  minY = height,
-                  maxY = 0;
-                let found = false;
-
-                // Sample every 8th pixel for performance (moved to worker now)
-                for (let y = 0; y < height; y += 8) {
-                  for (let x = 0; x < width; x += 8) {
-                    if ((data[(y * width + x) * 4] ?? 0) > 128) {
-                      if (x < minX) minX = x;
-                      if (x > maxX) maxX = x;
-                      if (y < minY) minY = y;
-                      if (y > maxY) maxY = y;
-                      found = true;
-                    }
-                  }
-                }
-
-                if (found) {
-                  const boxCenterX = (minX + maxX) / 2;
-                  const boxHeight = maxY - minY;
-                  // Focus on the face/head area (upper ~25% of detected body)
-                  const faceY = minY + boxHeight * 0.25;
-                  const centerXPercent = boxCenterX / width;
-                  const faceYPercent = faceY / height;
-                  const targetPanX = (0.5 - centerXPercent) * 100;
-                  const targetPanY = (0.5 - faceYPercent) * 100;
-                  let targetZoom = (height * 0.6) / boxHeight;
-                  targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
-                  targetTransformRef.current = {
-                    panX: targetPanX,
-                    panY: targetPanY,
-                    zoom: targetZoom,
-                  };
-                }
+              if (window.bodySegmentation) {
+                mask = await window.bodySegmentation.toBinaryMask(
+                  segmentation,
+                  FOREGROUND_COLOR,
+                  BACKGROUND_COLOR
+                );
               }
             }
 
