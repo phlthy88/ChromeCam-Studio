@@ -235,10 +235,7 @@ export interface BodySegmenter {
  */
 export interface BodySegmentationAPI {
   SupportedModels: SupportedModels;
-  createSegmenter(
-    model: string,
-    config: SegmenterConfig
-  ): Promise<BodySegmenter>;
+  createSegmenter(model: string, config: SegmenterConfig): Promise<BodySegmenter>;
   toBinaryMask(
     segmentation: Segmentation[],
     foreground: SegmentationColor,
@@ -308,9 +305,14 @@ export interface BarcodeDetectorClass {
  * BarcodeDetector instance interface
  */
 export interface BarcodeDetector {
-  detect(
-    image: ImageBitmapSource
-  ): Promise<DetectedBarcode[]>;
+  BarcodeDetector?: BarcodeDetectorClass;
+}
+
+// Global BarcodeDetector class for type system
+declare global {
+  interface Window {
+    BarcodeDetector?: BarcodeDetectorClass;
+  }
 }
 
 // =============================================================================

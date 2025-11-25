@@ -210,9 +210,9 @@ export default defineConfig(({ mode }) => {
             },
           ],
         },
-        // Disable PWA in development
+        // Enable PWA in development
         devOptions: {
-          enabled: false,
+          enabled: true,
         },
       }),
     ],

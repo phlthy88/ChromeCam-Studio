@@ -609,7 +609,11 @@ export function useVideoRenderer({
               maskCanvas.width = segmentationMask.width;
               maskCanvas.height = segmentationMask.height;
             }
-            maskCtx.putImageData(segmentationMask, 0, 0);
+            if (segmentationMask instanceof ImageData) {
+              maskCtx.putImageData(segmentationMask, 0, 0);
+            } else {
+              maskCtx.drawImage(segmentationMask, 0, 0);
+            }
             ctx.globalCompositeOperation = 'source-over';
 
             // Draw background (blurred or virtual)

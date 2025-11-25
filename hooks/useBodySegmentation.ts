@@ -53,7 +53,7 @@ export function useBodySegmentation({
 
   // Load MediaPipe scripts if not already loaded - only for main thread fallback
   const loadScripts = useCallback(async () => {
-    if (typeof window !== 'undefined' && !window.bodySegmentation) {
+    if (typeof window !== 'undefined' && (window as any).bodySegmentation) {
       try {
         // Load TensorFlow
         if (!window.tf) {
@@ -238,7 +238,10 @@ export function useBodySegmentation({
 
             if (canRunWorker) {
               // Use Web Worker for off-main-thread processing
-              const result = await segmentationManager.segment(video, settingsRef.current.autoFrame);
+              const result = await segmentationManager.segment(
+                video,
+                settingsRef.current.autoFrame
+              );
               mask = result.mask;
               if (result.error) {
                 console.warn('[AI] Worker segmentation error:', result.error);
