@@ -301,10 +301,15 @@ export function useCameraStream({
 
     startStream();
 
+    // FIX 3: Cleanup function to stop tracks and release hardware
     return () => {
       isCancelled = true;
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current.getTracks().forEach((track) => {
+          track.stop();
+          track.enabled = false;
+        });
+        streamRef.current = null;
       }
     };
   }, [
