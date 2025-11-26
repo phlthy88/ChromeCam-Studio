@@ -44,16 +44,28 @@ export default defineConfig(({ mode }) => {
       ...baseConfig,
       mode: 'development',
       server: {
-        port: 3000,
-        host: true, // This allows external connections and sets up proper HMR
-        strictPort: false,
-        open: false,
+        // -----------------------------------------------------------------------
+        // FIX #3: PORT & WEBSOCKET CONFIGURATION
+        // -----------------------------------------------------------------------
+        port: 3001,       // CHANGE: Moved to 3001 to avoid Java Backend (3000) conflict
+        strictPort: true, // CHANGE: Fail if 3001 is busy (prevents random port switching)
+        host: true,       // Listen on all addresses (0.0.0.0)
         cors: true,
-        // HMR configuration - allow auto-negotiation for containerized environments
+        
+        // HMR Configuration
         hmr: {
-          overlay: true,
-          // Remove clientPort and host restrictions to fix WebSocket connection
+          clientPort: 3001, // CHANGE: Force client to look at 3001 (fixes the 3004 error)
+          timeout: 30000,   // CHANGE: Increase timeout to 30s for high CPU load
+          overlay: false,   // OPTIONAL: Disable error overlay if it blocks the view
         },
+
+        // WebSocket Keep-Alive Configuration
+        ws: {
+          pingTimeout: 30000,  // CHANGE: Wait 30s before killing connection
+          pingInterval: 10000, // CHANGE: Ping less frequently (every 10s)
+        },
+        // -----------------------------------------------------------------------
+
         // Watch configuration
         watch: {
           usePolling: false,
