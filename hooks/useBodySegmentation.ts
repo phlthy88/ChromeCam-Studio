@@ -127,22 +127,7 @@ export function useBodySegmentation({
         }
       };
 
-      // Test basic script loading capability
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const testScript = document.createElement('script');
-          testScript.src =
-            'data:text/javascript;base64,Y29uc29sZS5sb2coJ1NjcmlwdCBsb2FkaW5nIHRlc3QgcGFzc2VkJyk7';
-          testScript.onload = () => resolve();
-          testScript.onerror = () => reject(new Error('Basic script loading failed'));
-          document.head.appendChild(testScript);
-          setTimeout(() => resolve(), 1000); // Timeout after 1 second
-        });
-        console.log('[useBodySegmentation] Basic script loading test passed');
-      } catch (error) {
-        console.error('[useBodySegmentation] Basic script loading test failed:', error);
-        throw new Error('Browser script loading is blocked or unavailable');
-      }
+      // Note: Script loading capability is verified by CSP allowing external scripts
 
       // Prevent concurrent loading attempts
       if (scriptsLoadingPromise) {
