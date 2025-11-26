@@ -92,18 +92,30 @@ class SegmentationManager {
         console.warn('[SegmentationManager] Creating bundled worker...');
 
         this.worker = new SegmentationWorker();
+        let resolved = false; // Prevent double-resolution
 
         const timeoutId = setTimeout(() => {
-          console.warn('[SegmentationManager] Worker init timeout');
-          this.terminateWorker();
-          resolve(false);
-        }, 30000); // Increased timeout for model loading
+          if (!resolved) {
+            resolved = true;
+            console.warn('[SegmentationManager] Worker init timeout (30s)');
+            this.terminateWorker();
+            resolve(false);
+          }
+        }, 30000);
 
         this.worker.onmessage = (event: MessageEvent<unknown>) => {
-          const response = event.data as { type: string; success: boolean; error: string };
+          const response = event.data as {
+            type: string;
+            success: boolean;
+            error?: string;
+            timestamp?: number;
+          };
 
-          if (response.type === 'init-complete') {
+          // Only process init-complete messages during initialization
+          if (response.type === 'init-complete' && !resolved) {
+            resolved = true;
             clearTimeout(timeoutId);
+
             if (response.success) {
               console.warn('[SegmentationManager] Worker initialized successfully');
               this.setupWorkerMessageHandler();
@@ -114,13 +126,17 @@ class SegmentationManager {
               resolve(false);
             }
           }
+          // Ignore all other message types during initialization
         };
 
         this.worker.onerror = (error) => {
-          clearTimeout(timeoutId);
-          console.error('[SegmentationManager] Worker error:', error);
-          this.terminateWorker();
-          resolve(false);
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            console.error('[SegmentationManager] Worker error during init:', error);
+            this.terminateWorker();
+            resolve(false);
+          }
         };
 
         const initMessage = {

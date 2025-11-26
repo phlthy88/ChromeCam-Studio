@@ -23,6 +23,7 @@ if (typeof atob === 'undefined') {
 
 let net: bodyPix.BodyPix | null = null;
 let isInitialized = false;
+let isInitializing = false;
 let autoFrameEnabled = false;
 
 // =============================================================================
@@ -95,6 +96,20 @@ async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentati
 // =============================================================================
 
 async function initSegmenter() {
+  // Prevent double-initialization
+  if (isInitializing || isInitialized) {
+    console.warn('[Worker] Already initialized or initializing');
+    self.postMessage({
+      type: 'init-complete',
+      success: isInitialized,
+      error: isInitializing ? 'Already initializing' : undefined,
+      timestamp: performance.now(),
+    });
+    return;
+  }
+
+  isInitializing = true;
+
   try {
     console.warn('[Worker] Diagnostic Info:', {
       tfVersion: tf.version.tfjs,
@@ -133,14 +148,25 @@ async function initSegmenter() {
     });
 
     isInitialized = true;
+    isInitializing = false;
     console.warn('[Worker] Initialization complete!');
-    self.postMessage({ type: 'init-complete', success: true });
+
+    // Send success message immediately
+    self.postMessage({
+      type: 'init-complete',
+      success: true,
+      timestamp: performance.now(),
+    });
   } catch (error) {
+    isInitializing = false;
     console.error('[Worker] Initialization failed:', error);
+
+    // Send failure message immediately
     self.postMessage({
       type: 'init-complete',
       success: false,
       error: error instanceof Error ? error.message : String(error),
+      timestamp: performance.now(),
     });
   }
 }
