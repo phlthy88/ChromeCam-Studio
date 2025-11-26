@@ -120,17 +120,50 @@ export function useBodySegmentation({
 
   // Initialize AI segmenter - try worker first, then fall back to main thread
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | undefined;
     let isMounted = true;
 
-    const initWorker = async (): Promise<boolean> => {
+    const initMainThread = async () => {
+      if (!isMounted) return;
+      setLoadingStatus('Falling back to main thread...');
+      await loadScripts(); // Ensure scripts are loaded
+
+      if (!isMounted) return;
+
+      if (window.bodySegmentation) {
+        try {
+          const model = window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation;
+          const segmenterConfig = {
+            runtime: 'mediapipe' as const,
+            solutionPath:
+              'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/',
+            modelType: 'general' as const,
+          };
+          const seg = await window.bodySegmentation.createSegmenter(model, segmenterConfig);
+
+          if (!isMounted) return;
+          setSegmenter(seg);
+          setSegmentationMode('main-thread');
+          setLoadingStatus('AI Ready (Main Thread)');
+          setLoadingError(null);
+        } catch (e) {
+          if (!isMounted) return;
+          console.error('[AI] Main thread initialization failed:', e);
+          setLoadingError('Failed to load AI Engine');
+          setSegmentationMode('disabled');
+        }
+      } else {
+        if (!isMounted) return;
+        setLoadingError('AI scripts failed to load.');
+        setSegmentationMode('disabled');
+      }
+    };
+
+    const init = async () => {
       try {
-        setLoadingStatus('Loading AI Scripts...');
-        await loadScripts();
         setLoadingStatus('Initializing AI Worker...');
         const mode = await segmentationManager.initialize();
 
-        if (!isMounted) return false;
+        if (!isMounted) return;
 
         if (mode === 'worker') {
           setSegmentationMode('worker');
@@ -143,51 +176,14 @@ export function useBodySegmentation({
               setFaceLandmarks(landmarks);
             }
           });
-
-          return true;
+        } else {
+          // If initialize() resolves but not with 'worker', it means timeout/error occurred
+          throw new Error('Worker initialization failed or timed out.');
         }
-        return false;
-      } catch (e) {
-        console.warn('[AI] Worker initialization failed:', e);
-        return false;
-      }
-    };
-
-    const initMainThread = async () => {
-      if (window.bodySegmentation) {
-        if (intervalId) clearInterval(intervalId);
-        try {
-          const model = window.bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation;
-          const segmenterConfig = {
-            runtime: 'mediapipe' as const,
-            solutionPath:
-              'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/',
-            modelType: 'general' as const,
-          };
-          const seg = await window.bodySegmentation.createSegmenter(model, segmenterConfig);
-          if (!isMounted) return;
-          setSegmenter(seg);
-          setSegmentationMode('main-thread');
-          setLoadingStatus('AI Ready (Main Thread)');
-          setLoadingError(null);
-        } catch (e) {
-          console.error('[AI] Failed to initialize:', e);
-          setLoadingError('Failed to load AI Engine');
-          setSegmentationMode('disabled');
-        }
-      }
-    };
-
-    const init = async () => {
-      // Try worker-based segmentation first
-      const workerReady = await initWorker();
-
-      if (!isMounted) return;
-
-      // If worker failed, fall back to main thread
-      if (!workerReady) {
-        setLoadingStatus('Falling back to main thread...');
-        intervalId = setInterval(initMainThread, 500);
+      } catch (error) {
+        if (!isMounted) return;
+        console.warn('[AI] Worker initialization failed, falling back to main thread:', error);
+        await initMainThread();
       }
     };
 
@@ -195,7 +191,6 @@ export function useBodySegmentation({
 
     return () => {
       isMounted = false;
-      if (intervalId) clearInterval(intervalId);
     };
   }, [loadScripts]);
 
@@ -210,7 +205,10 @@ export function useBodySegmentation({
     const FRAME_SKIP_INTERVAL = 3; // Process 1 out of every 4 frames (~15 FPS @ 60Hz)
 
     const inferenceLoop = async () => {
-      if (!isLoopActive) return;
+      if (!isLoopActive || segmentationMode === 'disabled') {
+        animationFrameId = requestAnimationFrame(inferenceLoop);
+        return;
+      }
 
       // 1. Frame Skipping Logic
       frameSkipCounter++;
