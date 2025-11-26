@@ -11,7 +11,7 @@
 This document contains **critical production blockers** and **quality improvements** identified through automated deep analysis using Gemini CLI. All issues have been categorized with specific file paths and line numbers.
 
 **Severity Breakdown**:
-- 🔴 **CRITICAL** (Zero-Tolerance): 7 issues
+- 🔴 **CRITICAL** (Zero-Tolerance): 10 issues
 - 🟡 **HIGH** (Performance): 6 issues
 - 🟢 **MEDIUM** (Quality): 50+ issues
 
@@ -156,6 +156,121 @@ Apply similar pattern to all three locations.
 - `e.preventDefault()` correctly called (line 203) to allow restoration
 - Renderers properly disposed on context loss (lines 208-223)
 - No action required - this is correctly implemented
+
+---
+
+### 🔴 1.5 PWA Manifest Configuration Errors
+
+**Issue**: Progressive Web App manifest has multiple critical errors preventing proper installation.
+
+**Location**: `vite.config.ts:141-191`
+
+**Problems Identified**:
+
+1. **SVG Icons Not Loading** ❌
+   - Icons at `pwa-192x192.svg`, `pwa-512x512.svg`, `masked-icon.svg` fail to load
+   - Chrome/Edge PWA requires PNG format icons, not SVG
+   - Current config (lines 156-175):
+   ```typescript
+   icons: [
+     { src: 'pwa-192x192.svg', sizes: '192x192', type: 'image/svg+xml' },
+     { src: 'pwa-512x512.svg', sizes: '512x512', type: 'image/svg+xml' },
+     { src: 'masked-icon.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' },
+   ]
+   ```
+
+2. **Missing Square Icons Requirement** ❌
+   - Most OS require at least one square PNG icon
+   - SVG icons don't satisfy this requirement
+
+3. **Missing Installation Screenshots** ❌
+   - No screenshots for "Richer PWA Install UI"
+   - Need at least one wide screenshot (desktop)
+   - Need at least one standard screenshot (mobile)
+
+4. **App ID Not Explicitly Set** ⚠️
+   - Currently using `start_url` as fallback
+   - Should explicitly set `id: '/'` to match current identity
+   - Line 149 has wrong value: `id: 'ChromeCam-Studio'`
+
+**Action Required**:
+
+**Step 1**: Generate PNG icons from SVG
+```bash
+# Convert SVG to PNG at multiple sizes
+# Option A: Use ImageMagick
+convert public/pwa-512x512.svg -resize 192x192 public/pwa-192x192.png
+convert public/pwa-512x512.svg -resize 512x512 public/pwa-512x512.png
+convert public/masked-icon.svg -resize 512x512 public/pwa-maskable-512x512.png
+
+# Option B: Use a Node script with sharp
+npm install --save-dev sharp
+```
+
+**Step 2**: Update manifest icons in `vite.config.ts:156-175`
+```typescript
+icons: [
+  {
+    src: 'pwa-192x192.png',      // ✅ Changed to PNG
+    sizes: '192x192',
+    type: 'image/png',           // ✅ Changed type
+    purpose: 'any'
+  },
+  {
+    src: 'pwa-512x512.png',      // ✅ Changed to PNG
+    sizes: '512x512',
+    type: 'image/png',           // ✅ Changed type
+    purpose: 'any'
+  },
+  {
+    src: 'pwa-maskable-512x512.png',  // ✅ Changed to PNG
+    sizes: '512x512',
+    type: 'image/png',           // ✅ Changed type
+    purpose: 'maskable'
+  },
+  // Keep SVG as fallback for modern browsers
+  {
+    src: 'pwa-192x192.svg',
+    sizes: 'any',
+    type: 'image/svg+xml',
+    purpose: 'any'
+  }
+]
+```
+
+**Step 3**: Fix App ID at line 149
+```typescript
+id: '/',  // ✅ Match the current computed App ID
+```
+
+**Step 4**: Add PWA screenshots
+Create `public/screenshots/` directory with:
+- `desktop-wide.png` (1280x720 or higher, 16:9 aspect ratio)
+- `mobile.png` (750x1334 or similar, portrait)
+
+Then add to manifest:
+```typescript
+manifest: {
+  // ... existing config ...
+  screenshots: [
+    {
+      src: 'screenshots/desktop-wide.png',
+      sizes: '1280x720',
+      type: 'image/png',
+      form_factor: 'wide',
+      label: 'ChromeCam Studio desktop view'
+    },
+    {
+      src: 'screenshots/mobile.png',
+      sizes: '750x1334',
+      type: 'image/png',
+      label: 'ChromeCam Studio mobile view'
+    }
+  ]
+}
+```
+
+**Priority**: P0 - These errors prevent proper PWA installation and app store listing
 
 ---
 
