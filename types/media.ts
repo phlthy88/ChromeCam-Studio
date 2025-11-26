@@ -424,6 +424,7 @@ declare global {
     bodySegmentation?: BodySegmentationAPI;
     BarcodeDetector?: BarcodeDetectorConstructor;
     showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
+    SelfieSegmentation?: SelfieSegmentationConstructor;
   }
 
   // Worker global scope augmentation

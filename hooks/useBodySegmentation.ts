@@ -105,7 +105,8 @@ export function useBodySegmentation({
                 };
 
                 script.onerror = (error) => {
-                  logger.warn('useBodySegmentation', 
+                  logger.warn(
+                    'useBodySegmentation',
                     `[useBodySegmentation] Failed to load script: ${url.split('/').pop()}`,
                     error
                   );
@@ -144,14 +145,32 @@ export function useBodySegmentation({
             }
 
             // Load TensorFlow.js WebGL backend
-            logger.info(
-              'useBodySegmentation',
-              'Loading TensorFlow.js WebGL backend...'
-            );
+            logger.info('useBodySegmentation', 'Loading TensorFlow.js WebGL backend...');
             await loadScript(
               'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
             );
             await new Promise((resolve) => setTimeout(resolve, 200));
+
+            // Load MediaPipe Selfie Segmentation
+            if (!window.SelfieSegmentation) {
+              logger.info('useBodySegmentation', 'Loading MediaPipe Selfie Segmentation...');
+              await loadScript(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+              );
+              // Wait for global to be available
+              let mpRetries = 10;
+              while (!window.SelfieSegmentation && mpRetries > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                mpRetries--;
+              }
+              if (!window.SelfieSegmentation) {
+                throw new Error('MediaPipe Selfie Segmentation global not available after loading');
+              }
+              logger.info(
+                'useBodySegmentation',
+                'MediaPipe Selfie Segmentation loaded successfully'
+              );
+            }
 
             // Load TensorFlow.js Body Segmentation library
             if (!window.bodySegmentation) {
@@ -171,10 +190,7 @@ export function useBodySegmentation({
               if (!window.bodySegmentation) {
                 throw new Error('Body Segmentation library not available after loading');
               }
-              logger.info(
-                'useBodySegmentation',
-                'Body Segmentation library loaded successfully'
-              );
+              logger.info('useBodySegmentation', 'Body Segmentation library loaded successfully');
             }
 
             logger.info(
