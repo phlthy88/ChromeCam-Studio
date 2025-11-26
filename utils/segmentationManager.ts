@@ -28,6 +28,7 @@ class SegmentationManager {
   private _onFaceLandmarks?: (landmarks: FaceLandmarks) => void;
   private currentFps = 0;
   private currentLatency = 0;
+  private referenceCount = 0; // Track how many components are using this singleton
 
   private static supportsOffscreenCanvas(): boolean {
     return typeof OffscreenCanvas !== 'undefined';
@@ -281,6 +282,24 @@ class SegmentationManager {
       this.worker = null;
     }
     this.pendingCallbacks.clear();
+  }
+
+  /**
+   * Increment reference count when a component starts using this manager
+   */
+  acquire(): void {
+    this.referenceCount++;
+  }
+
+  /**
+   * Decrement reference count when a component stops using this manager
+   * Only dispose when no components are using it
+   */
+  release(): void {
+    this.referenceCount = Math.max(0, this.referenceCount - 1);
+    if (this.referenceCount === 0) {
+      this.dispose();
+    }
   }
 
   dispose(): void {

@@ -157,6 +157,9 @@ export function useBodySegmentation({
     };
 
     const init = async () => {
+      // Acquire reference to the singleton manager
+      segmentationManager.acquire();
+
       try {
         setLoadingStatus('Initializing AI Worker...');
         const mode = await segmentationManager.initialize();
@@ -196,6 +199,8 @@ export function useBodySegmentation({
 
     return () => {
       isMounted = false;
+      // Release reference to the singleton manager
+      segmentationManager.release();
     };
   }, [loadScripts]);
 
@@ -204,6 +209,7 @@ export function useBodySegmentation({
   // ===========================================================================
   useEffect(() => {
     let isLoopActive = true;
+    let isMounted = true;
     let animationFrameId: number;
     let isProcessing = false; // CRITICAL: Semaphore to prevent call stacking
     let frameSkipCounter = 0;
@@ -245,7 +251,7 @@ export function useBodySegmentation({
           if (qrMode && barcodeDetectorRef.current && video.videoWidth > 0) {
             try {
               const barcodes = await barcodeDetectorRef.current.detect(video);
-              if (barcodes.length > 0 && barcodes[0]?.rawValue) {
+              if (barcodes.length > 0 && barcodes[0]?.rawValue && isMounted) {
                 setQrResult(barcodes[0].rawValue);
               }
             } catch (_e) {
@@ -294,7 +300,7 @@ export function useBodySegmentation({
               }
             }
 
-            if (mask) {
+            if (mask && isMounted) {
               segmentationMaskRef.current = mask;
               setIsAiActive(true);
             }
@@ -302,14 +308,16 @@ export function useBodySegmentation({
             if (!settingsRef.current.autoFrame) {
               targetTransformRef.current = { panX: 0, panY: 0, zoom: 1 };
             }
-          } else if (!isAiNeeded) {
+          } else if (!isAiNeeded && isMounted) {
             segmentationMaskRef.current = null;
             setIsAiActive(false);
           }
         } catch (e) {
           console.error('[AI] Runtime error during segmentation:', e);
-          setAiRuntimeError(true);
-          setLoadingError('AI processing encountered an error.');
+          if (isMounted) {
+            setAiRuntimeError(true);
+            setLoadingError('AI processing encountered an error.');
+          }
         } finally {
           isProcessing = false; // Unlock - always release, even on error
         }
@@ -325,6 +333,7 @@ export function useBodySegmentation({
 
     return () => {
       isLoopActive = false;
+      isMounted = false;
       cancelAnimationFrame(animationFrameId);
     };
   }, [segmenter, aiRuntimeError, videoRef, qrResult, segmentationMode]);

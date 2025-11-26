@@ -274,6 +274,10 @@ export class WebGLFaceWarpRenderer {
       return false;
     }
 
+    // Clean up shader objects - they're baked into the program now
+    this.gl.deleteShader(vertexShader);
+    this.gl.deleteShader(fragmentShader);
+
     // Setup buffers
     this.setupBuffers();
 
@@ -551,6 +555,10 @@ export class WebGLLutRenderer {
       );
       return false;
     }
+
+    // Clean up shader objects - they're baked into the program now
+    this.gl.deleteShader(vertexShader);
+    this.gl.deleteShader(fragmentShader);
 
     // Setup buffers
     this.setupBuffers();

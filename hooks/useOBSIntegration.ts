@@ -67,6 +67,7 @@ export const useOBSIntegration = () => {
     async (address: string = 'localhost:4455', password?: string) => {
       if (!obsRef.current) return;
 
+      let isMounted = true;
       updateState({ connecting: true, error: null });
 
       try {
@@ -120,10 +121,12 @@ export const useOBSIntegration = () => {
 
         // Start polling virtual camera status every 2 seconds
         virtualCamPollRef.current = setInterval(async () => {
-          if (obsRef.current) {
+          if (obsRef.current && isMounted) {
             try {
               const virtualCamStatus = await obsRef.current.call('GetVirtualCamStatus');
-              updateState({ isVirtualCamActive: virtualCamStatus.outputActive });
+              if (isMounted) {
+                updateState({ isVirtualCamActive: virtualCamStatus.outputActive });
+              }
             } catch (_error) {
               // Ignore polling errors, connection will handle them
             }
@@ -131,24 +134,28 @@ export const useOBSIntegration = () => {
         }, 2000);
 
         // Update full state
-        updateState({
-          connected: true,
-          connecting: false,
-          scenes: scenesResponse.scenes.map((s) => s.sceneName as string).reverse(), // OBS sends them reversed usually
-          currentScene: sceneResponse.currentProgramSceneName,
-          isStreaming: streamStatus.outputActive,
-          isRecording: recordStatus.outputActive,
-          isVirtualCamActive: virtualCamStatus.outputActive,
-        });
+        if (isMounted) {
+          updateState({
+            connected: true,
+            connecting: false,
+            scenes: scenesResponse.scenes.map((s) => s.sceneName as string).reverse(), // OBS sends them reversed usually
+            currentScene: sceneResponse.currentProgramSceneName,
+            isStreaming: streamStatus.outputActive,
+            isRecording: recordStatus.outputActive,
+            isVirtualCamActive: virtualCamStatus.outputActive,
+          });
+        }
       } catch (error) {
         const e = error as OBSWebSocketError;
         console.error('OBS Connection failed:', e);
-        updateState({
-          connecting: false,
-          error:
-            e.message ||
-            'Failed to connect. Ensure OBS WebSocket Server is enabled (Tools -> WebSocket Server Settings).',
-        });
+        if (isMounted) {
+          updateState({
+            connecting: false,
+            error:
+              e.message ||
+              'Failed to connect. Ensure OBS WebSocket Server is enabled (Tools -> WebSocket Server Settings).',
+          });
+        }
       }
     },
     [updateState]

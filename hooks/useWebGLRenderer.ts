@@ -134,6 +134,8 @@ export function useWebGLRenderer({
   // WEBGL INITIALIZATION WITH CONTEXT LOSS HANDLING
   // ========================================================================
   useEffect(() => {
+    let isMounted = true;
+
     if (!enabled) {
       // Clean up if disabled
       if (rendererRef.current) {
@@ -171,9 +173,13 @@ export function useWebGLRenderer({
 
     // CRITICAL FIX: Delay WebGL initialization to allow main thread to stabilize
     const initDelay = setTimeout(() => {
+      if (!isMounted) return;
+
       // Check WebGL support
       const supported = WebGLLutRenderer.isSupported();
-      setIsWebGLSupported(supported);
+      if (isMounted) {
+        setIsWebGLSupported(supported);
+      }
 
       if (!supported) {
         console.warn('[useWebGLRenderer] WebGL not supported, LUT grading will be disabled');
@@ -202,7 +208,9 @@ export function useWebGLRenderer({
       contextLostHandlerRef.current = (e: Event) => {
         e.preventDefault(); // CRITICAL: Allows context to be restored
         console.warn('[useWebGLRenderer] WebGL context lost - disposing renderers');
-        setIsReady(false);
+        if (isMounted) {
+          setIsReady(false);
+        }
 
         // Dispose renderers - they hold stale GL references that will crash
         if (rendererRef.current) {
@@ -249,7 +257,7 @@ export function useWebGLRenderer({
           const renderer = new WebGLLutRenderer();
           const initialized = renderer.initialize(webglCanvasRef.current);
 
-          if (initialized) {
+          if (initialized && isMounted) {
             rendererRef.current = renderer;
             setIsReady(true);
 
@@ -279,7 +287,9 @@ export function useWebGLRenderer({
             setTimeout(tryCreateContext, 1000 * retryCount); // Exponential backoff
           } else {
             console.error('[useWebGLRenderer] Failed to initialize WebGL after retries');
-            setIsWebGLSupported(false);
+            if (isMounted) {
+              setIsWebGLSupported(false);
+            }
           }
         }
       };
@@ -288,6 +298,7 @@ export function useWebGLRenderer({
     }, 500); // Wait 500ms for main thread to stabilize
 
     return () => {
+      isMounted = false;
       clearTimeout(initDelay);
 
       // Clean up context loss handlers

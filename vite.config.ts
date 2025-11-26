@@ -146,6 +146,7 @@ export default defineConfig(({ mode }) => {
             short_name: 'ChromeCam',
             description:
               'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
+            id: 'ChromeCam-Studio',
             theme_color: '#1c1b1f',
             background_color: '#1c1b1f',
             display: 'standalone',
