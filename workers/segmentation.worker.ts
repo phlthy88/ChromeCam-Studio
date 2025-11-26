@@ -1,193 +1,203 @@
-/// <reference lib="webworker" />
+// workers/segmentation.worker.ts
 
-// Define types for messages
-type WorkerMessage =
-  | { type: 'init'; config: { modelType: 'general' | 'landscape' } }
-  | { type: 'process'; image: ImageBitmap; timestamp: number; autoFrame: boolean }
-  | { type: 'close' };
+// Self-executing function to ensure polyfills are in place before imports
+(function() {
+  // Ensure necessary functions are available in worker environment
+  // This polyfill must run before TensorFlow.js imports to handle environment issues
 
-type WorkerResponse =
-  | { type: 'init-complete'; success: boolean; error?: string }
-  | {
-      type: 'mask';
-      mask: ImageBitmap;
-      timestamp: number;
-      autoFrameTransform?: { panX: number; panY: number; zoom: number };
-    }
-  | { type: 'error'; error: string };
+  // Base64 functions
+  if (typeof (self as any).atob === 'undefined') {
+    (self as any).atob = (function() {
+      // Base64 decoding for worker environment
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      return function(input: string) {
+        let str = input.replace(/=+$/, '');
+        let output = '';
 
-// =============================================================================
-// MediaPipe CDN Configuration
-// =============================================================================
-const MEDIAPIPE_CDN_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747';
-
-const LOCATE_FILE = (file: string) => {
-  return `${MEDIAPIPE_CDN_BASE}/${file}`;
-};
-
-// =============================================================================
-// FIX: Replace eval() with new Function() for better CSP compatibility
-//
-// The old approach used (0, eval)(scriptText) which is blocked by strict CSP.
-// new Function() is marginally better for CSP and avoids the eval keyword.
-// =============================================================================
-async function loadScriptFromCDN(url: string): Promise<void> {
-  console.log(`[Worker] Loading script: ${url}`);
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch script: ${url} (status: ${response.status})`);
-  }
-
-  const scriptText = await response.text();
-
-  // Validate we got JavaScript, not an HTML error page
-  const trimmed = scriptText.trim();
-  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<!doctype')) {
-    throw new Error(`CDN returned HTML instead of JavaScript for: ${url}`);
-  }
-
-  // Use Function constructor instead of eval()
-  // This executes in global scope and is slightly more CSP-friendly
-  try {
-    const executeScript = new Function(scriptText);
-    executeScript();
-    console.log(`[Worker] Successfully loaded: ${url}`);
-  } catch (execError) {
-    console.error(`[Worker] Script execution failed for ${url}:`, execError);
-    throw execError;
-  }
-}
-
-interface WorkerSegmentationResults {
-  segmentationMask: ImageData | ImageBitmap;
-}
-
-interface WorkerSelfieSegmentationConstructor {
-  new (config: { locateFile: (file: string) => string }): WorkerSelfieSegmentation;
-}
-
-interface WorkerSelfieSegmentation {
-  setOptions(options: { modelSelection: 0 | 1; selfieMode: boolean }): void;
-  onResults(callback: (results: WorkerSegmentationResults) => void): void;
-  initialize(): Promise<void>;
-  send(data: { image: ImageBitmap }): Promise<void>;
-  close(): Promise<void>;
-}
-
-// Internal state
-let segmenter: WorkerSelfieSegmentation | null = null;
-let isInitialized = false;
-let autoFrameEnabled: boolean = false;
-let inputImageBitmap: ImageBitmap | null = null;
-
-// Load the MediaPipe script
-async function loadMediaPipe() {
-  if (typeof (self as any).SelfieSegmentation === 'undefined') {
-    console.log('[Worker] Loading MediaPipe from CDN...');
-    const scriptUrl = `${MEDIAPIPE_CDN_BASE}/selfie_segmentation.js`;
-    await loadScriptFromCDN(scriptUrl);
-
-    // Verify the global was created
-    if (typeof (self as any).SelfieSegmentation === 'undefined') {
-      throw new Error('SelfieSegmentation not defined after loading script');
-    }
-    console.log('[Worker] MediaPipe loaded successfully');
-  }
-}
-
-// Initialize the segmenter
-async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
-  try {
-    console.log('[Worker] Initializing segmenter...');
-    await loadMediaPipe();
-
-    const workerSelfieSegmentation = (self as any).SelfieSegmentation;
-    if (!workerSelfieSegmentation) {
-      throw new Error('SelfieSegmentation is not available after loading');
-    }
-
-    console.log('[Worker] Creating SelfieSegmentation instance...');
-    const SelfieSegmentationConstructor: WorkerSelfieSegmentationConstructor =
-      workerSelfieSegmentation;
-
-    const selfieSegmentation = new SelfieSegmentationConstructor({
-      locateFile: LOCATE_FILE,
-    });
-
-    selfieSegmentation.setOptions({
-      modelSelection: modelType === 'landscape' ? 1 : 0,
-      selfieMode: false, // We handle mirroring in the renderer
-    });
-
-    selfieSegmentation.onResults((results: WorkerSegmentationResults) => {
-      if (results.segmentationMask) {
-        // Convert mask to ImageBitmap for zero-copy transfer
-        createImageBitmap(results.segmentationMask)
-          .then((maskBitmap) => {
-            let autoFrameTransform: { panX: number; panY: number; zoom: number } | undefined =
-              undefined;
-
-            // If autoFrame was enabled for this frame, calculate the transform
-            if (autoFrameEnabled && inputImageBitmap) {
-              const tempCanvas = new OffscreenCanvas(
-                inputImageBitmap.width,
-                inputImageBitmap.height
-              );
-              const tempCtx = tempCanvas.getContext('2d');
-              if (tempCtx) {
-                tempCtx.drawImage(inputImageBitmap, 0, 0);
-                const imageData = tempCtx.getImageData(
-                  0,
-                  0,
-                  inputImageBitmap.width,
-                  inputImageBitmap.height
-                );
-                const transform = calculateAutoFrameTransform(imageData);
-                if (transform) {
-                  autoFrameTransform = transform;
-                }
-              }
-            }
-
-            const response: WorkerResponse = {
-              type: 'mask',
-              mask: maskBitmap,
-              timestamp: performance.now(),
-              ...(autoFrameTransform ? { autoFrameTransform } : {}),
-            };
-
-            self.postMessage(response, { transfer: [maskBitmap] });
-
-            // Clean up
-            if (inputImageBitmap) {
-              inputImageBitmap.close();
-              inputImageBitmap = null;
-            }
-          })
-          .catch((err) => {
-            console.error('[Worker] Failed to create mask bitmap:', err);
-            if (inputImageBitmap) {
-              inputImageBitmap.close();
-              inputImageBitmap = null;
-            }
-          });
-      } else {
-        if (inputImageBitmap) {
-          inputImageBitmap.close();
-          inputImageBitmap = null;
+        if (str.length % 4 === 1) {
+          throw new Error('Invalid base64 string');
         }
+
+        for (let bc = 0, bs = 0, buffer, i = 0; buffer = str.charAt(i++); ~buffer) {
+          buffer = chars.indexOf(buffer);
+          bc = (bc << 6) | buffer;
+          bs++;
+          if (bs % 4 === 0) {
+            output += String.fromCharCode((bc >> 16) & 0xFF, (bc >> 8) & 0xFF, bc & 0xFF);
+            bc = 0;
+          }
+        }
+
+        // Handle remaining bytes
+        switch (str.length % 4) {
+          case 2:
+            output += String.fromCharCode((bc >> 10) & 0xFF);
+            break;
+          case 3:
+            output += String.fromCharCode((bc >> 16) & 0xFF, (bc >> 8) & 0xFF);
+            break;
+        }
+
+        return output;
+      };
+    })();
+  }
+
+  if (typeof (self as any).btoa === 'undefined') {
+    (self as any).btoa = (function() {
+      // Base64 encoding for worker environment
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      return function(input: string) {
+        let result = '';
+        let i = 0;
+        const length = input.length;
+
+        while (i < length) {
+          const a = i < length ? input.charCodeAt(i++) : 0;
+          const b = i < length ? input.charCodeAt(i++) : 0;
+          const c = i < length ? input.charCodeAt(i++) : 0;
+          const bitmap = (a << 16) | (b << 8) | c;
+
+          result += chars.charAt((bitmap >> 18) & 63) +
+                    chars.charAt((bitmap >> 12) & 63) +
+                    chars.charAt((bitmap >> 6) & 63) +
+                    chars.charAt(bitmap & 63);
+        }
+
+        // Replace padding characters based on input length
+        const rest = length % 3;
+        if (rest === 1) {
+          result = result.slice(0, -2) + '==';
+        } else if (rest === 2) {
+          result = result.slice(0, -1) + '=';
+        }
+
+        return result;
+      };
+    })();
+  }
+
+  // TextEncoder and TextDecoder might be needed by TensorFlow
+  if (typeof (self as any).TextDecoder === 'undefined') {
+    (self as any).TextDecoder = (self as any).TextDecoder || (globalThis as any).TextDecoder;
+  }
+
+  if (typeof (self as any).TextEncoder === 'undefined') {
+    (self as any).TextEncoder = (self as any).TextEncoder || (globalThis as any).TextEncoder;
+  }
+})();
+
+// Import TensorFlow libraries directly
+// Vite will bundle these into the worker file
+import * as tf from '@tensorflow/tfjs';
+import * as bodyPix from '@tensorflow-models/body-pix';
+
+// =============================================================================
+// Worker State
+// =============================================================================
+
+let net: bodyPix.BodyPix | null = null;
+let isInitialized = false;
+let autoFrameEnabled = false;
+
+// =============================================================================
+// Auto-Frame Transform Calculation
+// =============================================================================
+function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegmentation) {
+  const { width, height, data } = segmentation;
+  
+  let minX = width;
+  let maxX = 0;
+  let minY = height;
+  let maxY = 0;
+  let found = false;
+
+  for (let y = 0; y < height; y += 8) {
+    for (let x = 0; x < width; x += 8) {
+      const idx = y * width + x;
+      if (data[idx] === 1) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        found = true;
       }
+    }
+  }
+
+  if (found && maxY > minY) {
+    const boxCenterX = (minX + maxX) / 2;
+    const boxHeight = maxY - minY;
+    const faceY = minY + boxHeight * 0.25;
+    
+    const centerXPercent = boxCenterX / width;
+    const faceYPercent = faceY / height;
+    
+    const targetPanX = (0.5 - centerXPercent) * 100;
+    const targetPanY = (0.5 - faceYPercent) * 100;
+    
+    let targetZoom = (height * 0.6) / boxHeight;
+    targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
+
+    return { panX: targetPanX, panY: targetPanY, zoom: targetZoom };
+  }
+
+  return null;
+}
+
+// =============================================================================
+// Convert Segmentation to ImageBitmap Mask
+// =============================================================================
+async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentation) {
+  const { width, height, data } = segmentation;
+  const rgba = new Uint8ClampedArray(width * height * 4);
+  
+  for (let i = 0; i < data.length; i++) {
+    const value = data[i] === 1 ? 255 : 0;
+    const idx = i * 4;
+    rgba[idx] = value;     // R
+    rgba[idx + 1] = value; // G
+    rgba[idx + 2] = value; // B
+    rgba[idx + 3] = 255;   // A (always opaque)
+  }
+  
+  const imageData = new ImageData(rgba, width, height);
+  return createImageBitmap(imageData);
+}
+
+// =============================================================================
+// Network Initialization
+// =============================================================================
+
+async function initSegmenter() {
+  try {
+    console.log('[Worker] Setting up TensorFlow.js...');
+    
+    // Initialize backend
+    try {
+      await tf.setBackend('webgl');
+    } catch (e) {
+      console.warn('[Worker] WebGL backend failed, falling back to CPU', e);
+      await tf.setBackend('cpu');
+    }
+    
+    await tf.ready();
+    console.log('[Worker] TensorFlow.js ready with backend:', tf.getBackend());
+
+    console.log('[Worker] Loading BodyPix model...');
+    
+    // Load model locally from the bundle
+    net = await bodyPix.load({
+      architecture: 'MobileNetV1',
+      outputStride: 16,
+      multiplier: 0.75,
+      quantBytes: 2
     });
 
-    console.log('[Worker] Calling initialize()...');
-    await selfieSegmentation.initialize();
-    
-    segmenter = selfieSegmentation as unknown as WorkerSelfieSegmentation;
     isInitialized = true;
-
     console.log('[Worker] Initialization complete!');
     self.postMessage({ type: 'init-complete', success: true });
+    
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
     self.postMessage({
@@ -198,98 +208,75 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   }
 }
 
-// Calculate auto frame transform from mask data
-function calculateAutoFrameTransform(
-  maskData: ImageData
-): { panX: number; panY: number; zoom: number } | null {
-  const width = maskData.width;
-  const height = maskData.height;
-  const data = maskData.data;
-  let minX = width,
-    maxX = 0,
-    minY = height,
-    maxY = 0;
-  let found = false;
+// =============================================================================
+// Frame Processing
+// =============================================================================
 
-  // Sample every 8th pixel for performance
-  for (let y = 0; y < height; y += 8) {
-    for (let x = 0; x < width; x += 8) {
-      if ((data[(y * width + x) * 4] ?? 0) > 128) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-        found = true;
-      }
-    }
+async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
+  if (!isInitialized || !net) {
+    imageBitmap.close();
+    return;
   }
-
-  if (found) {
-    const boxCenterX = (minX + maxX) / 2;
-    const boxHeight = maxY - minY;
-    const faceY = minY + boxHeight * 0.25;
-    const centerXPercent = boxCenterX / width;
-    const faceYPercent = faceY / height;
-    const targetPanX = (0.5 - centerXPercent) * 100;
-    const targetPanY = (0.5 - faceYPercent) * 100;
-    let targetZoom = (height * 0.6) / boxHeight;
-    targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
-
-    return {
-      panX: targetPanX,
-      panY: targetPanY,
-      zoom: targetZoom,
-    };
-  }
-
-  return null;
-}
-
-// Process a frame
-async function processFrame(image: ImageBitmap, autoFrame: boolean) {
-  if (!isInitialized || !segmenter) return;
 
   try {
     autoFrameEnabled = autoFrame;
+    
+    // BodyPix expects an HTMLCanvasElement, HTMLImageElement, or ImageData
+    // In a worker, we use OffscreenCanvas
+    const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Failed to get OffscreenCanvas context');
+    
+    ctx.drawImage(imageBitmap, 0, 0);
+    
+    // Run segmentation
+    // CASTING: BodyPix types don't officially support OffscreenCanvas yet, but it works.
+    const segmentation = await net.segmentPerson(canvas as any, {
+      flipHorizontal: false,
+      internalResolution: 'medium',
+      segmentationThreshold: 0.7
+    });
 
-    // Clean up any previous input image bitmap
-    if (inputImageBitmap) {
-      inputImageBitmap.close();
+    // Convert to mask
+    const maskBitmap = await segmentationToMask(segmentation);
+    
+    // Calculate auto-frame
+    let autoFrameTransform = undefined;
+    if (autoFrameEnabled) {
+        autoFrameTransform = calculateAutoFrameTransform(segmentation);
     }
-    inputImageBitmap = image;
 
-    // Send the image to MediaPipe for segmentation
-    await segmenter.send({ image });
+    const response: any = {
+      type: 'mask',
+      mask: maskBitmap,
+      timestamp: performance.now(),
+    };
+    
+    if (autoFrameTransform) {
+      response.autoFrameTransform = autoFrameTransform;
+    }
+    
+    self.postMessage(response, [maskBitmap]);
+    imageBitmap.close();
+    
   } catch (error) {
     console.error('[Worker] Processing failed:', error);
-
-    if (inputImageBitmap) {
-      inputImageBitmap.close();
-      inputImageBitmap = null;
-    }
-
+    imageBitmap.close();
     self.postMessage({ type: 'error', error: String(error) });
   }
 }
 
-// Message handler
-declare const self: DedicatedWorkerGlobalScope;
+// =============================================================================
+// Message Handler
+// =============================================================================
 
-self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+self.onmessage = async function(e: MessageEvent) {
   const msg = e.data;
-
   switch (msg.type) {
-    case 'init':
-      await initSegmenter(msg.config.modelType);
-      break;
-    case 'process':
-      await processFrame(msg.image, msg.autoFrame);
-      break;
-    case 'close':
-      if (segmenter) {
-        await segmenter.close();
-        segmenter = null;
-      }
+    case 'init': await initSegmenter(); break;
+    case 'process': await processFrame(msg.image, msg.autoFrame); break;
+    case 'close': 
+      if (net) { net.dispose(); net = null; }
       isInitialized = false;
       self.close();
       break;

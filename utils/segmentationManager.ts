@@ -2,7 +2,8 @@ import type { FaceLandmarks } from '../types/face';
 import type { SegmentationConfig } from '../types/media';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
 
-// Import the worker using Vite's worker import syntax
+// Import the worker using Vite's standard syntax.
+// Vite will handle bundling the worker and its dependencies.
 import SegmentationWorker from '../workers/segmentation.worker.ts?worker';
 
 export interface SegmentationResult {
@@ -28,7 +29,6 @@ class SegmentationManager {
   private currentFps = 0;
   private currentLatency = 0;
 
-  // Feature detection
   private static supportsOffscreenCanvas(): boolean {
     return typeof OffscreenCanvas !== 'undefined';
   }
@@ -41,10 +41,6 @@ class SegmentationManager {
     return typeof createImageBitmap !== 'undefined';
   }
 
-  /**
-   * Initialize the segmentation manager
-   * Attempts worker initialization with fallback to main thread
-   */
   async initialize(): Promise<SegmentationMode> {
     if (this.isInitializing) {
       return this.mode;
@@ -52,7 +48,6 @@ class SegmentationManager {
 
     this.isInitializing = true;
 
-    // Check if we can use the worker approach
     const canUseWorker =
       SegmentationManager.supportsWorker() &&
       SegmentationManager.supportsOffscreenCanvas() &&
@@ -60,7 +55,6 @@ class SegmentationManager {
 
     if (canUseWorker) {
       try {
-        // Try to initialize worker
         const workerInitialized = await this.initializeWorker();
         if (workerInitialized) {
           this.mode = 'worker';
@@ -72,48 +66,38 @@ class SegmentationManager {
       }
     }
 
-    // Fallback to main thread
-    // The existing useBodySegmentation hook handles main thread processing
     this.mode = 'main-thread';
     this.isInitializing = false;
     return this.mode;
   }
 
-  /**
-   * Set callback for face landmarks
-   */
   setFaceLandmarksCallback(callback: (landmarks: FaceLandmarks) => void): void {
     this._onFaceLandmarks = callback;
   }
 
-  /**
-   * Get face landmarks callback (for testing)
-   */
   getFaceLandmarksCallback(): ((landmarks: FaceLandmarks) => void) | undefined {
     return this._onFaceLandmarks;
   }
 
-  /**
-   * Get current performance metrics
-   */
   getPerformanceMetrics(): { fps: number; latency: number } {
     return { fps: this.currentFps, latency: this.currentLatency };
   }
 
   /**
-   * Initialize the Web Worker
+   * Initialize the Web Worker using Vite's bundling.
    */
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        // Create worker using Vite's worker import syntax
+        console.log('[SegmentationManager] Creating bundled worker...');
+        
         this.worker = new SegmentationWorker();
 
         const timeoutId = setTimeout(() => {
           console.warn('[SegmentationManager] Worker init timeout');
           this.terminateWorker();
           resolve(false);
-        }, 10000); // 10 second timeout
+        }, 30000); // Increased timeout for model loading
 
         this.worker.onmessage = (event: MessageEvent<unknown>) => {
           const response = event.data as { type: string; success: boolean; error: string };
@@ -121,12 +105,13 @@ class SegmentationManager {
           if (response.type === 'init-complete') {
             clearTimeout(timeoutId);
             if (response.success) {
-                this.setupWorkerMessageHandler();
-                resolve(true);
+              console.log('[SegmentationManager] Worker initialized successfully');
+              this.setupWorkerMessageHandler();
+              resolve(true);
             } else {
-                console.warn('[SegmentationManager] Worker initialization failed:', response.error);
-                this.terminateWorker();
-                resolve(false);
+              console.warn('[SegmentationManager] Worker init failed:', response.error);
+              this.terminateWorker();
+              resolve(false);
             }
           }
         };
@@ -138,13 +123,13 @@ class SegmentationManager {
           resolve(false);
         };
 
-        // Send init message with timestamp
         const initMessage = {
           type: 'init',
           config: { modelType: 'general' },
           timestamp: performance.now(),
         };
         this.worker.postMessage(initMessage);
+        
       } catch (e) {
         console.error('[SegmentationManager] Failed to create worker:', e);
         resolve(false);
@@ -152,9 +137,6 @@ class SegmentationManager {
     });
   }
 
-  /**
-   * Setup message handler for ongoing communication
-   */
   private setupWorkerMessageHandler(): void {
     if (!this.worker) return;
 
@@ -169,47 +151,48 @@ class SegmentationManager {
       switch (response.type) {
         case 'mask': {
           if (response.mask) {
-            // Convert ImageBitmap to ImageData for compatibility with existing renderer
-            // In Phase 1.2 (OffscreenCanvas), we would use the ImageBitmap directly
             const canvas = document.createElement('canvas');
             canvas.width = response.mask.width;
             canvas.height = response.mask.height;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                ctx.drawImage(response.mask, 0, 0);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(response.mask, 0, 0);
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-                // Resolve pending callbacks (LIFO mostly, but we just take the oldest)
-                // Actually, since we don't pass ID back from worker yet, just call the first one
-                const keys = Array.from(this.pendingCallbacks.keys());
-                if (keys.length > 0) {
-                    const firstKey = keys[0];
-                    if (firstKey !== undefined) {
-                        const callback = this.pendingCallbacks.get(firstKey);
-                        if (callback) {
-                            // Include autoFrameTransform if provided by worker
-                            const result: SegmentationResult = {
-                              mask: imageData
-                            };
-                            if (response.autoFrameTransform) {
-                              result.autoFrameTransform = response.autoFrameTransform;
-                            }
-                            callback(result);
-                            this.pendingCallbacks.delete(firstKey);
-                        }
+              const keys = Array.from(this.pendingCallbacks.keys());
+              if (keys.length > 0) {
+                const firstKey = keys[0];
+                if (firstKey !== undefined) {
+                  const callback = this.pendingCallbacks.get(firstKey);
+                  if (callback) {
+                    const result: SegmentationResult = { mask: imageData };
+                    if (response.autoFrameTransform) {
+                      result.autoFrameTransform = response.autoFrameTransform;
                     }
+                    callback(result);
+                    this.pendingCallbacks.delete(firstKey);
+                  }
                 }
+              }
             }
-
-            // Close the bitmap to avoid leaks
             response.mask.close();
+          }
+          break;
+        }
+
+        case 'face-landmarks': {
+          const landmarkResponse = response as unknown as {
+            type: string;
+            landmarks: Array<{ x: number; y: number; z: number }>;
+          };
+          if (this._onFaceLandmarks && landmarkResponse.landmarks) {
+            this._onFaceLandmarks(landmarkResponse.landmarks);
           }
           break;
         }
 
         case 'error': {
           console.error('[SegmentationManager] Worker error:', response.error);
-          // Clear all pending callbacks
           this.pendingCallbacks.forEach((callback) => {
             callback({ mask: null, error: response.error });
           });
@@ -220,9 +203,6 @@ class SegmentationManager {
     };
   }
 
-  /**
-   * Process a video frame through the worker
-   */
   async segment(video: HTMLVideoElement, autoFrame: boolean = false): Promise<SegmentationResult> {
     if (this.mode !== 'worker' || !this.worker) {
       return { mask: null, error: 'Worker not available' };
@@ -236,7 +216,6 @@ class SegmentationManager {
       const id = this.messageId++;
       this.pendingCallbacks.set(id, resolve);
 
-      // Create ImageBitmap from video frame
       createImageBitmap(video)
         .then((imageBitmap) => {
           const message = {
@@ -245,7 +224,6 @@ class SegmentationManager {
             timestamp: performance.now(),
             autoFrame
           };
-
           this.worker?.postMessage(message, [imageBitmap]);
         })
         .catch((e) => {
@@ -253,63 +231,41 @@ class SegmentationManager {
           resolve({ mask: null, error: `Failed to create ImageBitmap: ${e}` });
         });
 
-      // Timeout handling
       setTimeout(() => {
         if (this.pendingCallbacks.has(id)) {
           this.pendingCallbacks.delete(id);
           resolve({ mask: null, error: 'Segmentation timeout' });
         }
-      }, 1000); // 1 second timeout per frame
+      }, 1000);
     });
   }
 
-  /**
-   * Update segmentation configuration
-   */
   updateConfig(_config: Partial<SegmentationConfig>): void {
-    // Not fully implemented in worker yet
+    // Not implemented
   }
 
-  /**
-   * Get current processing mode
-   */
   getMode(): SegmentationMode {
     return this.mode;
   }
 
-  /**
-   * Check if worker is available and ready
-   */
   isWorkerReady(): boolean {
     return this.mode === 'worker' && this.worker !== null;
   }
 
-  /**
-   * Terminate the worker and clean up
-   */
   terminateWorker(): void {
     if (this.worker) {
-      const message = {
-        type: 'close',
-      };
-      this.worker.postMessage(message);
+      this.worker.postMessage({ type: 'close' });
       this.worker.terminate();
       this.worker = null;
     }
     this.pendingCallbacks.clear();
   }
 
-  /**
-   * Cleanup all resources
-   */
   dispose(): void {
     this.terminateWorker();
     this.mode = 'disabled';
   }
 }
 
-// Export singleton instance
 export const segmentationManager = new SegmentationManager();
-
-// Export class for testing
 export { SegmentationManager };

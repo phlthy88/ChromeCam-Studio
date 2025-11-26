@@ -1,5 +1,5 @@
 import path from 'path';
-import { defineConfig, loadEnv, type UserConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -8,32 +8,6 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const isDev = mode === 'development';
   const isProd = mode === 'production';
-
-  // ==========================================================================
-  // FIX: Custom plugin to ensure correct MIME types for workers
-  //
-  // This prevents the "video/mp2t" MIME type error that occurs when Vite
-  // misidentifies worker files. The plugin intercepts requests and sets
-  // the correct Content-Type header.
-  // ==========================================================================
-  const workerMimeFix: Plugin = {
-    name: 'worker-mime-fix',
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        const url = req.url || '';
-
-        // Fix MIME type for worker files
-        if (url.includes('.worker') || url.includes('/workers/')) {
-          if (url.endsWith('.js') || url.endsWith('.mjs')) {
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-          } else if (url.endsWith('.ts')) {
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-          }
-        }
-        next();
-      });
-    },
-  };
 
   // Base configuration shared between dev and prod
   const baseConfig: UserConfig = {
@@ -52,9 +26,12 @@ export default defineConfig(({ mode }) => {
       __PROD__: JSON.stringify(isProd),
     },
     plugins: [react()],
-    // CRITICAL: Worker support for OffscreenCanvas
+    // =========================================================================
+    // WORKER CONFIG: Use 'iife' format to ensure proper polyfill setup
+    // This ensures imports are bundled sequentially and polyfills are available
+    // =========================================================================
     worker: {
-      format: 'es',
+      format: 'iife',
       plugins: () => [react()],
       rollupOptions: {
         output: {
@@ -62,8 +39,8 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    // Ensure binary assets aren't mangled during build
-    assetsInclude: ['**/*.wasm', '**/*.tflite', '**/*.bin'],
+    // Only include wasm, as model files are now bundled.
+    assetsInclude: ['**/*.wasm'],
   };
 
   // Development-specific configuration
@@ -71,36 +48,23 @@ export default defineConfig(({ mode }) => {
     return {
       ...baseConfig,
       mode: 'development',
-      plugins: [...baseConfig.plugins!, workerMimeFix],
       server: {
-        // -----------------------------------------------------------------------
-        // FIX #3: PORT & WEBSOCKET CONFIGURATION
-        // -----------------------------------------------------------------------
-        port: 3001,       // CHANGE: Moved to 3001 to avoid Java Backend (3000) conflict
-        strictPort: true, // CHANGE: Fail if 3001 is busy (prevents random port switching)
-        host: true,       // Listen on all addresses (0.0.0.0)
+        port: 3001,
+        strictPort: true,
+        host: true,
         cors: true,
         
-        // HMR Configuration
         hmr: {
-          clientPort: 3001, // CHANGE: Force client to look at 3001 (fixes the 3004 error)
-          timeout: 30000,   // CHANGE: Increase timeout to 30s for high CPU load
-          overlay: false,   // OPTIONAL: Disable error overlay if it blocks the view
+          clientPort: 3001,
+          timeout: 30000,
+          overlay: false,
         },
 
-        // WebSocket Keep-Alive Configuration
-        ws: {
-          pingTimeout: 30000,  // CHANGE: Wait 30s before killing connection
-          pingInterval: 10000, // CHANGE: Ping less frequently (every 10s)
-        },
-        // -----------------------------------------------------------------------
-
-        // Watch configuration
         watch: {
           usePolling: false,
           ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
         },
-        // Enhanced Content Security Policy for workers and WebGL
+        
         headers: {
           'Content-Security-Policy': [
             "default-src 'self'",
@@ -109,40 +73,34 @@ export default defineConfig(({ mode }) => {
             "img-src 'self' blob: data:",
             "media-src 'self' blob:",
             "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
+            // Allow worker to be loaded as a blob
             "worker-src 'self' blob:",
           ].join('; '),
+          // These headers are required for SharedArrayBuffer, which TF.js may use
           'Cross-Origin-Embedder-Policy': 'credentialless',
           'Cross-Origin-Opener-Policy': 'same-origin',
         },
       },
-      // Enable source maps for debugging
       css: {
         devSourcemap: true,
       },
-      // Optimize deps for faster dev startup - optimized for ChromeOS VirGL
       optimizeDeps: {
         include: ['react', 'react-dom'],
         exclude: [],
-        // Force pre-bundling for faster Crostini startup
         force: isDev,
         esbuildOptions: {
-          // Target modern browsers (Chrome 120+)
           target: 'es2022',
           supported: {
             'top-level-await': true,
           },
         },
       },
-      // Clear console on reload for cleaner output
       clearScreen: true,
-      // Development build options
       build: {
         sourcemap: true,
         minify: false,
       },
-      // Log level for development
       logLevel: 'info',
-      // Faster esbuild for dev
       esbuild: {
         jsxDev: true,
         keepNames: true,
@@ -154,7 +112,6 @@ export default defineConfig(({ mode }) => {
   return {
     ...baseConfig,
     mode: 'production',
-    // Ensure same security headers as dev for production
     server: {
       headers: {
         'Content-Security-Policy': [
@@ -215,9 +172,7 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-          // Clean up old caches
           cleanupOutdatedCaches: true,
-          // Skip waiting to activate new service worker immediately
           skipWaiting: true,
           clientsClaim: true,
           runtimeCaching: [
@@ -228,7 +183,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'cdn-cache',
                 expiration: {
                   maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
@@ -242,7 +197,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'tailwind-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+                  maxAgeSeconds: 60 * 60 * 24 * 7,
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
@@ -251,65 +206,55 @@ export default defineConfig(({ mode }) => {
             },
           ],
         },
-        // Enable PWA in development
         devOptions: {
           enabled: true,
         },
       }),
     ],
     build: {
-      // Production build options
       target: 'es2022',
       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: false,
       minify: 'esbuild',
-      // Chunk splitting strategy
       rollupOptions: {
         output: {
           manualChunks: {
-            // Vendor chunk for better caching
             vendor: ['react', 'react-dom'],
+             'tfjs': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
           },
-          // Asset file naming
           chunkFileNames: 'assets/js/[name]-[hash].js',
           entryFileNames: 'assets/js/[name]-[hash].js',
           assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
         },
       },
-      // CRITICAL: Ensure workers are properly bundled
       assetsInlineLimit: 0,
-      // Report compressed size
       reportCompressedSize: true,
-      // Chunk size warning limit (in kB)
-      chunkSizeWarningLimit: 500,
-      // CSS code splitting
+      chunkSizeWarningLimit: 2000,
       cssCodeSplit: true,
-      // Minify CSS
       cssMinify: true,
     },
-    // CRITICAL: Worker support for OffscreenCanvas (same as dev)
     worker: {
-      format: 'es',
+      format: 'iife',
       plugins: () => [react()],
-      rollupOptions: {
+       rollupOptions: {
         output: {
           entryFileNames: 'workers/[name].[hash].js',
+          manualChunks: {
+             'tfjs-worker': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
+          },
         },
       },
     },
-    // Production esbuild options
     esbuild: {
       drop: ['console', 'debugger'],
       legalComments: 'none',
     },
-    // Preview server configuration
     preview: {
       port: 4173,
       host: '0.0.0.0',
       strictPort: true,
       cors: true,
-      // Enhanced Content Security Policy for workers and WebGL (same as dev)
       headers: {
         'Content-Security-Policy': [
           "default-src 'self'",
