@@ -90,7 +90,7 @@ class SegmentationManager {
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        console.warn('[SegmentationManager] Creating bundled worker...');
+        // Worker initialization - keep quiet to reduce console noise
 
         this.worker = new SegmentationWorker();
         let resolved = false; // Prevent double-resolution
@@ -98,7 +98,9 @@ class SegmentationManager {
         const timeoutId = setTimeout(() => {
           if (!resolved) {
             resolved = true;
-            console.warn('[SegmentationManager] Worker init timeout (30s)');
+            console.error(
+              '[SegmentationManager] Worker initialization timeout (30s) - falling back to main thread'
+            );
             this.terminateWorker();
             resolve(false);
           }
@@ -306,6 +308,13 @@ class SegmentationManager {
     this.terminateWorker();
     this.mode = 'disabled';
   }
+}
+
+// Global cleanup on page unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    segmentationManager.dispose();
+  });
 }
 
 export const segmentationManager = new SegmentationManager();

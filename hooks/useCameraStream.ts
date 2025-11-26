@@ -284,9 +284,12 @@ export function useCameraStream({
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current
-            .play()
-            .catch((e) => console.warn('[useCameraStream] Play failed:', e));
+          await videoRef.current.play().catch((e) => {
+            // AbortError is expected when component unmounts during play request
+            if (e.name !== 'AbortError') {
+              console.warn('[useCameraStream] Play failed:', e);
+            }
+          });
         } else {
           console.error('[useCameraStream] Video element not available');
         }
