@@ -198,13 +198,26 @@ export function useBodySegmentation({
     };
   }, [loadScripts]);
 
-  // AI inference loop
+  // ========================================================================
+  // FIX #1: THROTTLED AI INFERENCE LOOP WITH FRAME SKIP COUNTER
+  // ========================================================================
   useEffect(() => {
     let isLoopActive = true;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let frameSkipCounter = 0;
+    const FRAME_SKIP_INTERVAL = 4; // Process every 4th frame = ~15fps @ 60fps display
 
     const inferenceLoop = async () => {
       if (!isLoopActive) return;
+
+      // CRITICAL FIX: Frame skip logic to prevent main thread saturation
+      frameSkipCounter++;
+      if (frameSkipCounter < FRAME_SKIP_INTERVAL) {
+        // Schedule next check without processing
+        timeoutId = setTimeout(inferenceLoop, 16); // Check at ~60fps
+        return;
+      }
+      frameSkipCounter = 0; // Reset counter after processing
 
       const video = videoRef.current;
       const { blur, portraitLighting, faceSmoothing, autoFrame, virtualBackground, qrMode } =
@@ -288,10 +301,8 @@ export function useBodySegmentation({
       }
 
       if (isLoopActive) {
-        // Use requestAnimationFrame for better performance synchronization
-        // This prevents double work by aligning with the render loop
-        // Only run inference every other frame (~30fps on 60fps displays)
-        timeoutId = setTimeout(inferenceLoop, 66); // ~15fps inference to reduce CPU load
+        // Schedule next inference check
+        timeoutId = setTimeout(inferenceLoop, 16); // Check at display refresh rate
       }
     };
 
@@ -302,6 +313,7 @@ export function useBodySegmentation({
       clearTimeout(timeoutId);
     };
   }, [segmenter, aiRuntimeError, videoRef, qrResult, segmentationMode]);
+  // ========================================================================
 
   // Cleanup worker on unmount
   useEffect(() => {
