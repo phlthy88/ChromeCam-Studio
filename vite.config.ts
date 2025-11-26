@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
       __DEV__: JSON.stringify(isDev),
       __PROD__: JSON.stringify(isProd),
+      // Provide globals for workers
+      global: 'globalThis',
     },
     plugins: [react()],
     // =========================================================================
@@ -37,6 +39,7 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: 'workers/[name].[hash].js',
         },
+        external: [], // Ensure no externals in worker
       },
     },
     // Only include wasm, as model files are now bundled.

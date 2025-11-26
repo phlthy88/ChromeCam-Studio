@@ -6,6 +6,18 @@ import * as tf from '@tensorflow/tfjs';
 import * as bodyPix from '@tensorflow-models/body-pix';
 
 // =============================================================================
+// POLYFILLS for Worker Environment
+// =============================================================================
+
+// Ensure atob is available for TensorFlow.js base64 decoding
+if (typeof atob === 'undefined') {
+  // Copy atob from self (worker global) to globalThis
+  if (typeof self !== 'undefined' && (self as any).atob) {
+    (globalThis as any).atob = (self as any).atob;
+  }
+}
+
+// =============================================================================
 // Worker State
 // =============================================================================
 
@@ -91,29 +103,33 @@ async function initSegmenter() {
       isModule: typeof importScripts !== 'function',
     });
 
-    // Set TF.js flags for worker environment
-    tf.env().set('IS_WORKER', true);
-    tf.env().set('WORKER_IS_MODULE', true);
-
     console.warn('[Worker] Setting up TensorFlow.js...');
 
-    // Force WebGL backend and verify
-    await tf.setBackend('webgl');
+    // Initialize TensorFlow.js first
     await tf.ready();
 
-    if (tf.getBackend() !== 'webgl') {
-      throw new Error('WebGL backend not available.');
+    // Try WebGL backend, fallback to CPU if not available
+    try {
+      await tf.setBackend('webgl');
+      await tf.ready();
+    } catch (backendError) {
+      console.warn('[Worker] WebGL backend failed, falling back to CPU:', backendError);
+      await tf.setBackend('cpu');
+      await tf.ready();
     }
+
+    console.warn(`[Worker] TensorFlow.js ready with ${tf.getBackend()} backend.`);
 
     console.warn('[Worker] TensorFlow.js ready with WebGL backend.');
     console.warn('[Worker] Loading BodyPix model...');
 
     // Load model locally from the bundle
+    // Use different configuration to avoid base64 decoding issues
     net = await bodyPix.load({
       architecture: 'MobileNetV1',
       outputStride: 16,
       multiplier: 0.75,
-      quantBytes: 2,
+      quantBytes: 4, // Use 4 bytes instead of 2 to avoid quantization issues
     });
 
     isInitialized = true;
