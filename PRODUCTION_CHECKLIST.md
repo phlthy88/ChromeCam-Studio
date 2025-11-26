@@ -504,12 +504,22 @@ Add descriptive aria-label to all icon-only buttons for screen reader accessibil
 
 ### Must Fix Before Deploy (P0 - Critical)
 
+#### Code Issues
 - [ ] **1.1** Add worker lifecycle cleanup with reference counting
 - [ ] **1.2** Delete orphaned shaders in WebGL renderers (2 locations)
 - [ ] **1.3** Add isMounted guards to 3 async hooks
 
-**Estimated Time**: 4-6 hours
-**Risk if Skipped**: Memory leaks, crashes, React warnings in production
+#### PWA Configuration
+- [ ] **1.5** Generate PNG icons from SVG (192x192, 512x512, maskable)
+- [ ] **1.5** Update manifest to use PNG icons instead of SVG
+- [ ] **1.5** Fix App ID to `'/'` in manifest
+- [ ] **1.5** Create and add PWA screenshots (desktop + mobile)
+
+**Estimated Time**: 6-8 hours
+**Risk if Skipped**:
+- Memory leaks, crashes, React warnings in production
+- PWA cannot be installed on mobile/desktop
+- App store submission rejection
 
 ---
 

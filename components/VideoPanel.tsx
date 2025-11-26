@@ -191,6 +191,12 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   // Monitor face detection status
   useEffect(() => {
     const faceDetected = !!(faceLandmarks && faceLandmarks.length > 0);
+    console.log(
+      '[VideoPanel] Face detection status:',
+      faceDetected,
+      'landmarks:',
+      faceLandmarks?.length || 0
+    );
     onFaceDetected?.(faceDetected);
   }, [faceLandmarks, onFaceDetected]);
 

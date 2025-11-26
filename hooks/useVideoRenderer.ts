@@ -312,6 +312,14 @@ export function useVideoRenderer({
     settings.jawSlimming > 0 ||
     settings.mouthScaling > 0;
 
+  console.log('[useVideoRenderer] Beauty settings:', {
+    eyeEnlargement: settings.eyeEnlargement,
+    noseSlimming: settings.noseSlimming,
+    jawSlimming: settings.jawSlimming,
+    mouthScaling: settings.mouthScaling,
+    beautyEnabled,
+  });
+
   // FIX: lutIntensity in deps
   const webGLOptions = useMemo(
     () => ({
