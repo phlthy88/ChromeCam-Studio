@@ -453,8 +453,11 @@ export function useVideoRenderer({
       const filterPreset = FILTER_PRESETS[activeFilter] || FILTER_PRESETS['none'];
 
       // Get target aspect ratio from presets
-      const aspectPreset = ASPECT_RATIO_PRESETS.find((p) => p.id === aspectRatioLock);
-      const targetAspectRatio = aspectPreset?.ratio ?? null;
+      // Memoize aspect preset lookup to avoid Array.find() every frame
+      const targetAspectRatio = useMemo(() => {
+        const aspectPreset = ASPECT_RATIO_PRESETS.find((p) => p.id === aspectRatioLock);
+        return aspectPreset?.ratio ?? null;
+      }, [aspectRatioLock]);
 
       // Calculate current transform with smooth interpolation (optimized)
       if (autoFrame) {
@@ -477,10 +480,13 @@ export function useVideoRenderer({
           speed
         );
 
-        // Only update if transform changed significantly (threshold: 0.5% for pan, 1% for zoom)
-        const panXChanged = Math.abs(newPanX - currentTransformRef.current.panX) > 0.5;
-        const panYChanged = Math.abs(newPanY - currentTransformRef.current.panY) > 0.5;
-        const zoomChanged = Math.abs(newZoom - currentTransformRef.current.zoom) > 0.01;
+        // Only update if transform changed significantly
+        const panXChanged =
+          Math.abs(newPanX - currentTransformRef.current.panX) > PERFORMANCE.PAN_CHANGE_THRESHOLD;
+        const panYChanged =
+          Math.abs(newPanY - currentTransformRef.current.panY) > PERFORMANCE.PAN_CHANGE_THRESHOLD;
+        const zoomChanged =
+          Math.abs(newZoom - currentTransformRef.current.zoom) > PERFORMANCE.ZOOM_CHANGE_THRESHOLD;
 
         if (panXChanged || panYChanged || zoomChanged) {
           currentTransformRef.current.panX = newPanX;
@@ -493,11 +499,18 @@ export function useVideoRenderer({
         const effectivePanX = hardwareCapabilities.panX ? 0 : settingsRef.current.panX;
         const effectivePanY = hardwareCapabilities.panY ? 0 : settingsRef.current.panY;
 
-        currentTransformRef.current = {
-          panX: effectivePanX,
-          panY: effectivePanY,
-          zoom: effectiveZoom,
-        };
+        // Only update if values changed to avoid unnecessary object allocation
+        if (
+          currentTransformRef.current.panX !== effectivePanX ||
+          currentTransformRef.current.panY !== effectivePanY ||
+          currentTransformRef.current.zoom !== effectiveZoom
+        ) {
+          currentTransformRef.current = {
+            panX: effectivePanX,
+            panY: effectivePanY,
+            zoom: effectiveZoom,
+          };
+        }
       }
 
       const { panX, panY, zoom } = currentTransformRef.current;

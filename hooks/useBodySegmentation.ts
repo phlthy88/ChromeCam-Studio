@@ -3,6 +3,7 @@ import type { CameraSettings } from '../components/settings';
 import type { BodySegmenter, BarcodeDetector } from '../types/media';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
 import { FaceLandmarks } from '../types/face';
+import { logger } from '../utils/logger';
 
 // Constants to avoid GC in the inference loop
 const FOREGROUND_COLOR = { r: 255, g: 255, b: 255, a: 255 };
@@ -60,16 +61,14 @@ export function useBodySegmentation({
       // Check if scripts are already loaded
       const scriptsLoaded = window.tf && window.bodySegmentation;
       if (scriptsLoaded) {
-        console.log('[useBodySegmentation] AI scripts already loaded globally');
+        logger.info('useBodySegmentation', 'AI scripts already loaded globally');
         return;
       }
 
-      console.log('[useBodySegmentation] Starting AI script loading process...');
-      console.log(
-        '[useBodySegmentation] Current globals - tf:',
-        !!window.tf,
-        'bodySegmentation:',
-        !!window.bodySegmentation
+      logger.info('useBodySegmentation', 'Starting AI script loading process');
+      logger.debug(
+        'useBodySegmentation',
+        `Current globals - tf: ${!!window.tf}, bodySegmentation: ${!!window.bodySegmentation}`
       );
 
       // Alternative loading method using different CDNs

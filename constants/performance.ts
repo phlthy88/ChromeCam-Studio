@@ -5,6 +5,8 @@ export const PERFORMANCE = {
 
   // Animation & interpolation
   AUTO_FRAME_LERP_SPEED: 0.05, // Smooth interpolation speed for auto-framing
+  PAN_CHANGE_THRESHOLD: 0.5, // Minimum pan change to trigger transform update
+  ZOOM_CHANGE_THRESHOLD: 0.01, // Minimum zoom change to trigger transform update
 
   // Frame rate limits
   PERFORMANCE_MODE_SKIP: 3,
@@ -18,4 +20,9 @@ export const PERFORMANCE = {
   // Cache limits
   MAX_LOG_ENTRIES: 1000,
   FRAME_SKIP_RESET: 1000,
+
+  // WebGL timing
+  WEBGL_STABILIZATION_DELAY_MS: 500,
+  WEBGL_INIT_TIMEOUT_MS: 30000,
+  WEBGL_CONTEXT_RETRY_DELAY_MS: 1000,
 } as const;
