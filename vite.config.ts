@@ -146,7 +146,7 @@ export default defineConfig(({ mode }) => {
             short_name: 'ChromeCam',
             description:
               'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
-            id: 'ChromeCam-Studio',
+            id: '/',
             theme_color: '#1c1b1f',
             background_color: '#1c1b1f',
             display: 'standalone',
@@ -155,24 +155,47 @@ export default defineConfig(({ mode }) => {
             start_url: '/',
             icons: [
               {
-                src: 'pwa-192x192.svg',
+                src: 'pwa-192x192.png',
                 sizes: '192x192',
-                type: 'image/svg+xml',
+                type: 'image/png',
                 purpose: 'any',
               },
               {
-                src: 'pwa-512x512.svg',
+                src: 'pwa-512x512.png',
                 sizes: '512x512',
-                type: 'image/svg+xml',
+                type: 'image/png',
                 purpose: 'any',
               },
               {
-                src: 'masked-icon.svg',
+                src: 'pwa-maskable-512x512.png',
                 sizes: '512x512',
-                type: 'image/svg+xml',
+                type: 'image/png',
                 purpose: 'maskable',
               },
+              {
+                src: 'pwa-192x192.svg',
+                sizes: 'any',
+                type: 'image/svg+xml',
+                purpose: 'any',
+              },
             ],
+            // Uncomment screenshots below after adding actual screenshot files
+            // See public/screenshots/README.md for instructions
+            // screenshots: [
+            //   {
+            //     src: 'screenshots/desktop-wide.png',
+            //     sizes: '1280x720',
+            //     type: 'image/png',
+            //     form_factor: 'wide',
+            //     label: 'ChromeCam Studio desktop view',
+            //   },
+            //   {
+            //     src: 'screenshots/mobile.png',
+            //     sizes: '750x1334',
+            //     type: 'image/png',
+            //     label: 'ChromeCam Studio mobile view',
+            //   },
+            // ],
             display_override: ['window-controls-overlay'],
             shortcuts: [
               {
