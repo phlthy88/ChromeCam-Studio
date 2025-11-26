@@ -28,20 +28,6 @@ export default defineConfig(({ mode }) => {
       global: 'globalThis',
     },
     plugins: [react()],
-    // =========================================================================
-    // WORKER CONFIG: Use 'iife' format to ensure proper polyfill setup
-    // This ensures imports are bundled sequentially and polyfills are available
-    // =========================================================================
-    worker: {
-      format: 'iife',
-      plugins: () => [react()],
-      rollupOptions: {
-        output: {
-          entryFileNames: 'workers/[name].[hash].js',
-        },
-        external: [], // Ensure no externals in worker
-      },
-    },
     // Only include wasm, as model files are now bundled.
     assetsInclude: ['**/*.wasm'],
   };
@@ -96,6 +82,20 @@ export default defineConfig(({ mode }) => {
           supported: {
             'top-level-await': true,
           },
+        },
+      },
+      // =========================================================================
+      // WORKER CONFIG: Use 'iife' format for development to ensure proper polyfill setup
+      // This ensures imports are bundled sequentially and polyfills are available
+      // =========================================================================
+      worker: {
+        format: 'iife',
+        plugins: () => [react()],
+        rollupOptions: {
+          output: {
+            entryFileNames: 'workers/[name].[hash].js',
+          },
+          external: [], // Ensure no externals in worker
         },
       },
       clearScreen: true,
@@ -239,7 +239,7 @@ export default defineConfig(({ mode }) => {
       cssMinify: true,
     },
     worker: {
-      format: 'iife',
+      format: 'es',
       plugins: () => [react()],
       rollupOptions: {
         output: {
