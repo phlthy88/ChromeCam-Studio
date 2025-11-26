@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useCallback } from 'react';
 import { CameraSettings } from './settings';
 import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
@@ -120,7 +120,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   });
 
   // Stabilize hardwareCapabilities to prevent render loop teardown
-  const stableHardwareCapabilities = React.useMemo(
+  const stableHardwareCapabilities = useMemo(
     () => hardwareCapabilities,
     [hardwareCapabilities]
   );

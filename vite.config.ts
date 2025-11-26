@@ -266,7 +266,6 @@ export default defineConfig(({ mode }) => {
               '@tensorflow-models/body-pix',
               '@tensorflow-models/face-landmarks-detection',
             ],
-            mediapipe: ['@mediapipe/face_mesh'],
             obs: ['obs-websocket-js'],
           },
           chunkFileNames: 'assets/js/[name]-[hash].js',
