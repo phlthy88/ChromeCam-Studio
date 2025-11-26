@@ -65,21 +65,27 @@ let cachedAutoFrameTransform: ReturnType<typeof calculateAutoFrameTransform> = n
 
 async function initFaceDetector(): Promise<boolean> {
   try {
-    workerLogger.info('[Worker] Loading Face Mesh model...');
+    workerLogger.info('[Worker] Initializing Face Mesh detector...');
+
+    // ✅ Verify we're on CPU backend
+    const backend = tf.getBackend();
+    if (backend !== 'cpu') {
+      workerLogger.warn(`[Worker] Face detection requires CPU backend, current: ${backend}`);
+      return false;
+    }
 
     const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
     const detectorConfig: faceLandmarksDetection.MediaPipeFaceMeshTfjsModelConfig = {
       runtime: 'tfjs',
-      refineLandmarks: true, // Enable iris tracking for better eye detection
-      maxFaces: 1, // Optimize for single face
+      refineLandmarks: false, // ✅ CHANGED: Disable for better CPU performance
+      maxFaces: 1,
     };
 
     faceDetector = await faceLandmarksDetection.createDetector(model, detectorConfig);
-
-    workerLogger.info('[Worker] Face Mesh model loaded successfully');
+    workerLogger.info('[Worker] Face Mesh detector ready');
     return true;
   } catch (error) {
-    workerLogger.error('[Worker] Face Mesh loading failed:', error);
+    workerLogger.error('[Worker] Face Mesh initialization failed:', error);
     return false;
   }
 }
@@ -192,56 +198,102 @@ async function initSegmenter() {
   isInitializing = true;
 
   try {
-    workerLogger.warn('[Worker] Diagnostic Info:', {
+    workerLogger.info('[Worker] Starting initialization...');
+    workerLogger.info('[Worker] Diagnostic Info:', {
       tfVersion: tf.version.tfjs,
       tfBackend: tf.getBackend(),
       isWorker: typeof WorkerGlobalScope !== 'undefined',
       isModule: typeof importScripts !== 'function',
+      offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
     });
 
-    workerLogger.warn('[Worker] Setting up TensorFlow.js...');
-
-    // Initialize TensorFlow.js first with CPU backend (WebGL not available in workers)
+    // =============================================================================
+    // FIX 1: FORCE CPU BACKEND WITH VERIFICATION
+    // =============================================================================
+    workerLogger.info('[Worker] Setting TensorFlow.js backend to CPU (WebGL not available in workers)...');
+    
+    // Try to set CPU backend
     await tf.setBackend('cpu');
     await tf.ready();
+    
+    // ✅ CRITICAL: Verify backend actually switched
+    const actualBackend = tf.getBackend();
+    workerLogger.info(`[Worker] TensorFlow.js backend: ${actualBackend}`);
+    
+    if (actualBackend !== 'cpu') {
+      throw new Error(
+        `Failed to initialize CPU backend. Current backend: ${actualBackend}. ` +
+        `WebGL is not supported in Web Workers.`
+      );
+    }
 
-    workerLogger.warn(`[Worker] TensorFlow.js ready with ${tf.getBackend()} backend.`);
+    // =============================================================================
+    // FIX 2: ADD TIMEOUT TO MODEL LOADING
+    // =============================================================================
+    workerLogger.info('[Worker] Loading BodyPix model...');
+    
+    const MODEL_LOAD_TIMEOUT = 25000; // 25 seconds (leave 5s buffer for face detection)
+    
+    const loadBodyPixWithTimeout = () => {
+      return Promise.race([
+        bodyPix.load({
+          architecture: 'MobileNetV1',
+          outputStride: 16,
+          multiplier: 0.75,
+          quantBytes: 4,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('BodyPix model loading timeout after 25s')), MODEL_LOAD_TIMEOUT)
+        ),
+      ]);
+    };
 
-    workerLogger.warn('[Worker] TensorFlow.js ready with WebGL backend.');
-    workerLogger.warn('[Worker] Loading BodyPix model...');
+    net = await loadBodyPixWithTimeout();
+    workerLogger.info('[Worker] BodyPix model loaded successfully');
 
-    // Load model locally from the bundle
-    // Use different configuration to avoid base64 decoding issues
-    net = await bodyPix.load({
-      architecture: 'MobileNetV1',
-      outputStride: 16,
-      multiplier: 0.75,
-      quantBytes: 4, // Use 4 bytes instead of 2 to avoid quantization issues
-    });
-
-    // Initialize face detection
-    workerLogger.warn('[Worker] Loading Face Mesh model...');
-    await initFaceDetector();
+    // =============================================================================
+    // FIX 3: OPTIONAL FACE DETECTION (CAN FAIL WITHOUT BREAKING)
+    // =============================================================================
+    workerLogger.info('[Worker] Loading Face Mesh model (optional)...');
+    
+    try {
+      const faceInitSuccess = await Promise.race([
+        initFaceDetector(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+      ]);
+      
+      if (faceInitSuccess) {
+        workerLogger.info('[Worker] Face Mesh model loaded successfully');
+      } else {
+        workerLogger.warn('[Worker] Face Mesh model loading timed out - continuing without face detection');
+      }
+    } catch (faceError) {
+      workerLogger.warn('[Worker] Face Mesh loading failed (non-critical):', faceError);
+      // Continue without face detection
+    }
 
     isInitialized = true;
     isInitializing = false;
-    workerLogger.warn('[Worker] Initialization complete!');
+    workerLogger.info('[Worker] ✅ Initialization complete!');
 
     // Send success message immediately
     self.postMessage({
       type: 'init-complete',
       success: true,
+      backend: actualBackend,
+      faceDetectionAvailable: faceDetector !== null,
       timestamp: performance.now(),
     });
   } catch (error) {
     isInitializing = false;
-    workerLogger.error('[Worker] Initialization failed:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    workerLogger.error('[Worker] ❌ Initialization failed:', errorMessage);
 
-    // Send failure message immediately
+    // Send failure message with specific error
     self.postMessage({
       type: 'init-complete',
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
       timestamp: performance.now(),
     });
   }
