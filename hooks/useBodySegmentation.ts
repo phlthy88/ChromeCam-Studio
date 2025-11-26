@@ -105,7 +105,7 @@ export function useBodySegmentation({
                 };
 
                 script.onerror = (error) => {
-                  console.warn(
+                  logger.warn('useBodySegmentation', 
                     `[useBodySegmentation] Failed to load script: ${url.split('/').pop()}`,
                     error
                   );
@@ -146,78 +146,34 @@ export function useBodySegmentation({
             // Load TensorFlow.js WebGL backend
             logger.info(
               'useBodySegmentation',
-              '[useBodySegmentation] Loading TensorFlow.js WebGL backend...'
+              'Loading TensorFlow.js WebGL backend...'
             );
             await loadScript(
               'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
             );
             await new Promise((resolve) => setTimeout(resolve, 200));
 
-            // Load MediaPipe Selfie Segmentation
+            // Load TensorFlow.js Body Segmentation library
             if (!window.bodySegmentation) {
               logger.info(
                 'useBodySegmentation',
-                '[useBodySegmentation] Loading MediaPipe Selfie Segmentation...'
+                'Loading TensorFlow.js Body Segmentation library...'
               );
               await loadScript(
-                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+                'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js'
               );
               // Wait for global to be available
-              let mpRetries = 10;
-              while (!window.bodySegmentation && mpRetries > 0) {
+              let bsRetries = 10;
+              while (!window.bodySegmentation && bsRetries > 0) {
                 await new Promise((resolve) => setTimeout(resolve, 100));
-                mpRetries--;
+                bsRetries--;
               }
               if (!window.bodySegmentation) {
-                throw new Error('MediaPipe Selfie Segmentation global not available after loading');
+                throw new Error('Body Segmentation library not available after loading');
               }
               logger.info(
                 'useBodySegmentation',
-                '[useBodySegmentation] MediaPipe loaded successfully'
-              );
-            }
-
-            // Load TensorFlow.js WebGL backend (always load for compatibility)
-            logger.info(
-              'useBodySegmentation',
-              '[useBodySegmentation] Loading TensorFlow.js WebGL backend...'
-            );
-            await loadScript(
-              'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
-            );
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            // Load MediaPipe Selfie Segmentation
-            if (!(window as any).SelfieSegmentation) {
-              logger.info('useBodySegmentation', 'Loading MediaPipe Selfie Segmentation...');
-              await loadScript(
-                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
-              );
-              // Wait a bit for global to be set
-              await new Promise((resolve) => setTimeout(resolve, 500));
-              // Set the global for compatibility
-              if ((window as any).SelfieSegmentation) {
-                (window as any).bodySegmentation = (window as any).SelfieSegmentation;
-              }
-            }
-
-            // Load TensorFlow.js WebGL backend (always load for compatibility)
-            logger.info(
-              'useBodySegmentation',
-              '[useBodySegmentation] Loading TensorFlow.js WebGL backend...'
-            );
-            await loadScript(
-              'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
-            );
-
-            // Load MediaPipe Selfie Segmentation
-            if (!window.bodySegmentation) {
-              logger.info(
-                'useBodySegmentation',
-                '[useBodySegmentation] Loading MediaPipe Selfie Segmentation...'
-              );
-              await loadScript(
-                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+                'Body Segmentation library loaded successfully'
               );
             }
 
@@ -331,7 +287,7 @@ export function useBodySegmentation({
           setLoadingError(null);
         } catch (e) {
           if (!isMounted) return;
-          console.error('[AI] Main thread initialization failed:', e);
+          logger.error('useBodySegmentation', '[AI] Main thread initialization failed:', e);
           setLoadingError('Failed to load AI Engine');
           setSegmentationMode('disabled');
         }
@@ -376,7 +332,7 @@ export function useBodySegmentation({
       } catch (error) {
         if (!isMounted) return;
 
-        console.error('[AI] Fatal initialization error:', error);
+        logger.error('useBodySegmentation', '[AI] Fatal initialization error:', error);
 
         // Provide specific error messages based on the error type
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -485,7 +441,7 @@ export function useBodySegmentation({
               );
               mask = result.mask;
               if (result.error) {
-                console.warn('[AI] Worker segmentation error:', result.error);
+                logger.warn('useBodySegmentation', '[AI] Worker segmentation error:', result.error);
               }
 
               if (result.autoFrameTransform) {
@@ -516,7 +472,7 @@ export function useBodySegmentation({
             setIsAiActive(false);
           }
         } catch (e) {
-          console.error('[AI] Runtime error during segmentation:', e);
+          logger.error('useBodySegmentation', '[AI] Runtime error during segmentation:', e);
           if (isMounted) {
             setAiRuntimeError(true);
             setLoadingError('AI processing encountered an error.');

@@ -28,6 +28,22 @@ if (typeof atob === 'undefined') {
   }
 }
 
+// Worker-safe logging
+const workerLogger = {
+  info: (message: string, data?: any) => {
+    self.postMessage({ type: 'log', level: 'info', message, data });
+  },
+  warn: (message: string, data?: any) => {
+    self.postMessage({ type: 'log', level: 'warn', message, data });
+  },
+  error: (message: string, data?: any) => {
+    self.postMessage({ type: 'log', level: 'error', message, data });
+  },
+  debug: (message: string, data?: any) => {
+    self.postMessage({ type: 'log', level: 'debug', message, data });
+  },
+};
+
 // =============================================================================
 // Worker State
 // =============================================================================
@@ -49,7 +65,7 @@ let cachedAutoFrameTransform: ReturnType<typeof calculateAutoFrameTransform> = n
 
 async function initFaceDetector(): Promise<boolean> {
   try {
-    console.log('[Worker] Loading Face Mesh model...');
+    workerLogger.info('[Worker] Loading Face Mesh model...');
 
     const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
     const detectorConfig: faceLandmarksDetection.MediaPipeFaceMeshTfjsModelConfig = {
@@ -60,10 +76,10 @@ async function initFaceDetector(): Promise<boolean> {
 
     faceDetector = await faceLandmarksDetection.createDetector(model, detectorConfig);
 
-    console.log('[Worker] Face Mesh model loaded successfully');
+    workerLogger.info('[Worker] Face Mesh model loaded successfully');
     return true;
   } catch (error) {
-    console.error('[Worker] Face Mesh loading failed:', error);
+    workerLogger.error('[Worker] Face Mesh loading failed:', error);
     return false;
   }
 }
@@ -99,7 +115,7 @@ function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegment
   }
   // 720p and below: use stride = 8
 
-  console.log(
+  workerLogger.info(
     `[Worker] Auto-frame: ${width}x${height} (${pixelCount.toLocaleString()}px) using stride ${stride}`
   );
 
@@ -163,7 +179,7 @@ async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentati
 async function initSegmenter() {
   // Prevent double-initialization
   if (isInitializing || isInitialized) {
-    console.warn('[Worker] Already initialized or initializing');
+    workerLogger.warn('[Worker] Already initialized or initializing');
     self.postMessage({
       type: 'init-complete',
       success: isInitialized,
@@ -176,14 +192,14 @@ async function initSegmenter() {
   isInitializing = true;
 
   try {
-    console.warn('[Worker] Diagnostic Info:', {
+    workerLogger.warn('[Worker] Diagnostic Info:', {
       tfVersion: tf.version.tfjs,
       tfBackend: tf.getBackend(),
       isWorker: typeof WorkerGlobalScope !== 'undefined',
       isModule: typeof importScripts !== 'function',
     });
 
-    console.warn('[Worker] Setting up TensorFlow.js...');
+    workerLogger.warn('[Worker] Setting up TensorFlow.js...');
 
     // Initialize TensorFlow.js first
     await tf.ready();
@@ -193,15 +209,15 @@ async function initSegmenter() {
       await tf.setBackend('webgl');
       await tf.ready();
     } catch (backendError) {
-      console.warn('[Worker] WebGL backend failed, falling back to CPU:', backendError);
+      workerLogger.warn('[Worker] WebGL backend failed, falling back to CPU:', backendError);
       await tf.setBackend('cpu');
       await tf.ready();
     }
 
-    console.warn(`[Worker] TensorFlow.js ready with ${tf.getBackend()} backend.`);
+    workerLogger.warn(`[Worker] TensorFlow.js ready with ${tf.getBackend()} backend.`);
 
-    console.warn('[Worker] TensorFlow.js ready with WebGL backend.');
-    console.warn('[Worker] Loading BodyPix model...');
+    workerLogger.warn('[Worker] TensorFlow.js ready with WebGL backend.');
+    workerLogger.warn('[Worker] Loading BodyPix model...');
 
     // Load model locally from the bundle
     // Use different configuration to avoid base64 decoding issues
@@ -213,12 +229,12 @@ async function initSegmenter() {
     });
 
     // Initialize face detection
-    console.warn('[Worker] Loading Face Mesh model...');
+    workerLogger.warn('[Worker] Loading Face Mesh model...');
     await initFaceDetector();
 
     isInitialized = true;
     isInitializing = false;
-    console.warn('[Worker] Initialization complete!');
+    workerLogger.warn('[Worker] Initialization complete!');
 
     // Send success message immediately
     self.postMessage({
@@ -228,7 +244,7 @@ async function initSegmenter() {
     });
   } catch (error) {
     isInitializing = false;
-    console.error('[Worker] Initialization failed:', error);
+    workerLogger.error('[Worker] Initialization failed:', error);
 
     // Send failure message immediately
     self.postMessage({
@@ -283,7 +299,7 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
       internalResolution = 'high'; // Better quality for lower resolutions
     }
 
-    console.log(
+    workerLogger.info(
       `[Worker] Segmentation: ${imageBitmap.width}x${imageBitmap.height} using internal resolution '${internalResolution}'`
     );
 
@@ -315,7 +331,7 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
               z: kp.z || 0,
             }));
 
-            console.log(`[Worker] Face detected: ${faceLandmarks.length} landmarks`);
+            workerLogger.info(`[Worker] Face detected: ${faceLandmarks.length} landmarks`);
 
             // Send landmarks to main thread
             self.postMessage({
@@ -324,16 +340,16 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
               timestamp: performance.now(),
             });
           } else {
-            console.log('[Worker] No face detected');
+            workerLogger.info('[Worker] No face detected');
           }
         } else {
-          console.log(
+          workerLogger.info(
             `[Worker] Skipping face detection for high resolution: ${imageBitmap.width}x${imageBitmap.height}`
           );
         }
       } catch (faceError) {
         // Face detection failed, continue without landmarks
-        console.warn('[Worker] Face detection error:', faceError);
+        workerLogger.warn('[Worker] Face detection error:', faceError);
       }
     }
 
@@ -351,7 +367,7 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
         autoFrameTransform = calculateAutoFrameTransform(segmentation);
         cachedAutoFrameTransform = autoFrameTransform;
         lastAutoFrameCalc = now;
-        console.log('[Worker] Auto-frame recalculated');
+        workerLogger.info('[Worker] Auto-frame recalculated');
       }
     }
 
@@ -373,7 +389,7 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
     self.postMessage(response, [maskBitmap]);
     imageBitmap.close();
   } catch (error) {
-    console.error('[Worker] Processing failed:', error);
+    workerLogger.error('[Worker] Processing failed:', error);
     imageBitmap.close();
     self.postMessage({ type: 'error', error: String(error) });
   }

@@ -1,6 +1,6 @@
 import type { FaceLandmarks } from '../types/face';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
-import { WORKER_INIT_TIMEOUT_MS } from '../constants/ai';
+import { WORKER_INIT_TIMEOUT_MS, SEGMENTATION_TIMEOUT_MS } from '../constants/ai';
 import { logger } from './logger';
 
 // Import the worker using Vite's standard syntax.
@@ -64,7 +64,7 @@ class SegmentationManager {
           return this.mode;
         }
       } catch (e) {
-        console.warn('[SegmentationManager] Worker initialization failed:', e);
+        logger.warn('SegmentationManager', 'Worker initialization failed', e);
       }
     }
 
@@ -99,8 +99,9 @@ class SegmentationManager {
         const timeoutId = setTimeout(() => {
           if (!resolved) {
             resolved = true;
-            console.error(
-              '[SegmentationManager] Worker initialization timeout (30s) - falling back to main thread'
+            logger.error(
+              'SegmentationManager',
+              'Worker initialization timeout (30s) - falling back to main thread'
             );
             this.terminateWorker();
             resolve(false);
@@ -121,11 +122,11 @@ class SegmentationManager {
             clearTimeout(timeoutId);
 
             if (response.success) {
-              console.warn('[SegmentationManager] Worker initialized successfully');
+              logger.info('SegmentationManager', 'Worker initialized successfully');
               this.setupWorkerMessageHandler();
               resolve(true);
             } else {
-              console.warn('[SegmentationManager] Worker init failed:', response.error);
+              logger.error('SegmentationManager', 'Worker init failed', response.error);
               this.terminateWorker();
               resolve(false);
             }
@@ -137,7 +138,7 @@ class SegmentationManager {
           if (!resolved) {
             resolved = true;
             clearTimeout(timeoutId);
-            console.error('[SegmentationManager] Worker error during init:', error);
+            logger.error('SegmentationManager', 'Worker error during init', error);
             this.terminateWorker();
             resolve(false);
           }
@@ -150,7 +151,7 @@ class SegmentationManager {
         };
         this.worker.postMessage(initMessage);
       } catch (e) {
-        console.error('[SegmentationManager] Failed to create worker:', e);
+        logger.error('SegmentationManager', 'Failed to create worker', e);
         resolve(false);
       }
     });
@@ -160,12 +161,7 @@ class SegmentationManager {
     if (!this.worker) return;
 
     this.worker.onmessage = (event: MessageEvent<unknown>) => {
-      const response = event.data as {
-        type: string;
-        mask: ImageBitmap;
-        error: string;
-        autoFrameTransform?: AutoFrameTransform;
-      };
+      const response = event.data as any;
 
       switch (response.type) {
         case 'mask': {
@@ -205,22 +201,51 @@ class SegmentationManager {
             landmarks: Array<{ x: number; y: number; z: number }>;
           };
           if (this._onFaceLandmarks && landmarkResponse.landmarks) {
-            logger.debug('SegmentationManager', `Received ${landmarkResponse.landmarks.length} face landmarks`);
+            logger.debug(
+              'SegmentationManager',
+              `Received ${landmarkResponse.landmarks.length} face landmarks`
+            );
             this._onFaceLandmarks(landmarkResponse.landmarks);
           } else {
-            logger.warn('SegmentationManager', 'Received face-landmarks but no callback or landmarks');
+            logger.warn(
+              'SegmentationManager',
+              'Received face-landmarks but no callback or landmarks'
+            );
           }
           break;
         }
 
         case 'error': {
-          console.error('[SegmentationManager] Worker error:', response.error);
+          logger.error('SegmentationManager', 'Worker error', response.error);
           this.pendingCallbacks.forEach((callback) => {
             callback({ mask: null, error: response.error });
           });
           this.pendingCallbacks.clear();
           break;
         }
+
+        case 'log': {
+          const logResponse = response as { level: string; message: string; data?: any };
+          switch (logResponse.level) {
+            case 'info':
+              logger.info('SegmentationWorker', logResponse.message, logResponse.data);
+              break;
+            case 'warn':
+              logger.warn('SegmentationWorker', logResponse.message, logResponse.data);
+              break;
+            case 'error':
+              logger.error('SegmentationWorker', logResponse.message, logResponse.data);
+              break;
+            case 'debug':
+              logger.debug('SegmentationWorker', logResponse.message, logResponse.data);
+              break;
+          }
+          break;
+        }
+
+        default:
+          logger.warn('SegmentationManager', `Unknown message type: ${response.type}`);
+          break;
       }
     };
   }
@@ -258,7 +283,7 @@ class SegmentationManager {
           this.pendingCallbacks.delete(id);
           resolve({ mask: null, error: 'Segmentation timeout' });
         }
-      }, 1000);
+      }, SEGMENTATION_TIMEOUT_MS);
     });
   }
 
