@@ -39,20 +39,36 @@ class Logger {
     }
   }
 
-  debug(component: string, message: string, data?: unknown) {
-    this.log('debug', component, message, data);
+  debug(component: string, message: string | unknown, data?: unknown) {
+    if (typeof message === 'string') {
+      this.log('debug', component, message, data);
+    } else {
+      this.log('debug', component, '', message);
+    }
   }
 
-  info(component: string, message: string, data?: unknown) {
-    this.log('info', component, message, data);
+  info(component: string, message: string | unknown, data?: unknown) {
+    if (typeof message === 'string') {
+      this.log('info', component, message, data);
+    } else {
+      this.log('info', component, '', message);
+    }
   }
 
-  warn(component: string, message: string, data?: unknown) {
-    this.log('warn', component, message, data);
+  warn(component: string, message: string | unknown, data?: unknown) {
+    if (typeof message === 'string') {
+      this.log('warn', component, message, data);
+    } else {
+      this.log('warn', component, '', message);
+    }
   }
 
-  error(component: string, message: string, data?: unknown) {
-    this.log('error', component, message, data);
+  error(component: string, message: string | unknown, data?: unknown) {
+    if (typeof message === 'string') {
+      this.log('error', component, message, data);
+    } else {
+      this.log('error', component, '', message);
+    }
   }
 
   getLogs() {

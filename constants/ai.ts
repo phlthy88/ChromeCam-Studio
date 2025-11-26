@@ -21,8 +21,20 @@ export const LUMINANCE_BLUE_COEFFICIENT = 0.0722;
 // Model loading timeout (30 seconds)
 export const MODEL_LOAD_TIMEOUT_MS = 30000;
 
+// Worker initialization timeout
+export const WORKER_INIT_TIMEOUT_MS = 30000;
+
 // Segmentation processing interval (process every 3rd frame for performance)
 export const SEGMENTATION_FRAME_SKIP = 3;
+
+// AI inference frame skip factor
+export const INFERENCE_FRAME_SKIP_FACTOR = 3;
+
+// Segmentation promise timeout
+export const SEGMENTATION_TIMEOUT_MS = 1000;
+
+// Auto-frame throttling interval
+export const AUTOFRAME_THROTTLE_MS = 500;
 
 // Face tracking smoothing factor
 export const FACE_TRACKING_SMOOTHING = 0.3;

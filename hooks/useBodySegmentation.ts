@@ -4,6 +4,7 @@ import type { BodySegmenter, BarcodeDetector } from '../types/media';
 import { segmentationManager, type SegmentationMode } from '../utils/segmentationManager';
 import { FaceLandmarks } from '../types/face';
 import { logger } from '../utils/logger';
+import { INFERENCE_FRAME_SKIP_FACTOR } from '../constants/ai';
 
 // Constants to avoid GC in the inference loop
 const FOREGROUND_COLOR = { r: 255, g: 255, b: 255, a: 255 };
@@ -75,7 +76,7 @@ export function useBodySegmentation({
 
       // Prevent concurrent loading attempts
       if (scriptsLoadingPromise) {
-        console.log('[useBodySegmentation] AI scripts loading in progress, waiting...');
+        logger.info('useBodySegmentation', 'AI scripts loading in progress, waiting...');
         await scriptsLoadingPromise;
         return;
       }
@@ -96,8 +97,9 @@ export function useBodySegmentation({
                 script.crossOrigin = 'anonymous';
 
                 script.onload = () => {
-                  console.log(
-                    `[useBodySegmentation] Successfully loaded script: ${url.split('/').pop()}`
+                  logger.debug(
+                    'useBodySegmentation',
+                    `Trying alternative script loading for ${url} (attempt ${retries})`
                   );
                   resolve();
                 };
@@ -108,9 +110,7 @@ export function useBodySegmentation({
                     error
                   );
                   if (retries > 0) {
-                    console.log(
-                      `[useBodySegmentation] Retrying script load (${retries} attempts left): ${url.split('/').pop()}`
-                    );
+                    logger.debug('useBodySegmentation', `Script loaded successfully: ${url}`);
                     setTimeout(() => {
                       loadScript(url, retries - 1)
                         .then(resolve)
@@ -127,7 +127,7 @@ export function useBodySegmentation({
 
             // Load TensorFlow.js (updated to match package.json version)
             if (!window.tf) {
-              console.log('[useBodySegmentation] Loading TensorFlow.js...');
+              logger.info('useBodySegmentation', 'Loading TensorFlow.js...');
               await loadScript(
                 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
               );
@@ -140,11 +140,14 @@ export function useBodySegmentation({
               if (!window.tf) {
                 throw new Error('TensorFlow.js global not available after loading');
               }
-              console.log('[useBodySegmentation] TensorFlow.js loaded successfully');
+              logger.info('useBodySegmentation', 'TensorFlow.js loaded successfully');
             }
 
             // Load TensorFlow.js WebGL backend
-            console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            logger.info(
+              'useBodySegmentation',
+              '[useBodySegmentation] Loading TensorFlow.js WebGL backend...'
+            );
             await loadScript(
               'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
             );
@@ -152,7 +155,10 @@ export function useBodySegmentation({
 
             // Load MediaPipe Selfie Segmentation
             if (!window.bodySegmentation) {
-              console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
+              logger.info(
+                'useBodySegmentation',
+                '[useBodySegmentation] Loading MediaPipe Selfie Segmentation...'
+              );
               await loadScript(
                 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
               );
@@ -165,11 +171,17 @@ export function useBodySegmentation({
               if (!window.bodySegmentation) {
                 throw new Error('MediaPipe Selfie Segmentation global not available after loading');
               }
-              console.log('[useBodySegmentation] MediaPipe loaded successfully');
+              logger.info(
+                'useBodySegmentation',
+                '[useBodySegmentation] MediaPipe loaded successfully'
+              );
             }
 
             // Load TensorFlow.js WebGL backend (always load for compatibility)
-            console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            logger.info(
+              'useBodySegmentation',
+              '[useBodySegmentation] Loading TensorFlow.js WebGL backend...'
+            );
             await loadScript(
               'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
             );
@@ -177,33 +189,41 @@ export function useBodySegmentation({
 
             // Load MediaPipe Selfie Segmentation
             if (!window.bodySegmentation) {
-              console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
+              logger.info(
+                'useBodySegmentation',
+                '[useBodySegmentation] Loading MediaPipe Selfie Segmentation...'
+              );
               await loadScript(
                 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
               );
               // Wait a bit for global to be set
               await new Promise((resolve) => setTimeout(resolve, 100));
-              console.log(
-                '[useBodySegmentation] MediaPipe loaded, window.bodySegmentation:',
-                !!window.bodySegmentation
-              );
             }
 
             // Load TensorFlow.js WebGL backend (always load for compatibility)
-            console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            logger.info(
+              'useBodySegmentation',
+              '[useBodySegmentation] Loading TensorFlow.js WebGL backend...'
+            );
             await loadScript(
               'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
             );
 
             // Load MediaPipe Selfie Segmentation
             if (!window.bodySegmentation) {
-              console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
+              logger.info(
+                'useBodySegmentation',
+                '[useBodySegmentation] Loading MediaPipe Selfie Segmentation...'
+              );
               await loadScript(
                 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
               );
             }
 
-            console.log('[useBodySegmentation] All AI scripts loaded successfully');
+            logger.info(
+              'useBodySegmentation',
+              '[useBodySegmentation] All AI scripts loaded successfully'
+            );
             clearTimeout(timeoutId);
             resolve();
           } catch (error) {
@@ -338,14 +358,14 @@ export function useBodySegmentation({
 
           // Set up face landmarks callback
           segmentationManager.setFaceLandmarksCallback((landmarks) => {
-            console.log(`[useBodySegmentation] Setting ${landmarks.length} face landmarks`);
+            logger.debug('useBodySegmentation', `Setting ${landmarks.length} face landmarks`);
             if (isMounted) {
               setFaceLandmarks(landmarks);
             }
           });
         } else if (mode === 'disabled') {
           // Worker unavailable, fall back to main thread
-          console.log('[AI] Worker unavailable, falling back to main thread');
+          logger.warn('useBodySegmentation', 'Worker unavailable, falling back to main thread');
           setLoadingStatus('Worker unavailable, using main thread...');
           await initMainThread();
         } else {
@@ -395,7 +415,7 @@ export function useBodySegmentation({
     let animationFrameId: number;
     let isProcessing = false; // CRITICAL: Semaphore to prevent call stacking
     let frameSkipCounter = 0;
-    const FRAME_SKIP_INTERVAL = 3; // Process 1 out of every 4 frames (~15 FPS @ 60Hz)
+    const FRAME_SKIP_INTERVAL = INFERENCE_FRAME_SKIP_FACTOR;
 
     const inferenceLoop = async () => {
       if (!isLoopActive || segmentationMode === 'disabled') {

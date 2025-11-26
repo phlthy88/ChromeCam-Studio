@@ -1,5 +1,7 @@
 import type { FaceLandmarks } from '../types/face';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
+import { WORKER_INIT_TIMEOUT_MS } from '../constants/ai';
+import { logger } from './logger';
 
 // Import the worker using Vite's standard syntax.
 // Vite will handle bundling the worker and its dependencies.
@@ -103,7 +105,7 @@ class SegmentationManager {
             this.terminateWorker();
             resolve(false);
           }
-        }, 30000);
+        }, WORKER_INIT_TIMEOUT_MS);
 
         this.worker.onmessage = (event: MessageEvent<unknown>) => {
           const response = event.data as {
@@ -203,14 +205,10 @@ class SegmentationManager {
             landmarks: Array<{ x: number; y: number; z: number }>;
           };
           if (this._onFaceLandmarks && landmarkResponse.landmarks) {
-            console.log(
-              `[SegmentationManager] Received ${landmarkResponse.landmarks.length} face landmarks`
-            );
+            logger.debug('SegmentationManager', `Received ${landmarkResponse.landmarks.length} face landmarks`);
             this._onFaceLandmarks(landmarkResponse.landmarks);
           } else {
-            console.warn(
-              '[SegmentationManager] Received face-landmarks but no callback or landmarks'
-            );
+            logger.warn('SegmentationManager', 'Received face-landmarks but no callback or landmarks');
           }
           break;
         }

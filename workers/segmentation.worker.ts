@@ -20,14 +20,6 @@ import {
 // POLYFILLS for Worker Environment
 // =============================================================================
 
-// Ensure atob is available for TensorFlow.js base64 decoding
-if (typeof atob === 'undefined') {
-  // Copy atob from self (worker global) to globalThis
-  if (typeof self !== 'undefined' && (self as any).atob) {
-    (globalThis as any).atob = (self as any).atob;
-  }
-}
-
 // =============================================================================
 // Worker State
 // =============================================================================

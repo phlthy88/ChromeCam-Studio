@@ -15,6 +15,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { WebGLLutRenderer, WebGLFaceWarpRenderer, applyLutSoftware } from '../utils/webglLut';
 import { getCinematicLut } from '../data/cinematicLuts';
 import { FaceLandmarks } from '../types/face';
+import { logger } from '../utils/logger';
 import {
   WEBGL_STABILIZATION_DELAY_MS,
   WEBGL_CONTEXT_RETRY_DELAY_MS,
@@ -89,7 +90,7 @@ export function useWebGLRenderer({
   });
 
   if (settingsKey !== lastSettingsKeyRef.current) {
-    console.log('[useWebGLRenderer] Beauty settings check:', {
+    logger.debug('Beauty settings check:', {
       hasBeautySettings,
       beautySettings: beautySettings
         ? {
@@ -267,11 +268,11 @@ export function useWebGLRenderer({
 
             // Only initialize face warp renderer AFTER WebGL is confirmed to work
             if (enabled && !faceWarpRendererRef.current) {
-              console.log('[useWebGLRenderer] 🚀 Initializing face warp renderer...');
+              logger.info('useWebGLRenderer', '[useWebGLRenderer] 🚀 Initializing face warp renderer...');
               const faceWarpRenderer = new WebGLFaceWarpRenderer();
               const warpInitialized = faceWarpRenderer.initialize(webglCanvasRef.current);
               if (warpInitialized) {
-                console.log('[useWebGLRenderer] ✅ Face warp renderer initialized successfully');
+                logger.info('useWebGLRenderer', '[useWebGLRenderer] ✅ Face warp renderer initialized successfully');
                 faceWarpRendererRef.current = faceWarpRenderer;
               } else {
                 console.warn('[useWebGLRenderer] ❌ Failed to initialize face warp renderer');
@@ -324,7 +325,7 @@ export function useWebGLRenderer({
   // Update face landmarks when they change
   useEffect(() => {
     if (faceWarpRendererRef.current && faceLandmarks) {
-      console.log(`[useWebGLRenderer] Updating landmarks: ${faceLandmarks.length} points`);
+      logger.debug('useWebGLRenderer', `Updating landmarks: ${faceLandmarks.length} points`);
       faceWarpRendererRef.current.updateLandmarks(faceLandmarks);
     } else if (faceLandmarks) {
       console.warn('[useWebGLRenderer] Face landmarks received but no faceWarpRenderer');
@@ -364,7 +365,7 @@ export function useWebGLRenderer({
       let processedSource: HTMLVideoElement | HTMLCanvasElement | ImageBitmap = source;
 
       if (hasBeautySettings && beautySettings && faceLandmarks) {
-        console.log(
+        logger.info(
           '[useWebGLRenderer] Applying beauty filters with',
           faceLandmarks.length,
           'landmarks'
@@ -376,7 +377,7 @@ export function useWebGLRenderer({
             faceWarpRendererRef.current.render(source, beautySettings);
             if (faceWarpRendererRef.current.canvas) {
               processedSource = faceWarpRendererRef.current.canvas;
-              console.log('[useWebGLRenderer] WebGL2 beauty filters applied successfully');
+              logger.info('useWebGLRenderer', '[useWebGLRenderer] WebGL2 beauty filters applied successfully');
             }
           } catch (error) {
             console.warn('[useWebGLRenderer] WebGL2 beauty rendering failed:', error);
@@ -385,7 +386,7 @@ export function useWebGLRenderer({
 
         // Always apply Canvas2D fallback if WebGL failed or insufficient landmarks
         if (processedSource === source) {
-          console.log('[useWebGLRenderer] Applying Canvas2D beauty fallback');
+          logger.info('useWebGLRenderer', '[useWebGLRenderer] Applying Canvas2D beauty fallback');
           processedSource = applyCanvas2DBeautyFilters(source, beautySettings, faceLandmarks);
         }
       }
@@ -600,7 +601,7 @@ export function useWebGLRenderer({
         // Put the modified image data back
         ctx.putImageData(imageData, 0, 0);
 
-        console.log('[useWebGLRenderer] Canvas2D beauty filters applied');
+        logger.info('useWebGLRenderer', '[useWebGLRenderer] Canvas2D beauty filters applied');
         return canvas;
       } catch (error) {
         console.warn('[useWebGLRenderer] Canvas2D beauty filters failed:', error);
