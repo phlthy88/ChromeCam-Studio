@@ -498,11 +498,15 @@ export function useWebGLRenderer({
         // Simple box blur
         for (let dy = -radiusInt; dy <= radiusInt; dy++) {
           for (let dx = -radiusInt; dx <= radiusInt; dx++) {
-            const idx = ((y + dy) * width + (x + dx)) * 4;
-            r += tempData[idx];
-            g += tempData[idx + 1];
-            b += tempData[idx + 2];
-            count++;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              const idx = (ny * width + nx) * 4;
+              r += tempData[idx] || 0;
+              g += tempData[idx + 1] || 0;
+              b += tempData[idx + 2] || 0;
+              count++;
+            }
           }
         }
 
@@ -525,15 +529,13 @@ export function useWebGLRenderer({
     const factor = (259 * (contrast * 255)) / (255 * (259 - contrast));
 
     for (let i = 0; i < data.length; i += 4) {
-      data[i] = Math.max(0, Math.min(255, factor * (data[i] - 128) + 128 + brightness * 255));
-      data[i + 1] = Math.max(
-        0,
-        Math.min(255, factor * (data[i + 1] - 128) + 128 + brightness * 255)
-      );
-      data[i + 2] = Math.max(
-        0,
-        Math.min(255, factor * (data[i + 2] - 128) + 128 + brightness * 255)
-      );
+      const r = data[i] || 0;
+      const g = data[i + 1] || 0;
+      const b = data[i + 2] || 0;
+
+      data[i] = Math.max(0, Math.min(255, factor * (r - 128) + 128 + brightness * 255));
+      data[i + 1] = Math.max(0, Math.min(255, factor * (g - 128) + 128 + brightness * 255));
+      data[i + 2] = Math.max(0, Math.min(255, factor * (b - 128) + 128 + brightness * 255));
     }
   };
 
