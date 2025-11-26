@@ -4,6 +4,7 @@
 // Vite will bundle these into the worker file
 import * as tf from '@tensorflow/tfjs';
 import * as bodyPix from '@tensorflow-models/body-pix';
+import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 
 // =============================================================================
 // POLYFILLS for Worker Environment
@@ -22,9 +23,35 @@ if (typeof atob === 'undefined') {
 // =============================================================================
 
 let net: bodyPix.BodyPix | null = null;
+let faceDetector: faceLandmarksDetection.FaceLandmarksDetector | null = null;
 let isInitialized = false;
 let isInitializing = false;
 let autoFrameEnabled = false;
+
+// =============================================================================
+// Face Detection Initialization
+// =============================================================================
+
+async function initFaceDetector(): Promise<boolean> {
+  try {
+    console.log('[Worker] Loading Face Mesh model...');
+
+    const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
+    const detectorConfig: faceLandmarksDetection.MediaPipeFaceMeshTfjsModelConfig = {
+      runtime: 'tfjs',
+      refineLandmarks: true, // Enable iris tracking for better eye detection
+      maxFaces: 1, // Optimize for single face
+    };
+
+    faceDetector = await faceLandmarksDetection.createDetector(model, detectorConfig);
+
+    console.log('[Worker] Face Mesh model loaded successfully');
+    return true;
+  } catch (error) {
+    console.error('[Worker] Face Mesh loading failed:', error);
+    return false;
+  }
+}
 
 // =============================================================================
 // Auto-Frame Transform Calculation
@@ -147,6 +174,10 @@ async function initSegmenter() {
       quantBytes: 4, // Use 4 bytes instead of 2 to avoid quantization issues
     });
 
+    // Initialize face detection
+    console.warn('[Worker] Loading Face Mesh model...');
+    await initFaceDetector();
+
     isInitialized = true;
     isInitializing = false;
     console.warn('[Worker] Initialization complete!');
@@ -199,6 +230,40 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
       internalResolution: 'medium',
       segmentationThreshold: 0.7,
     });
+
+    // Run face detection
+    let faceLandmarks: Array<{ x: number; y: number; z: number }> | null = null;
+
+    if (faceDetector) {
+      try {
+        const faces = await faceDetector.estimateFaces(canvas as unknown as HTMLCanvasElement, {
+          flipHorizontal: false,
+        });
+
+        if (faces.length > 0 && faces[0]?.keypoints) {
+          // Extract normalized keypoints
+          faceLandmarks = faces[0].keypoints.map((kp) => ({
+            x: kp.x / imageBitmap.width,
+            y: kp.y / imageBitmap.height,
+            z: kp.z || 0,
+          }));
+
+          console.log(`[Worker] Face detected: ${faceLandmarks.length} landmarks`);
+
+          // Send landmarks to main thread
+          self.postMessage({
+            type: 'face-landmarks',
+            landmarks: faceLandmarks,
+            timestamp: performance.now(),
+          });
+        } else {
+          console.log('[Worker] No face detected');
+        }
+      } catch (faceError) {
+        // Face detection failed, continue without landmarks
+        console.warn('[Worker] Face detection error:', faceError);
+      }
+    }
 
     // Convert to mask
     const maskBitmap = await segmentationToMask(segmentation);

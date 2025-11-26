@@ -168,6 +168,13 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     settings,
   });
 
+  // Check if beauty effects are active
+  const isBeautyActive =
+    settings.eyeEnlargement > 0 ||
+    settings.noseSlimming > 0 ||
+    settings.jawSlimming > 0 ||
+    settings.mouthScaling > 0;
+
   // Canvas rendering with effects
   useVideoRenderer({
     videoRef,
@@ -326,7 +333,10 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
       ></div>
 
       {/* Status Indicators (Top Right) - Responsive positioning */}
-      {(isAiActive || isAudioProcessing || (settings.autoLowLight && autoGain > 5)) &&
+      {(isAiActive ||
+        isAudioProcessing ||
+        (settings.autoLowLight && autoGain > 5) ||
+        (isBeautyActive && faceLandmarks)) &&
         !isCompareActive && (
           <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-20 flex flex-col gap-1.5 sm:gap-2 items-end pointer-events-none">
             {isAudioProcessing && (
@@ -357,6 +367,26 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                 </span>
                 <span className="text-[10px] sm:md-label-small text-on-surface-variant hidden sm:inline">
                   AI
+                </span>
+              </div>
+            )}
+            {isBeautyActive && faceLandmarks && (
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 bg-pink-container/90 backdrop-blur-sm rounded-full border border-pink/30 shadow-sm">
+                <svg
+                  className="w-3 h-3 sm:w-4 sm:h-4 text-on-pink-container"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
+                </svg>
+                <span className="text-[10px] sm:md-label-small text-on-pink-container hidden sm:inline">
+                  Beauty
                 </span>
               </div>
             )}

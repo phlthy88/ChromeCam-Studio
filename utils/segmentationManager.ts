@@ -201,7 +201,14 @@ class SegmentationManager {
             landmarks: Array<{ x: number; y: number; z: number }>;
           };
           if (this._onFaceLandmarks && landmarkResponse.landmarks) {
+            console.log(
+              `[SegmentationManager] Received ${landmarkResponse.landmarks.length} face landmarks`
+            );
             this._onFaceLandmarks(landmarkResponse.landmarks);
+          } else {
+            console.warn(
+              '[SegmentationManager] Received face-landmarks but no callback or landmarks'
+            );
           }
           break;
         }

@@ -170,6 +170,7 @@ export function useBodySegmentation({
 
           // Set up face landmarks callback
           segmentationManager.setFaceLandmarksCallback((landmarks) => {
+            console.log(`[useBodySegmentation] Setting ${landmarks.length} face landmarks`);
             if (isMounted) {
               setFaceLandmarks(landmarks);
             }

@@ -202,12 +202,15 @@ export function useWebGLRenderer({
         try {
           if (!webglCanvasRef.current) return;
 
-          // Initialize face warp renderer when beauty effects are enabled
-          if (hasBeautySettings && !faceWarpRendererRef.current) {
+          // Initialize face warp renderer when AI is enabled (for landmark processing)
+          if (enabled && !faceWarpRendererRef.current) {
             const faceWarpRenderer = new WebGLFaceWarpRenderer();
             const initialized = faceWarpRenderer.initialize(webglCanvasRef.current);
             if (initialized) {
+              console.log('[useWebGLRenderer] Face warp renderer initialized');
               faceWarpRendererRef.current = faceWarpRenderer;
+            } else {
+              console.warn('[useWebGLRenderer] Failed to initialize face warp renderer');
             }
           }
 
@@ -262,7 +265,10 @@ export function useWebGLRenderer({
   // Update face landmarks when they change
   useEffect(() => {
     if (faceWarpRendererRef.current && faceLandmarks) {
+      console.log(`[useWebGLRenderer] Updating landmarks: ${faceLandmarks.length} points`);
       faceWarpRendererRef.current.updateLandmarks(faceLandmarks);
+    } else if (faceLandmarks) {
+      console.warn('[useWebGLRenderer] Face landmarks received but no faceWarpRenderer');
     }
   }, [faceLandmarks]);
 
@@ -299,9 +305,20 @@ export function useWebGLRenderer({
       let processedSource: HTMLVideoElement | HTMLCanvasElement | ImageBitmap = source;
 
       if (hasBeautySettings && faceWarpRendererRef.current && beautySettings && faceLandmarks) {
+        console.log(`[useWebGLRenderer] Applying beauty effects:`, {
+          eyeEnlargement: beautySettings.eyeEnlargement,
+          noseSlimming: beautySettings.noseSlimming,
+          jawSlimming: beautySettings.jawSlimming,
+          mouthScaling: beautySettings.mouthScaling,
+          faceLandmarks: faceLandmarks.length,
+        });
         try {
           // Apply face warp rendering
-          faceWarpRendererRef.current.render(source, beautySettings);
+          const warpedCanvas = faceWarpRendererRef.current.render(source, beautySettings);
+          console.log(
+            '[useWebGLRenderer] Face warp render completed, warped canvas:',
+            warpedCanvas
+          );
           // Use the warped canvas as the source for LUT processing
           if (faceWarpRendererRef.current.canvas) {
             processedSource = faceWarpRendererRef.current.canvas;
