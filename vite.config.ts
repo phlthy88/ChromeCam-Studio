@@ -85,17 +85,18 @@ export default defineConfig(({ mode }) => {
         },
       },
       // =========================================================================
-      // WORKER CONFIG: Use 'iife' format for development to ensure proper polyfill setup
-      // This ensures imports are bundled sequentially and polyfills are available
+      // WORKER CONFIG: Use 'es' format for consistency with production
       // =========================================================================
       worker: {
-        format: 'iife',
+        format: 'es',
         plugins: () => [react()],
         rollupOptions: {
           output: {
             entryFileNames: 'workers/[name].[hash].js',
+            manualChunks: {
+              'tfjs-worker': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
+            },
           },
-          external: [], // Ensure no externals in worker
         },
       },
       clearScreen: true,
