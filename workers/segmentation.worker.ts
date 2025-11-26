@@ -7,74 +7,43 @@
 
   // Base64 functions
   if (typeof (self as any).atob === 'undefined') {
-    (self as any).atob = (function() {
-      // Base64 decoding for worker environment
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-      return function(input: string) {
-        let str = input.replace(/=+$/, '');
-        let output = '';
-
-        if (str.length % 4 === 1) {
-          throw new Error('Invalid base64 string');
-        }
-
-        for (let bc = 0, bs = 0, buffer, i = 0; buffer = str.charAt(i++); ~buffer) {
-          buffer = chars.indexOf(buffer);
-          bc = (bc << 6) | buffer;
-          bs++;
-          if (bs % 4 === 0) {
-            output += String.fromCharCode((bc >> 16) & 0xFF, (bc >> 8) & 0xFF, bc & 0xFF);
-            bc = 0;
-          }
-        }
-
-        // Handle remaining bytes
-        switch (str.length % 4) {
-          case 2:
-            output += String.fromCharCode((bc >> 10) & 0xFF);
-            break;
-          case 3:
-            output += String.fromCharCode((bc >> 16) & 0xFF, (bc >> 8) & 0xFF);
-            break;
-        }
-
-        return output;
-      };
-    })();
+    (self as any).atob = function(input: string) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+      let str = String(input).replace(/=+$/, '');
+      if (str.length % 4 === 1) {
+        throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
+      }
+      let output = '';
+      for (
+        let bc = 0, bs = 0, buffer, i = 0;
+        buffer = str.charAt(i++);
+        ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer,
+          bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0
+      ) {
+        buffer = chars.indexOf(buffer);
+      }
+      return output;
+    };
   }
 
   if (typeof (self as any).btoa === 'undefined') {
-    (self as any).btoa = (function() {
-      // Base64 encoding for worker environment
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-      return function(input: string) {
-        let result = '';
-        let i = 0;
-        const length = input.length;
-
-        while (i < length) {
-          const a = i < length ? input.charCodeAt(i++) : 0;
-          const b = i < length ? input.charCodeAt(i++) : 0;
-          const c = i < length ? input.charCodeAt(i++) : 0;
-          const bitmap = (a << 16) | (b << 8) | c;
-
-          result += chars.charAt((bitmap >> 18) & 63) +
-                    chars.charAt((bitmap >> 12) & 63) +
-                    chars.charAt((bitmap >> 6) & 63) +
-                    chars.charAt(bitmap & 63);
+    (self as any).btoa = function(input: string) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+      let str = String(input);
+      let output = '';
+      for (
+        let block, charCode, i = 0, map = chars;
+        str.charAt(i | 0) || (map = '=', i % 1);
+        output += map.charAt(63 & block >> 8 - i % 1 * 8)
+      ) {
+        charCode = str.charCodeAt(i += 3/4);
+        if (charCode > 0xFF) {
+          throw new Error("'btoa' failed: The string to be encoded contains characters outside of the Latin1 range.");
         }
-
-        // Replace padding characters based on input length
-        const rest = length % 3;
-        if (rest === 1) {
-          result = result.slice(0, -2) + '==';
-        } else if (rest === 2) {
-          result = result.slice(0, -1) + '=';
-        }
-
-        return result;
-      };
-    })();
+        block = block << 8 | charCode;
+      }
+      return output;
+    };
   }
 
   // TextEncoder and TextDecoder might be needed by TensorFlow
