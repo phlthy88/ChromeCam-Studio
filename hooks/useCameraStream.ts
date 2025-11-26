@@ -461,11 +461,32 @@ export function useCameraStream({
       }
 
       if (hasChanges) {
+        // Check if track is still valid before applying constraints
+        if (track.readyState === 'ended' || track.readyState !== 'live') {
+          console.debug(
+            '[Camera] Skipping constraint application - track not ready:',
+            track.readyState
+          );
+          return;
+        }
+
         const constraints: ExtendedMediaTrackConstraints = { advanced: [advancedConstraint] };
         try {
           await track.applyConstraints(constraints as MediaTrackConstraints);
         } catch (e) {
-          console.warn('[Camera] Failed to apply hardware constraints:', e);
+          // Filter out common expected errors to reduce console noise
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          if (
+            errorMessage.includes('Invalid state') ||
+            errorMessage.includes('The associated Track is in an invalid state')
+          ) {
+            console.debug(
+              '[Camera] Track in invalid state for constraints (expected):',
+              track.readyState
+            );
+          } else {
+            console.warn('[Camera] Failed to apply hardware constraints:', e);
+          }
         }
       }
     };
