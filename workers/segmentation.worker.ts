@@ -70,8 +70,31 @@ function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegment
   let maxY = 0;
   let found = false;
 
-  for (let y = 0; y < height; y += 8) {
-    for (let x = 0; x < width; x += 8) {
+  // 🎯 ADAPTIVE STRIDE: Higher resolutions get more aggressive downsampling
+  const pixelCount = width * height;
+  let stride = 8; // Default stride
+
+  if (pixelCount > 3840 * 2160) {
+    // 8K+
+    stride = 32;
+  } else if (pixelCount > 2560 * 1440) {
+    // 1440p+
+    stride = 24;
+  } else if (pixelCount > 1920 * 1080) {
+    // 1080p+
+    stride = 16;
+  } else if (pixelCount > 1280 * 720) {
+    // 720p+
+    stride = 12;
+  }
+  // 720p and below: use stride = 8
+
+  console.log(
+    `[Worker] Auto-frame: ${width}x${height} (${pixelCount.toLocaleString()}px) using stride ${stride}`
+  );
+
+  for (let y = 0; y < height; y += stride) {
+    for (let x = 0; x < width; x += stride) {
       const idx = y * width + x;
       if (data[idx] === 1) {
         if (x < minX) minX = x;
@@ -228,41 +251,75 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
 
     ctx.drawImage(imageBitmap, 0, 0);
 
-    // Run segmentation
+    // Run segmentation with adaptive resolution
     // CASTING: BodyPix types don't officially support OffscreenCanvas yet, but it works.
+    const pixelCount = imageBitmap.width * imageBitmap.height;
+    let internalResolution: 'low' | 'medium' | 'high' | 'full' = 'medium';
+
+    // 🎯 ADAPTIVE INTERNAL RESOLUTION: Reduce processing for high resolutions
+    if (pixelCount > 3840 * 2160) {
+      // 8K+
+      internalResolution = 'low';
+    } else if (pixelCount > 2560 * 1440) {
+      // 1440p+
+      internalResolution = 'low';
+    } else if (pixelCount > 1920 * 1080) {
+      // 1080p+
+      internalResolution = 'medium';
+    } else if (pixelCount > 1280 * 720) {
+      // 720p+
+      internalResolution = 'medium';
+    } else {
+      internalResolution = 'high'; // Better quality for lower resolutions
+    }
+
+    console.log(
+      `[Worker] Segmentation: ${imageBitmap.width}x${imageBitmap.height} using internal resolution '${internalResolution}'`
+    );
+
     const segmentation = await net.segmentPerson(canvas as unknown as HTMLCanvasElement, {
       flipHorizontal: false,
-      internalResolution: 'medium',
+      internalResolution,
       segmentationThreshold: 0.7,
     });
 
-    // Run face detection
+    // Run face detection (optimized for high resolutions)
     let faceLandmarks: Array<{ x: number; y: number; z: number }> | null = null;
 
     if (faceDetector) {
       try {
-        const faces = await faceDetector.estimateFaces(canvas as unknown as HTMLCanvasElement, {
-          flipHorizontal: false,
-        });
+        // 🎯 ADAPTIVE FACE DETECTION: Skip face detection for very high resolutions to maintain performance
+        const pixelCount = imageBitmap.width * imageBitmap.height;
+        const shouldSkipFaceDetection = pixelCount > 3840 * 2160 && Math.random() < 0.5; // Skip 50% of frames for 8K+
 
-        if (faces.length > 0 && faces[0]?.keypoints) {
-          // Extract normalized keypoints
-          faceLandmarks = faces[0].keypoints.map((kp) => ({
-            x: kp.x / imageBitmap.width,
-            y: kp.y / imageBitmap.height,
-            z: kp.z || 0,
-          }));
-
-          console.log(`[Worker] Face detected: ${faceLandmarks.length} landmarks`);
-
-          // Send landmarks to main thread
-          self.postMessage({
-            type: 'face-landmarks',
-            landmarks: faceLandmarks,
-            timestamp: performance.now(),
+        if (!shouldSkipFaceDetection) {
+          const faces = await faceDetector.estimateFaces(canvas as unknown as HTMLCanvasElement, {
+            flipHorizontal: false,
           });
+
+          if (faces.length > 0 && faces[0]?.keypoints) {
+            // Extract normalized keypoints
+            faceLandmarks = faces[0].keypoints.map((kp) => ({
+              x: kp.x / imageBitmap.width,
+              y: kp.y / imageBitmap.height,
+              z: kp.z || 0,
+            }));
+
+            console.log(`[Worker] Face detected: ${faceLandmarks.length} landmarks`);
+
+            // Send landmarks to main thread
+            self.postMessage({
+              type: 'face-landmarks',
+              landmarks: faceLandmarks,
+              timestamp: performance.now(),
+            });
+          } else {
+            console.log('[Worker] No face detected');
+          }
         } else {
-          console.log('[Worker] No face detected');
+          console.log(
+            `[Worker] Skipping face detection for high resolution: ${imageBitmap.width}x${imageBitmap.height}`
+          );
         }
       } catch (faceError) {
         // Face detection failed, continue without landmarks

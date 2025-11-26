@@ -353,6 +353,10 @@ export function useVideoRenderer({
     '[useVideoRenderer] Calling useWebGLRenderer with faceLandmarks:',
     webGLOptions.faceLandmarks?.length || 0
   );
+  console.log(
+    '[useVideoRenderer] Calling useWebGLRenderer with resolution:',
+    videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : 'unknown'
+  );
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer(webGLOptions);
 
   // Get professional overlay functions

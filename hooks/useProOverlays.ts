@@ -210,8 +210,25 @@ export function useProOverlays(): UseProOverlaysReturn {
       bHist.fill(0);
       lHist.fill(0);
 
-      // Sample every 4th pixel for performance
-      for (let i = 0; i < data.length; i += 16) {
+      // Adaptive sampling based on resolution for performance
+      const pixelCount = width * height;
+      let sampleStep = 16; // Default: sample every 16th pixel
+
+      if (pixelCount > 3840 * 2160) {
+        // 8K+
+        sampleStep = 64;
+      } else if (pixelCount > 2560 * 1440) {
+        // 1440p+
+        sampleStep = 48;
+      } else if (pixelCount > 1920 * 1080) {
+        // 1080p+
+        sampleStep = 32;
+      } else if (pixelCount > 1280 * 720) {
+        // 720p+
+        sampleStep = 24;
+      }
+
+      for (let i = 0; i < data.length; i += sampleStep * 4) {
         const r = data[i] || 0;
         const g = data[i + 1] || 0;
         const b = data[i + 2] || 0;
@@ -288,9 +305,18 @@ export function useProOverlays(): UseProOverlaysReturn {
       // Adaptive step size based on image resolution and performance needs
       const pixelCount = width * height;
       let step = 8; // Increased from 4 to 8 for better performance
-      if (pixelCount > 1920 * 1080)
-        step = 12; // Larger step for 4K+
-      else if (pixelCount > 1280 * 720) step = 10; // Medium step for 1080p
+      if (pixelCount > 3840 * 2160)
+        // 8K+
+        step = 24;
+      else if (pixelCount > 2560 * 1440)
+        // 1440p+
+        step = 20;
+      else if (pixelCount > 1920 * 1080)
+        // 1080p+
+        step = 16;
+      else if (pixelCount > 1280 * 720)
+        // 720p+
+        step = 12;
 
       let overexposedPixels = 0;
       const maxOverexposed = Math.ceil((pixelCount / (step * step)) * 0.05); // Reduced from 10% to 5% for earlier exit
@@ -367,7 +393,24 @@ export function useProOverlays(): UseProOverlaysReturn {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = peakColor;
 
-      const step = 2;
+      // Adaptive step size for focus peaking based on resolution
+      const pixelCount = width * height;
+      let step = 2; // Default step
+
+      if (pixelCount > 3840 * 2160) {
+        // 8K+
+        step = 8;
+      } else if (pixelCount > 2560 * 1440) {
+        // 1440p+
+        step = 6;
+      } else if (pixelCount > 1920 * 1080) {
+        // 1080p+
+        step = 4;
+      } else if (pixelCount > 1280 * 720) {
+        // 720p+
+        step = 3;
+      }
+
       const threshold = 50;
 
       for (let y = step; y < height - step; y += step) {
