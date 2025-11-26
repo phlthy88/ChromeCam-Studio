@@ -335,7 +335,11 @@ export function useCameraStream({
 
   // Apply hardware constraints when settings change
   useEffect(() => {
+    let isMounted = true;
+
     const applyHardware = async () => {
+      if (!isMounted) return;
+
       const track = videoTrackRef.current;
       const caps = capabilitiesRef.current;
       if (!track || !caps) return;
@@ -480,11 +484,8 @@ export function useCameraStream({
             errorMessage.includes('Invalid state') ||
             errorMessage.includes('The associated Track is in an invalid state')
           ) {
-            console.debug(
-              '[Camera] Track in invalid state for constraints (expected):',
-              track.readyState
-            );
-          } else {
+            console.debug('[Camera] Track in invalid state (expected):', track.readyState);
+          } else if (isMounted) {
             console.warn('[Camera] Failed to apply hardware constraints:', e);
           }
         }
@@ -492,6 +493,10 @@ export function useCameraStream({
     };
 
     applyHardware();
+
+    return () => {
+      isMounted = false;
+    };
   }, [
     hardwareCapabilities,
     settings.zoom,

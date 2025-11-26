@@ -9,6 +9,8 @@ import { useWebGLRenderer } from './useWebGLRenderer';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
 
 import { FaceLandmarks } from '../types/face';
+import { PERFORMANCE } from '../constants/performance';
+import { logger } from '../utils/logger';
 
 interface FilterDef {
   css: string;
@@ -301,7 +303,7 @@ export function useVideoRenderer({
       if (landmarkUpdateCounterRef.current >= 10 || !stableLandmarksRef.current) {
         stableLandmarksRef.current = faceLandmarks;
         landmarkUpdateCounterRef.current = 0;
-        console.log('[useVideoRenderer] Face landmarks updated:', faceLandmarks.length, 'points');
+        logger.debug('useVideoRenderer', `Face landmarks updated: ${faceLandmarks.length} points`);
       }
     }
   }, [faceLandmarks]);
@@ -312,7 +314,7 @@ export function useVideoRenderer({
     settings.jawSlimming > 0 ||
     settings.mouthScaling > 0;
 
-  console.log('[useVideoRenderer] Beauty settings:', {
+  logger.debug('useVideoRenderer', 'Beauty settings updated', {
     eyeEnlargement: settings.eyeEnlargement,
     noseSlimming: settings.noseSlimming,
     jawSlimming: settings.jawSlimming,
@@ -347,13 +349,13 @@ export function useVideoRenderer({
     ]
   );
 
-  console.log(
-    '[useVideoRenderer] Calling useWebGLRenderer with faceLandmarks:',
-    webGLOptions.faceLandmarks?.length || 0
+  logger.debug(
+    'useVideoRenderer',
+    `WebGL renderer called with ${webGLOptions.faceLandmarks?.length || 0} face landmarks`
   );
-  console.log(
-    '[useVideoRenderer] Calling useWebGLRenderer with resolution:',
-    videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : 'unknown'
+  logger.debug(
+    'useVideoRenderer',
+    `Video resolution: ${videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : 'unknown'}`
   );
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer(webGLOptions);
 
@@ -456,7 +458,7 @@ export function useVideoRenderer({
 
       // Calculate current transform with smooth interpolation (optimized)
       if (autoFrame) {
-        const speed = 0.05;
+        const speed = PERFORMANCE.AUTO_FRAME_LERP_SPEED;
 
         // Calculate new transform values
         const newPanX = lerp(

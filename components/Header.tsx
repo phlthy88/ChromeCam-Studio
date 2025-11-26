@@ -143,8 +143,8 @@ const Header: React.FC<HeaderProps> = ({
                                 transition-colors duration-short2 ease-standard
                                 focus:outline-none focus-visible:bg-on-surface/[0.08]
                             "
-              title={`Theme: ${theme ? theme.charAt(0).toUpperCase() + theme.slice(1) : 'Auto'}`}
               aria-label={`Current theme: ${theme || 'Auto'}. Click to change.`}
+              title={`Theme: ${theme ? theme.charAt(0).toUpperCase() + theme.slice(1) : 'Auto'}`}
             >
               {theme === 'light' && (
                 <svg

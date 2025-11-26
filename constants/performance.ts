@@ -3,6 +3,9 @@ export const PERFORMANCE = {
   INFERENCE_INTERVAL_MS: 66, // ~15fps for AI processing
   AI_TIMEOUT_MS: 5000,
 
+  // Animation & interpolation
+  AUTO_FRAME_LERP_SPEED: 0.05, // Smooth interpolation speed for auto-framing
+
   // Frame rate limits
   PERFORMANCE_MODE_SKIP: 3,
   BALANCED_MODE_SKIP: 2,
