@@ -1,61 +1,5 @@
 // workers/segmentation.worker.ts
 
-// Self-executing function to ensure polyfills are in place before imports
-(function() {
-  // Ensure necessary functions are available in worker environment
-  // This polyfill must run before TensorFlow.js imports to handle environment issues
-
-  // Base64 functions
-  if (typeof (self as any).atob === 'undefined') {
-    (self as any).atob = function(input: string) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-      let str = String(input).replace(/=+$/, '');
-      if (str.length % 4 === 1) {
-        throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
-      }
-      let output = '';
-      for (
-        let bc = 0, bs = 0, buffer, i = 0;
-        buffer = str.charAt(i++);
-        ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer,
-          bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0
-      ) {
-        buffer = chars.indexOf(buffer);
-      }
-      return output;
-    };
-  }
-
-  if (typeof (self as any).btoa === 'undefined') {
-    (self as any).btoa = function(input: string) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-      let str = String(input);
-      let output = '';
-      for (
-        let block, charCode, i = 0, map = chars;
-        str.charAt(i | 0) || (map = '=', i % 1);
-        output += map.charAt(63 & block >> 8 - i % 1 * 8)
-      ) {
-        charCode = str.charCodeAt(i += 3/4);
-        if (charCode > 0xFF) {
-          throw new Error("'btoa' failed: The string to be encoded contains characters outside of the Latin1 range.");
-        }
-        block = block << 8 | charCode;
-      }
-      return output;
-    };
-  }
-
-  // TextEncoder and TextDecoder might be needed by TensorFlow
-  if (typeof (self as any).TextDecoder === 'undefined') {
-    (self as any).TextDecoder = (self as any).TextDecoder || (globalThis as any).TextDecoder;
-  }
-
-  if (typeof (self as any).TextEncoder === 'undefined') {
-    (self as any).TextEncoder = (self as any).TextEncoder || (globalThis as any).TextEncoder;
-  }
-})();
-
 // Import TensorFlow libraries directly
 // Vite will bundle these into the worker file
 import * as tf from '@tensorflow/tfjs';
@@ -140,19 +84,28 @@ async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentati
 
 async function initSegmenter() {
   try {
+    console.log('[Worker] Diagnostic Info:', {
+      tfVersion: tf.version.tfjs,
+      tfBackend: tf.getBackend(),
+      isWorker: typeof WorkerGlobalScope !== 'undefined',
+      isModule: typeof importScripts !== 'function',
+    });
+
+    // Set TF.js flags for worker environment
+    tf.env().set('IS_WORKER', true);
+    tf.env().set('WORKER_IS_MODULE', true);
+
     console.log('[Worker] Setting up TensorFlow.js...');
     
-    // Initialize backend
-    try {
-      await tf.setBackend('webgl');
-    } catch (e) {
-      console.warn('[Worker] WebGL backend failed, falling back to CPU', e);
-      await tf.setBackend('cpu');
-    }
-    
+    // Force WebGL backend and verify
+    await tf.setBackend('webgl');
     await tf.ready();
-    console.log('[Worker] TensorFlow.js ready with backend:', tf.getBackend());
 
+    if (tf.getBackend() !== 'webgl') {
+      throw new Error('WebGL backend not available.');
+    }
+
+    console.log('[Worker] TensorFlow.js ready with WebGL backend.');
     console.log('[Worker] Loading BodyPix model...');
     
     // Load model locally from the bundle
