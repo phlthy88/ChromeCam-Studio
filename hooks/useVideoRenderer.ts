@@ -128,9 +128,11 @@ function buildBaseFilterString(
   let baseFilter = '';
 
   if (denoise) {
-    const contrastBoost = hwContrast ? '100%' : '105%';
-    const noiseStrength = Math.min(2.0, Math.max(0.5, 1.5));
-    baseFilter += `blur(${noiseStrength}px) contrast(${contrastBoost}) brightness(102%) `;
+    // TODO: Implement proper AI-based noise reduction
+    // For now, just apply slight contrast boost to reduce visual noise perception
+    const contrastBoost = hwContrast ? '100%' : '108%';
+    const saturationBoost = '102%';
+    baseFilter += `contrast(${contrastBoost}) saturate(${saturationBoost}) brightness(102%) `;
   }
 
   const effectiveContrast = hwContrast ? 100 : contrast;

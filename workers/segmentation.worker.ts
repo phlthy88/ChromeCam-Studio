@@ -28,6 +28,11 @@ let isInitialized = false;
 let isInitializing = false;
 let autoFrameEnabled = false;
 
+// Auto-frame throttling state
+let lastAutoFrameCalc = 0;
+const AUTO_FRAME_CALC_INTERVAL = 500; // Calculate only every 500ms (2 FPS)
+let cachedAutoFrameTransform: ReturnType<typeof calculateAutoFrameTransform> = null;
+
 // =============================================================================
 // Face Detection Initialization
 // =============================================================================
@@ -268,10 +273,19 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
     // Convert to mask
     const maskBitmap = await segmentationToMask(segmentation);
 
-    // Calculate auto-frame
-    let autoFrameTransform = undefined;
+    // Calculate auto-frame (throttled to prevent bottleneck)
+    let autoFrameTransform = cachedAutoFrameTransform;
+
     if (autoFrameEnabled) {
-      autoFrameTransform = calculateAutoFrameTransform(segmentation);
+      const now = performance.now();
+      const shouldRecalculate = now - lastAutoFrameCalc >= AUTO_FRAME_CALC_INTERVAL;
+
+      if (shouldRecalculate) {
+        autoFrameTransform = calculateAutoFrameTransform(segmentation);
+        cachedAutoFrameTransform = autoFrameTransform;
+        lastAutoFrameCalc = now;
+        console.log('[Worker] Auto-frame recalculated');
+      }
     }
 
     const response: {

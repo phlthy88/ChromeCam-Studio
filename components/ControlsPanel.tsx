@@ -1327,6 +1327,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   enabled={settings.denoise}
                   onChange={(v) => update('denoise', v)}
                 />
+                <p className="text-xs text-on-surface-variant ml-1 mb-3">
+                  AI-based denoising coming soon - currently applies subtle contrast enhancement
+                </p>
 
                 <div className="pt-4 border-t border-outline-variant">
                   <Toggle
