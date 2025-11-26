@@ -224,12 +224,12 @@ export class WebGLFaceWarpRenderer {
   }
 
   /**
-   * Initialize the WebGL2 context and shaders
+   * Initialize the WebGL2 context and shaders (WebGL2 required for beauty effects)
    */
   initialize(canvas: HTMLCanvasElement): boolean {
     this._canvas = canvas;
 
-    // Get WebGL2 context (required for GLSL ES 3.0 shaders)
+    // WebGL2 is required for beauty effects due to GLSL ES 3.0 shaders
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
       premultipliedAlpha: false,
@@ -237,11 +237,14 @@ export class WebGLFaceWarpRenderer {
     }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
-      console.error(
-        '[WebGLFaceWarpRenderer] WebGL2 context creation failed - beauty effects unavailable'
+      console.warn(
+        '[WebGLFaceWarpRenderer] WebGL2 not supported - beauty effects will be disabled. ' +
+          'Please use a browser that supports WebGL2 (Chrome 56+, Firefox 51+, Safari 14.1+, Edge 79+)'
       );
       return false;
     }
+
+    console.log('[WebGLFaceWarpRenderer] WebGL2 context initialized successfully');
 
     // Compile shaders - use GLSL ES 3.0 compatible vertex shader
     const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, FACE_WARP_VERTEX);

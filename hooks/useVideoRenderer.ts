@@ -326,6 +326,7 @@ export function useVideoRenderer({
         mouthScaling: settings.mouthScaling,
       },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       settings.cinematicLut,
       settings.cinematicLutIntensity,
