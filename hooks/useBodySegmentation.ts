@@ -64,6 +64,86 @@ export function useBodySegmentation({
         return;
       }
 
+      console.log('[useBodySegmentation] Starting AI script loading process...');
+      console.log(
+        '[useBodySegmentation] Current globals - tf:',
+        !!window.tf,
+        'bodySegmentation:',
+        !!window.bodySegmentation
+      );
+
+      // Alternative loading method using different CDNs
+      const loadScriptsAlternative = async (): Promise<void> => {
+        console.log('[useBodySegmentation] Trying alternative script loading...');
+
+        try {
+          // Try to load from unpkg as fallback
+          if (!window.tf) {
+            console.log('[useBodySegmentation] Trying unpkg CDN for TensorFlow.js...');
+            await new Promise<void>((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://unpkg.com/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
+              script.crossOrigin = 'anonymous';
+              script.onload = () => {
+                console.log('[useBodySegmentation] TensorFlow.js loaded from unpkg');
+                resolve();
+              };
+              script.onerror = () => reject(new Error('Unpkg CDN failed for TensorFlow.js'));
+              document.head.appendChild(script);
+            });
+          }
+
+          if (!window.bodySegmentation) {
+            console.log('[useBodySegmentation] Trying unpkg CDN for MediaPipe...');
+            await new Promise<void>((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src =
+                'https://unpkg.com/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js';
+              script.crossOrigin = 'anonymous';
+              script.onload = () => {
+                console.log('[useBodySegmentation] MediaPipe loaded from unpkg');
+                resolve();
+              };
+              script.onerror = () => reject(new Error('Unpkg CDN failed for MediaPipe'));
+              document.head.appendChild(script);
+            });
+          }
+
+          // Verify globals are set
+          let retries = 10;
+          while ((!window.tf || !window.bodySegmentation) && retries > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            retries--;
+          }
+
+          if (!window.tf) throw new Error('TensorFlow.js global not set after alternative loading');
+          if (!window.bodySegmentation)
+            throw new Error('MediaPipe global not set after alternative loading');
+
+          console.log('[useBodySegmentation] Alternative loading successful');
+        } catch (error) {
+          console.error('[useBodySegmentation] Alternative loading failed:', error);
+          throw error;
+        }
+      };
+
+      // Test basic script loading capability
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const testScript = document.createElement('script');
+          testScript.src =
+            'data:text/javascript;base64,Y29uc29sZS5sb2coJ1NjcmlwdCBsb2FkaW5nIHRlc3QgcGFzc2VkJyk7';
+          testScript.onload = () => resolve();
+          testScript.onerror = () => reject(new Error('Basic script loading failed'));
+          document.head.appendChild(testScript);
+          setTimeout(() => resolve(), 1000); // Timeout after 1 second
+        });
+        console.log('[useBodySegmentation] Basic script loading test passed');
+      } catch (error) {
+        console.error('[useBodySegmentation] Basic script loading test failed:', error);
+        throw new Error('Browser script loading is blocked or unavailable');
+      }
+
       // Prevent concurrent loading attempts
       if (scriptsLoadingPromise) {
         console.log('[useBodySegmentation] AI scripts loading in progress, waiting...');
@@ -71,84 +151,140 @@ export function useBodySegmentation({
         return;
       }
 
-      try {
-        // Create loading promise with timeout
-        scriptsLoadingPromise = new Promise<void>((resolve, reject) => {
-          // Set timeout for overall loading
-          const timeoutId = setTimeout(() => {
-            reject(new Error('Script loading timeout after 30 seconds'));
-          }, 30000);
+      // Create loading promise with timeout
+      scriptsLoadingPromise = new Promise<void>((resolve, reject) => {
+        // Set timeout for overall loading
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Script loading timeout after 30 seconds'));
+        }, 30000);
 
-          (async () => {
-            try {
-              const loadScript = (url: string, retries = 3): Promise<void> => {
-                return new Promise((resolve, reject) => {
-                  const script = document.createElement('script');
-                  script.src = url;
-                  script.crossOrigin = 'anonymous';
+        (async () => {
+          try {
+            const loadScript = (url: string, retries = 3): Promise<void> => {
+              return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.crossOrigin = 'anonymous';
 
-                  script.onload = () => {
+                script.onload = () => {
+                  console.log(
+                    `[useBodySegmentation] Successfully loaded script: ${url.split('/').pop()}`
+                  );
+                  resolve();
+                };
+
+                script.onerror = (error) => {
+                  console.warn(
+                    `[useBodySegmentation] Failed to load script: ${url.split('/').pop()}`,
+                    error
+                  );
+                  if (retries > 0) {
                     console.log(
-                      `[useBodySegmentation] Successfully loaded script: ${url.split('/').pop()}`
+                      `[useBodySegmentation] Retrying script load (${retries} attempts left): ${url.split('/').pop()}`
                     );
-                    resolve();
-                  };
+                    setTimeout(() => {
+                      loadScript(url, retries - 1)
+                        .then(resolve)
+                        .catch(reject);
+                    }, 1000);
+                  } else {
+                    reject(new Error(`Failed to load script after retries: ${url}`));
+                  }
+                };
 
-                  script.onerror = (error) => {
-                    console.warn(
-                      `[useBodySegmentation] Failed to load script: ${url.split('/').pop()}`,
-                      error
-                    );
-                    if (retries > 0) {
-                      console.log(
-                        `[useBodySegmentation] Retrying script load (${retries} attempts left): ${url.split('/').pop()}`
-                      );
-                      setTimeout(() => {
-                        loadScript(url, retries - 1)
-                          .then(resolve)
-                          .catch(reject);
-                      }, 1000);
-                    } else {
-                      reject(new Error(`Failed to load script after retries: ${url}`));
-                    }
-                  };
+                document.head.appendChild(script);
+              });
+            };
 
-                  document.head.appendChild(script);
-                });
-              };
-
-              // Load TensorFlow.js (updated to match package.json version)
-              if (!window.tf) {
-                console.log('[useBodySegmentation] Loading TensorFlow.js...');
-                await loadScript(
-                  'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
-                );
-              }
-
-              // Load TensorFlow.js WebGL backend (always load for compatibility)
-              console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            // Load TensorFlow.js (updated to match package.json version)
+            if (!window.tf) {
+              console.log('[useBodySegmentation] Loading TensorFlow.js...');
               await loadScript(
-                'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
+                'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
               );
-
-              // Load MediaPipe Selfie Segmentation
-              if (!window.bodySegmentation) {
-                console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
-                await loadScript(
-                  'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
-                );
+              // Wait for global to be available
+              let tfRetries = 10;
+              while (!window.tf && tfRetries > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                tfRetries--;
               }
-
-              console.log('[useBodySegmentation] All AI scripts loaded successfully');
-              clearTimeout(timeoutId);
-              resolve();
-            } catch (error) {
-              clearTimeout(timeoutId);
-              reject(error);
+              if (!window.tf) {
+                throw new Error('TensorFlow.js global not available after loading');
+              }
+              console.log('[useBodySegmentation] TensorFlow.js loaded successfully');
             }
-          })();
-        });
 
+            // Load TensorFlow.js WebGL backend
+            console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            await loadScript(
+              'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
+            );
+            await new Promise((resolve) => setTimeout(resolve, 200));
+
+            // Load MediaPipe Selfie Segmentation
+            if (!window.bodySegmentation) {
+              console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
+              await loadScript(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+              );
+              // Wait for global to be available
+              let mpRetries = 10;
+              while (!window.bodySegmentation && mpRetries > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                mpRetries--;
+              }
+              if (!window.bodySegmentation) {
+                throw new Error('MediaPipe Selfie Segmentation global not available after loading');
+              }
+              console.log('[useBodySegmentation] MediaPipe loaded successfully');
+            }
+
+            // Load TensorFlow.js WebGL backend (always load for compatibility)
+            console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            await loadScript(
+              'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
+            );
+            await new Promise((resolve) => setTimeout(resolve, 100));
+
+            // Load MediaPipe Selfie Segmentation
+            if (!window.bodySegmentation) {
+              console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
+              await loadScript(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+              );
+              // Wait a bit for global to be set
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              console.log(
+                '[useBodySegmentation] MediaPipe loaded, window.bodySegmentation:',
+                !!window.bodySegmentation
+              );
+            }
+
+            // Load TensorFlow.js WebGL backend (always load for compatibility)
+            console.log('[useBodySegmentation] Loading TensorFlow.js WebGL backend...');
+            await loadScript(
+              'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
+            );
+
+            // Load MediaPipe Selfie Segmentation
+            if (!window.bodySegmentation) {
+              console.log('[useBodySegmentation] Loading MediaPipe Selfie Segmentation...');
+              await loadScript(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+              );
+            }
+
+            console.log('[useBodySegmentation] All AI scripts loaded successfully');
+            clearTimeout(timeoutId);
+            resolve();
+          } catch (error) {
+            clearTimeout(timeoutId);
+            reject(error);
+          }
+        })();
+      });
+
+      try {
         await scriptsLoadingPromise;
         scriptsLoadingPromise = null; // Clear the promise
       } catch (error) {
@@ -156,19 +292,43 @@ export function useBodySegmentation({
 
         console.error('[useBodySegmentation] Failed to load AI scripts after retries:', error);
 
-        // Provide more specific error messages
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-          setLoadingError(
-            'Network error: Unable to download AI libraries. Please check your internet connection.'
-          );
-        } else if (errorMessage.includes('CORS') || errorMessage.includes('cross-origin')) {
-          setLoadingError('Security error: AI libraries blocked by browser security policy.');
-        } else {
-          setLoadingError('AI libraries failed to load. Some features may not work properly.');
-        }
+        // Try alternative loading method as fallback
+        console.log('[useBodySegmentation] Attempting alternative loading method...');
+        try {
+          await loadScriptsAlternative();
+        } catch (altError) {
+          console.error('[useBodySegmentation] Alternative loading also failed:', altError);
 
-        setSegmentationMode('disabled');
+          // Provide more specific error messages
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (
+            errorMessage.includes('network') ||
+            errorMessage.includes('fetch') ||
+            errorMessage.includes('timeout')
+          ) {
+            setLoadingError(
+              'Network error: Unable to download AI libraries. Please check your internet connection and try refreshing the page.'
+            );
+          } else if (
+            errorMessage.includes('CORS') ||
+            errorMessage.includes('cross-origin') ||
+            errorMessage.includes('blocked')
+          ) {
+            setLoadingError(
+              'Security error: AI libraries blocked by browser security policy. Try disabling browser extensions or using an incognito window.'
+            );
+          } else if (errorMessage.includes('not available')) {
+            setLoadingError(
+              'AI libraries loaded but not properly initialized. Please refresh the page.'
+            );
+          } else {
+            setLoadingError(
+              'AI libraries failed to load. Some camera effects may not be available.'
+            );
+          }
+
+          setSegmentationMode('disabled');
+        }
       }
     }
   }, []);
