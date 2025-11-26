@@ -94,7 +94,11 @@ export default defineConfig(({ mode }) => {
           output: {
             entryFileNames: 'workers/[name].[hash].js',
             manualChunks: {
-              'tfjs-worker': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
+              'tfjs-worker': [
+                '@tensorflow/tfjs',
+                '@tensorflow-models/body-pix',
+                '@tensorflow-models/face-landmarks-detection',
+              ],
             },
           },
         },
@@ -235,7 +239,13 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
-            tfjs: ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
+            tfjs: [
+              '@tensorflow/tfjs',
+              '@tensorflow-models/body-pix',
+              '@tensorflow-models/face-landmarks-detection',
+            ],
+            mediapipe: ['@mediapipe/face_mesh'],
+            obs: ['obs-websocket-js'],
           },
           chunkFileNames: 'assets/js/[name]-[hash].js',
           entryFileNames: 'assets/js/[name]-[hash].js',
