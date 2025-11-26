@@ -111,10 +111,16 @@ export function useWebGLRenderer({
     const cleanupContextHandlers = () => {
       if (webglCanvasRef.current) {
         if (contextLostHandlerRef.current) {
-          webglCanvasRef.current.removeEventListener('webglcontextlost', contextLostHandlerRef.current);
+          webglCanvasRef.current.removeEventListener(
+            'webglcontextlost',
+            contextLostHandlerRef.current
+          );
         }
         if (contextRestoredHandlerRef.current) {
-          webglCanvasRef.current.removeEventListener('webglcontextrestored', contextRestoredHandlerRef.current);
+          webglCanvasRef.current.removeEventListener(
+            'webglcontextrestored',
+            contextRestoredHandlerRef.current
+          );
         }
       }
     };
@@ -125,7 +131,7 @@ export function useWebGLRenderer({
       // Check WebGL support
       const supported = WebGLLutRenderer.isSupported();
       setIsWebGLSupported(supported);
-      
+
       if (!supported) {
         console.warn('[useWebGLRenderer] WebGL not supported, LUT grading will be disabled');
         return;
@@ -175,48 +181,54 @@ export function useWebGLRenderer({
       };
 
       contextRestoredHandlerRef.current = () => {
-        console.log('[useWebGLRenderer] WebGL context restored - will reinitialize on next render');
+        console.warn(
+          '[useWebGLRenderer] WebGL context restored - will reinitialize on next render'
+        );
         // The effect will re-run and reinitialize when dependencies change,
         // or you can force re-init here if needed
       };
 
       webglCanvasRef.current.addEventListener('webglcontextlost', contextLostHandlerRef.current);
-      webglCanvasRef.current.addEventListener('webglcontextrestored', contextRestoredHandlerRef.current);
+      webglCanvasRef.current.addEventListener(
+        'webglcontextrestored',
+        contextRestoredHandlerRef.current
+      );
 
       // CRITICAL FIX: Try WebGL context creation with error recovery
-      let contextCreated = false;
       let retryCount = 0;
       const MAX_RETRIES = 3;
 
       const tryCreateContext = () => {
         try {
+          if (!webglCanvasRef.current) return;
+
           // Initialize face warp renderer when beauty effects are enabled
           if (hasBeautySettings && !faceWarpRendererRef.current) {
             const faceWarpRenderer = new WebGLFaceWarpRenderer();
-            const initialized = faceWarpRenderer.initialize(webglCanvasRef.current!);
+            const initialized = faceWarpRenderer.initialize(webglCanvasRef.current);
             if (initialized) {
               faceWarpRendererRef.current = faceWarpRenderer;
-              contextCreated = true;
             }
           }
 
           // Initialize LUT renderer
           const renderer = new WebGLLutRenderer();
-          const initialized = renderer.initialize(webglCanvasRef.current!);
+          const initialized = renderer.initialize(webglCanvasRef.current);
 
           if (initialized) {
             rendererRef.current = renderer;
-            contextCreated = true;
             setIsReady(true);
           } else {
             throw new Error('WebGL initialization failed');
           }
         } catch (error) {
           console.error('[useWebGLRenderer] Context creation failed:', error);
-          
+
           if (retryCount < MAX_RETRIES) {
             retryCount++;
-            console.warn(`[useWebGLRenderer] Retrying context creation (${retryCount}/${MAX_RETRIES})...`);
+            console.warn(
+              `[useWebGLRenderer] Retrying context creation (${retryCount}/${MAX_RETRIES})...`
+            );
             setTimeout(tryCreateContext, 1000 * retryCount); // Exponential backoff
           } else {
             console.error('[useWebGLRenderer] Failed to initialize WebGL after retries');

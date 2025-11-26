@@ -89,8 +89,8 @@ class SegmentationManager {
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        console.log('[SegmentationManager] Creating bundled worker...');
-        
+        console.warn('[SegmentationManager] Creating bundled worker...');
+
         this.worker = new SegmentationWorker();
 
         const timeoutId = setTimeout(() => {
@@ -105,7 +105,7 @@ class SegmentationManager {
           if (response.type === 'init-complete') {
             clearTimeout(timeoutId);
             if (response.success) {
-              console.log('[SegmentationManager] Worker initialized successfully');
+              console.warn('[SegmentationManager] Worker initialized successfully');
               this.setupWorkerMessageHandler();
               resolve(true);
             } else {
@@ -129,7 +129,6 @@ class SegmentationManager {
           timestamp: performance.now(),
         };
         this.worker.postMessage(initMessage);
-        
       } catch (e) {
         console.error('[SegmentationManager] Failed to create worker:', e);
         resolve(false);
@@ -222,7 +221,7 @@ class SegmentationManager {
             type: 'process',
             image: imageBitmap,
             timestamp: performance.now(),
-            autoFrame
+            autoFrame,
           };
           this.worker?.postMessage(message, [imageBitmap]);
         })

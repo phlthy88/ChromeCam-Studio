@@ -18,7 +18,7 @@ let autoFrameEnabled = false;
 // =============================================================================
 function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegmentation) {
   const { width, height, data } = segmentation;
-  
+
   let minX = width;
   let maxX = 0;
   let minY = height;
@@ -42,13 +42,13 @@ function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegment
     const boxCenterX = (minX + maxX) / 2;
     const boxHeight = maxY - minY;
     const faceY = minY + boxHeight * 0.25;
-    
+
     const centerXPercent = boxCenterX / width;
     const faceYPercent = faceY / height;
-    
+
     const targetPanX = (0.5 - centerXPercent) * 100;
     const targetPanY = (0.5 - faceYPercent) * 100;
-    
+
     let targetZoom = (height * 0.6) / boxHeight;
     targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
 
@@ -64,16 +64,16 @@ function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegment
 async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentation) {
   const { width, height, data } = segmentation;
   const rgba = new Uint8ClampedArray(width * height * 4);
-  
+
   for (let i = 0; i < data.length; i++) {
     const value = data[i] === 1 ? 255 : 0;
     const idx = i * 4;
-    rgba[idx] = value;     // R
+    rgba[idx] = value; // R
     rgba[idx + 1] = value; // G
     rgba[idx + 2] = value; // B
-    rgba[idx + 3] = 255;   // A (always opaque)
+    rgba[idx + 3] = 255; // A (always opaque)
   }
-  
+
   const imageData = new ImageData(rgba, width, height);
   return createImageBitmap(imageData);
 }
@@ -84,7 +84,7 @@ async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentati
 
 async function initSegmenter() {
   try {
-    console.log('[Worker] Diagnostic Info:', {
+    console.warn('[Worker] Diagnostic Info:', {
       tfVersion: tf.version.tfjs,
       tfBackend: tf.getBackend(),
       isWorker: typeof WorkerGlobalScope !== 'undefined',
@@ -95,8 +95,8 @@ async function initSegmenter() {
     tf.env().set('IS_WORKER', true);
     tf.env().set('WORKER_IS_MODULE', true);
 
-    console.log('[Worker] Setting up TensorFlow.js...');
-    
+    console.warn('[Worker] Setting up TensorFlow.js...');
+
     // Force WebGL backend and verify
     await tf.setBackend('webgl');
     await tf.ready();
@@ -105,21 +105,20 @@ async function initSegmenter() {
       throw new Error('WebGL backend not available.');
     }
 
-    console.log('[Worker] TensorFlow.js ready with WebGL backend.');
-    console.log('[Worker] Loading BodyPix model...');
-    
+    console.warn('[Worker] TensorFlow.js ready with WebGL backend.');
+    console.warn('[Worker] Loading BodyPix model...');
+
     // Load model locally from the bundle
     net = await bodyPix.load({
       architecture: 'MobileNetV1',
       outputStride: 16,
       multiplier: 0.75,
-      quantBytes: 2
+      quantBytes: 2,
     });
 
     isInitialized = true;
-    console.log('[Worker] Initialization complete!');
+    console.warn('[Worker] Initialization complete!');
     self.postMessage({ type: 'init-complete', success: true });
-    
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
     self.postMessage({
@@ -142,45 +141,49 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
 
   try {
     autoFrameEnabled = autoFrame;
-    
+
     // BodyPix expects an HTMLCanvasElement, HTMLImageElement, or ImageData
     // In a worker, we use OffscreenCanvas
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Failed to get OffscreenCanvas context');
-    
+
     ctx.drawImage(imageBitmap, 0, 0);
-    
+
     // Run segmentation
     // CASTING: BodyPix types don't officially support OffscreenCanvas yet, but it works.
-    const segmentation = await net.segmentPerson(canvas as any, {
+    const segmentation = await net.segmentPerson(canvas as unknown as HTMLCanvasElement, {
       flipHorizontal: false,
       internalResolution: 'medium',
-      segmentationThreshold: 0.7
+      segmentationThreshold: 0.7,
     });
 
     // Convert to mask
     const maskBitmap = await segmentationToMask(segmentation);
-    
+
     // Calculate auto-frame
     let autoFrameTransform = undefined;
     if (autoFrameEnabled) {
-        autoFrameTransform = calculateAutoFrameTransform(segmentation);
+      autoFrameTransform = calculateAutoFrameTransform(segmentation);
     }
 
-    const response: any = {
+    const response: {
+      type: 'mask';
+      mask: ImageBitmap;
+      timestamp: number;
+      autoFrameTransform?: unknown;
+    } = {
       type: 'mask',
       mask: maskBitmap,
       timestamp: performance.now(),
     };
-    
+
     if (autoFrameTransform) {
       response.autoFrameTransform = autoFrameTransform;
     }
-    
+
     self.postMessage(response, [maskBitmap]);
     imageBitmap.close();
-    
   } catch (error) {
     console.error('[Worker] Processing failed:', error);
     imageBitmap.close();
@@ -192,13 +195,20 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
 // Message Handler
 // =============================================================================
 
-self.onmessage = async function(e: MessageEvent) {
+self.onmessage = async function (e: MessageEvent) {
   const msg = e.data;
   switch (msg.type) {
-    case 'init': await initSegmenter(); break;
-    case 'process': await processFrame(msg.image, msg.autoFrame); break;
-    case 'close': 
-      if (net) { net.dispose(); net = null; }
+    case 'init':
+      await initSegmenter();
+      break;
+    case 'process':
+      await processFrame(msg.image, msg.autoFrame);
+      break;
+    case 'close':
+      if (net) {
+        net.dispose();
+        net = null;
+      }
       isInitialized = false;
       self.close();
       break;

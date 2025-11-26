@@ -1,5 +1,5 @@
 // contexts/ToastContext.ts
-import { createContext } from 'react';
+import { createContext, useContext } from 'react';
 
 export type ToastType = 'success' | 'info' | 'warning' | 'error';
 
@@ -17,3 +17,16 @@ export interface ToastContextType {
 }
 
 export const ToastContext = createContext<ToastContextType | null>(null);
+
+export const useToast = () => {
+  const context = useContext(ToastContext);
+  if (!context) {
+    console.warn('useToast must be used within a ToastProvider. Using fallback implementation.');
+    return {
+      toasts: [],
+      showToast: () => {},
+      dismissToast: () => {},
+    };
+  }
+  return context;
+};

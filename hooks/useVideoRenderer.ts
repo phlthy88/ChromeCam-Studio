@@ -763,6 +763,7 @@ export function useVideoRenderer({
     drawFocusPeaking,
     isWebGLReady,
     applyLutGrading,
+    settings,
   ]);
 
   return {

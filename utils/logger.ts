@@ -5,14 +5,14 @@ interface LogEntry {
   level: LogLevel;
   component: string;
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 class Logger {
   private logs: LogEntry[] = [];
   private maxLogs = 1000;
 
-  private log(level: LogLevel, component: string, message: string, data?: any) {
+  private log(level: LogLevel, component: string, message: string, data?: unknown) {
     const entry: LogEntry = {
       timestamp: Date.now(),
       level,
@@ -29,24 +29,29 @@ class Logger {
     // Only output in development or for errors/warnings
     if (import.meta.env.DEV || level === 'error' || level === 'warn') {
       const prefix = `[${level.toUpperCase()}][${component}]`;
-      const consoleFn = console[level] || console.log;
-      consoleFn(prefix, message, data || '');
+      if (level === 'error') {
+        console.error(prefix, message, data || '');
+      } else if (level === 'warn') {
+        console.warn(prefix, message, data || '');
+      } else {
+        console.warn(prefix, message, data || '');
+      }
     }
   }
 
-  debug(component: string, message: string, data?: any) {
+  debug(component: string, message: string, data?: unknown) {
     this.log('debug', component, message, data);
   }
 
-  info(component: string, message: string, data?: any) {
+  info(component: string, message: string, data?: unknown) {
     this.log('info', component, message, data);
   }
 
-  warn(component: string, message: string, data?: any) {
+  warn(component: string, message: string, data?: unknown) {
     this.log('warn', component, message, data);
   }
 
-  error(component: string, message: string, data?: any) {
+  error(component: string, message: string, data?: unknown) {
     this.log('error', component, message, data);
   }
 
