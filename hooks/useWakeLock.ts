@@ -8,38 +8,38 @@ import type { WakeLockSentinel } from '../types/media.d.ts';
  * Automatically re-acquires the lock when the tab becomes visible again.
  */
 export function useWakeLock() {
-    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
-    useEffect(() => {
-        const requestWakeLock = async () => {
-            if (navigator.wakeLock) {
-                try {
-                    wakeLockRef.current = await navigator.wakeLock.request('screen');
-                } catch (err) {
-                    console.warn('[WakeLock] Failed to acquire:', err);
-                }
-            }
-        };
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if (navigator.wakeLock) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.warn('[WakeLock] Failed to acquire:', err);
+        }
+      }
+    };
 
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
         requestWakeLock();
+      }
+    };
 
-        const handleVisibilityChange = () => {
-            if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
-                requestWakeLock();
-            }
-        };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      if (wakeLockRef.current !== null) {
+        wakeLockRef.current.release();
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
-        return () => {
-            if (wakeLockRef.current !== null) {
-                wakeLockRef.current.release();
-            }
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-    }, []);
-
-    return wakeLockRef;
+  return wakeLockRef;
 }
 
 export default useWakeLock;

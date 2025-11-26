@@ -6,19 +6,19 @@
 
 // Audio utilities
 export {
-    getAudioContext,
-    closeAudioContext,
-    isAudioContextSupported,
-    calculateRMSVolume,
-    getCSSProperty,
-    VU_METER_CONFIG,
-    VU_METER_COLORS,
+  getAudioContext,
+  closeAudioContext,
+  isAudioContextSupported,
+  calculateRMSVolume,
+  getCSSProperty,
+  VU_METER_CONFIG,
+  VU_METER_COLORS,
 } from './audio';
 
 // Segmentation manager (AI processing)
 export {
-    segmentationManager,
-    SegmentationManager,
-    type SegmentationResult,
-    type SegmentationMode,
+  segmentationManager,
+  SegmentationManager,
+  type SegmentationResult,
+  type SegmentationMode,
 } from './segmentationManager';

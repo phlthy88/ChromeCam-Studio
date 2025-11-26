@@ -513,9 +513,10 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
               className={`
                                 relative p-2 sm:p-2.5 md:p-3 rounded-full
                                 transition-colors
-                                ${isVirtualCameraActive
-                                  ? 'text-primary bg-primary/10 hover:bg-primary/20'
-                                  : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
+                                ${
+                                  isVirtualCameraActive
+                                    ? 'text-primary bg-primary/10 hover:bg-primary/20'
+                                    : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
                                 }
                             `}
               title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
@@ -604,9 +605,10 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                                 w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12
                                 flex items-center justify-center rounded-full
                                 transition-all duration-300
-                                ${isRecording
-                                  ? 'bg-error/20 text-error hover:bg-error/30'
-                                  : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
+                                ${
+                                  isRecording
+                                    ? 'bg-error/20 text-error hover:bg-error/30'
+                                    : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
                                 }
                             `}
               title={isRecording ? 'Stop Recording' : 'Start Recording'}

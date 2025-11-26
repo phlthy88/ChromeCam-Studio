@@ -1,6 +1,5 @@
 import React from 'react';
-import { useToast } from '../hooks/useToast';
-import { ToastType } from '../contexts/ToastContext';
+import { useToast, ToastType } from '../contexts/ToastContext';
 
 // Internal Toast Container Component that receives props directly
 const ToastContainerInternal: React.FC<{

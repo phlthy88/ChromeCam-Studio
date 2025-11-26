@@ -30,9 +30,10 @@ export { useMediaRecorder } from './useMediaRecorder';
 export type { UseMediaRecorderOptions, UseMediaRecorderReturn } from './useMediaRecorder';
 export { useSystemAccentColor } from './useSystemAccentColor';
 export { useTheme } from './useTheme';
-export { useToast, ToastProvider } from './useToast';
+export { useToast } from '../contexts/ToastContext';
+export { ToastProvider } from './useToast';
 export { ToastContainer } from '../components/ToastContainer';
-export type { Toast, ToastType } from './useToast';
+export type { Toast, ToastType } from '../contexts/ToastContext';
 export { useAutoLowLight } from './useAutoLowLight';
 export type {
   LowLightAnalysis,

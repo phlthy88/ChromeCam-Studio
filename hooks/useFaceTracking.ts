@@ -31,6 +31,6 @@ export function useFaceTracking() {
 
   return {
     faceLandmarks,
-    hasFace: !!faceLandmarks && faceLandmarks.length > 0
+    hasFace: !!faceLandmarks && faceLandmarks.length > 0,
   };
 }

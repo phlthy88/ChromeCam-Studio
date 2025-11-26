@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
         strictPort: true,
         host: true,
         cors: true,
-        
+
         hmr: {
           clientPort: 3001,
           timeout: 30000,
@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
           usePolling: false,
           ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
         },
-        
+
         headers: {
           'Content-Security-Policy': [
             "default-src 'self'",
@@ -128,87 +128,88 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       ...baseConfig.plugins!,
-      isProd && VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'masked-icon.svg'],
-        manifest: {
-          name: 'ChromeCam Studio',
-          short_name: 'ChromeCam',
-          description:
-            'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
-          theme_color: '#1c1b1f',
-          background_color: '#1c1b1f',
-          display: 'standalone',
-          orientation: 'any',
-          scope: '/',
-          start_url: '/',
-          icons: [
-            {
-              src: 'pwa-192x192.svg',
-              sizes: '192x192',
-              type: 'image/svg+xml',
-            },
-            {
-              src: 'pwa-512x512.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml',
-            },
-            {
-              src: 'masked-icon.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml',
-              purpose: 'maskable',
-            },
-          ],
-          display_override: ['window-controls-overlay'],
-          shortcuts: [
-            {
-              name: 'Open Settings',
-              url: '/?settings=true',
-              description: 'Open directly to camera settings',
-            },
-          ],
-        },
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-          cleanupOutdatedCaches: true,
-          skipWaiting: true,
-          clientsClaim: true,
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'cdn-cache',
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24 * 30,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
+      isProd &&
+        VitePWA({
+          registerType: 'autoUpdate',
+          includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'masked-icon.svg'],
+          manifest: {
+            name: 'ChromeCam Studio',
+            short_name: 'ChromeCam',
+            description:
+              'Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.',
+            theme_color: '#1c1b1f',
+            background_color: '#1c1b1f',
+            display: 'standalone',
+            orientation: 'any',
+            scope: '/',
+            start_url: '/',
+            icons: [
+              {
+                src: 'pwa-192x192.svg',
+                sizes: '192x192',
+                type: 'image/svg+xml',
+              },
+              {
+                src: 'pwa-512x512.svg',
+                sizes: '512x512',
+                type: 'image/svg+xml',
+              },
+              {
+                src: 'masked-icon.svg',
+                sizes: '512x512',
+                type: 'image/svg+xml',
+                purpose: 'maskable',
+              },
+            ],
+            display_override: ['window-controls-overlay'],
+            shortcuts: [
+              {
+                name: 'Open Settings',
+                url: '/?settings=true',
+                description: 'Open directly to camera settings',
+              },
+            ],
+          },
+          workbox: {
+            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+            cleanupOutdatedCaches: true,
+            skipWaiting: true,
+            clientsClaim: true,
+            runtimeCaching: [
+              {
+                urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/i,
+                handler: 'CacheFirst',
+                options: {
+                  cacheName: 'cdn-cache',
+                  expiration: {
+                    maxEntries: 50,
+                    maxAgeSeconds: 60 * 60 * 24 * 30,
+                  },
+                  cacheableResponse: {
+                    statuses: [0, 200],
+                  },
                 },
               },
-            },
-            {
-              urlPattern: /^https:\/\/cdn\.tailwindcss\.com\/.*/i,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'tailwind-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 7,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
+              {
+                urlPattern: /^https:\/\/cdn\.tailwindcss\.com\/.*/i,
+                handler: 'StaleWhileRevalidate',
+                options: {
+                  cacheName: 'tailwind-cache',
+                  expiration: {
+                    maxEntries: 10,
+                    maxAgeSeconds: 60 * 60 * 24 * 7,
+                  },
+                  cacheableResponse: {
+                    statuses: [0, 200],
+                  },
                 },
               },
-            },
-          ],
-        },
-        devOptions: {
-          enabled: true,
-        },
-      }),
+            ],
+          },
+          devOptions: {
+            enabled: true,
+          },
+        }),
     ].filter(Boolean),
     build: {
       target: 'es2022',
@@ -220,7 +221,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
-             'tfjs': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
+            tfjs: ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
           },
           chunkFileNames: 'assets/js/[name]-[hash].js',
           entryFileNames: 'assets/js/[name]-[hash].js',
@@ -236,11 +237,11 @@ export default defineConfig(({ mode }) => {
     worker: {
       format: 'iife',
       plugins: () => [react()],
-       rollupOptions: {
+      rollupOptions: {
         output: {
           entryFileNames: 'workers/[name].[hash].js',
           manualChunks: {
-             'tfjs-worker': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
+            'tfjs-worker': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
           },
         },
       },

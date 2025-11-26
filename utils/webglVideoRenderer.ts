@@ -1,6 +1,6 @@
 /**
  * WebGL-based Video Renderer for ChromeCam Studio
- * 
+ *
  * This module provides a completely WebGL-based rendering pipeline to avoid
  * the "Hybrid Context Tax" of switching between 2D Canvas and WebGL contexts.
  * All operations including video drawing, AI mask compositing, filters, LUTs,
@@ -20,21 +20,29 @@ const DEFAULT_VERTEX_SHADER = `#version 300 es
 
 // Full-screen quad positions and texture coordinates
 const FULLSCREEN_QUAD_POS = new Float32Array([
-  -1, -1,  // Bottom-left
-   1, -1,  // Bottom-right
-  -1,  1,  // Top-left
-   1,  1,  // Top-right
+  -1,
+  -1, // Bottom-left
+  1,
+  -1, // Bottom-right
+  -1,
+  1, // Top-left
+  1,
+  1, // Top-right
 ]);
 
 const FULLSCREEN_QUAD_TEX = new Float32Array([
-  0, 0,  // Bottom-left
-  1, 0,  // Bottom-right
-  0, 1,  // Top-left
-  1, 1,  // Top-right
+  0,
+  0, // Bottom-left
+  1,
+  0, // Bottom-right
+  0,
+  1, // Top-left
+  1,
+  1, // Top-right
 ]);
 
 // Texture target for video (WebGL2 requires TEXTURE_2D for video)
-const VIDEO_TEXTURE_TARGET = 0x0DE1; // gl.TEXTURE_2D
+const VIDEO_TEXTURE_TARGET = 0x0de1; // gl.TEXTURE_2D
 
 /**
  * WebGL-based video renderer that handles the complete rendering pipeline
@@ -106,7 +114,7 @@ export class WebGLVideoRenderer {
 
     // Set up full-screen quad buffers
     const gl = this.gl;
-    
+
     // Position buffer
     gl.bindBuffer(gl.ARRAY_BUFFER, this.basePositionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, FULLSCREEN_QUAD_POS, gl.STATIC_DRAW);
@@ -223,7 +231,7 @@ export class WebGLVideoRenderer {
             fragColor.rgb *= u_brightness / 100.0;
         }
     `;
-    
+
     const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
     if (!fragmentShader) return false;
 
@@ -312,10 +320,10 @@ export class WebGLVideoRenderer {
     for (let i = 0; i < mask.data.length; i += 4) {
       // Use red channel as mask value (as expected by fragment shader)
       const maskValue = mask.data[i] ?? 0;
-      maskTextureData[i] = maskValue;     // R
+      maskTextureData[i] = maskValue; // R
       maskTextureData[i + 1] = maskValue; // G
       maskTextureData[i + 2] = maskValue; // B
-      maskTextureData[i + 3] = 255;       // A
+      maskTextureData[i + 3] = 255; // A
     }
 
     gl.texImage2D(
@@ -433,9 +441,9 @@ export class WebGLVideoRenderer {
     const rotationLoc = gl.getUniformLocation(this.baseProgram, 'u_rotation');
     const brightnessLoc = gl.getUniformLocation(this.baseProgram, 'u_brightness');
 
-    gl.uniform1i(videoLoc, 0);  // texture unit 0
-    gl.uniform1i(maskLoc, 1);  // texture unit 1
-    gl.uniform1i(bgLoc, 2);    // texture unit 2
+    gl.uniform1i(videoLoc, 0); // texture unit 0
+    gl.uniform1i(maskLoc, 1); // texture unit 1
+    gl.uniform1i(bgLoc, 2); // texture unit 2
     gl.uniform1f(blurLoc, settings.blur);
     gl.uniform1f(portraitLightingLoc, settings.portraitLighting);
     gl.uniform1i(virtualBgLoc, settings.virtualBackground ? 1 : 0);

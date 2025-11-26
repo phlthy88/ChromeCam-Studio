@@ -2,12 +2,18 @@
 
 ## Project Overview
 
-ChromeCam Studio is a professional webcam application with AI-powered effects built using React, TypeScript, and Vite. The application provides real-time AI background effects, professional camera controls, and follows Material 3 design principles. It's designed to work across ChromeOS, macOS, and Windows platforms with a focus on smooth 60fps performance through off-main-thread AI processing.
+ChromeCam Studio is a professional webcam application with AI-powered effects built using React,
+TypeScript, and Vite. The application provides real-time AI background effects, professional camera
+controls, and follows Material 3 design principles. It's designed to work across ChromeOS, macOS,
+and Windows platforms with a focus on smooth 60fps performance through off-main-thread AI
+processing.
 
 ### Key Features
 
-- **AI-Powered Effects**: Real-time background blur, body segmentation, and face detection using TensorFlow.js and MediaPipe
-- **Professional Camera Controls**: Manual exposure, white balance, focus, and PTZ (Pan, Tilt, Zoom) controls
+- **AI-Powered Effects**: Real-time background blur, body segmentation, and face detection using
+  TensorFlow.js and MediaPipe
+- **Professional Camera Controls**: Manual exposure, white balance, focus, and PTZ (Pan, Tilt, Zoom)
+  controls
 - **Material 3 Design**: Dynamic theming with OKLCH color science and Light/Dark modes
 - **Pro Overlays**: Zebra stripes, focus peaking, RGB histogram, and grid overlays
 - **Progressive Web App**: Installable desktop application with offline capabilities
@@ -35,16 +41,19 @@ ChromeCam Studio is a professional webcam application with AI-powered effects bu
 ### Development Setup
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
 
 2. Set up environment (optional for Gemini AI features):
+
    ```bash
    echo "GEMINI_API_KEY=your_key_here" > .env.local
    ```
 
 3. Start development server:
+
    ```bash
    npm run dev
    ```
@@ -60,19 +69,20 @@ npm run preview  # Preview production build
 
 ### Additional Scripts
 
-| Script                  | Description                         |
-| ----------------------- | ----------------------------------- |
-| `npm run dev:host`      | Dev server with network access      |
-| `npm run build:analyze` | Build + bundle visualization        |
-| `npm run test`          | Run tests in watch mode             |
-| `npm run test:coverage` | Generate coverage report            |
-| `npm run lint`          | ESLint check                        |
-| `npm run format`        | Prettier formatting                 |
-| `npm run typecheck`     | Type checking                       |
+| Script                  | Description                    |
+| ----------------------- | ------------------------------ |
+| `npm run dev:host`      | Dev server with network access |
+| `npm run build:analyze` | Build + bundle visualization   |
+| `npm run test`          | Run tests in watch mode        |
+| `npm run test:coverage` | Generate coverage report       |
+| `npm run lint`          | ESLint check                   |
+| `npm run format`        | Prettier formatting            |
+| `npm run typecheck`     | Type checking                  |
 
 ## Architecture
 
-ChromeCam Studio follows a modern React architecture with a production-ready off-main-thread worker system:
+ChromeCam Studio follows a modern React architecture with a production-ready off-main-thread worker
+system:
 
 ```
 ├── components/
@@ -98,23 +108,27 @@ ChromeCam Studio follows a modern React architecture with a production-ready off
 ## Development Conventions
 
 ### Code Style
+
 - TypeScript with strict mode enabled
 - ESLint with React hooks and refresh plugins
 - Prettier for consistent formatting
 - Import aliases: `@/*`, `@components/*`, `@ui/*`, `@styles/*`
 
 ### Performance Considerations
+
 - All AI processing runs in Web Workers to prevent UI jank
 - Adaptive quality system adjusts frame rate based on real-time performance metrics
 - Type-safe worker protocols with latency tracking
 - OffscreenCanvas for AI inference operations
 
 ### Security
+
 - Content Security Policy headers for workers and WebGL
 - ChromeOS/Crostini optimized policies for Linux container compatibility
 - Cross-Origin security headers (COEP/COOP)
 
 ### Testing
+
 - Vitest for unit and integration tests
 - React Testing Library for component testing
 - Coverage reports available via `npm run test:coverage`
@@ -134,7 +148,8 @@ ChromeCam Studio follows a modern React architecture with a production-ready off
 
 ## File Structure Notes
 
-- `workers/` directory contains Web Worker implementations that run AI processing off the main thread
+- `workers/` directory contains Web Worker implementations that run AI processing off the main
+  thread
 - `hooks/` directory contains custom React hooks for camera, AI processing, and other logic
 - `components/` contains reusable UI components following Material 3 design
 - `public/` contains PWA assets and icons

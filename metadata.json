@@ -1,8 +1,5 @@
 {
   "name": "ChromeOS Webcam PWA",
   "description": "A progressive web application for advanced webcam controls, styled with a native ChromeOS aesthetic and support for the Window Controls Overlay API.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
+  "requestFramePermissions": ["camera", "microphone"]
 }

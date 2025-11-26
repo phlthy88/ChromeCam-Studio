@@ -26,10 +26,14 @@ controls, and Material 3 design — built for ChromeOS, macOS, and Windows._
 
 ## 🆕 What's New (v1.1.0)
 
-- **Production Worker Architecture** — AI processing now runs entirely off the main thread using Web Workers and OffscreenCanvas for buttery-smooth 60fps UI
-- **Adaptive Quality System** — Automatic frame rate optimization based on real-time performance metrics
-- **Type-Safe Worker Protocol** — Fully typed message passing between main thread and workers with latency tracking
-- **ChromeOS/Crostini Optimizations** — Enhanced CSP headers and Cross-Origin policies for Linux container compatibility
+- **Production Worker Architecture** — AI processing now runs entirely off the main thread using Web
+  Workers and OffscreenCanvas for buttery-smooth 60fps UI
+- **Adaptive Quality System** — Automatic frame rate optimization based on real-time performance
+  metrics
+- **Type-Safe Worker Protocol** — Fully typed message passing between main thread and workers with
+  latency tracking
+- **ChromeOS/Crostini Optimizations** — Enhanced CSP headers and Cross-Origin policies for Linux
+  container compatibility
 - **Video Feed Stability Fixes** — Resolved render loop issues causing video disturbances
 
 ---
@@ -131,7 +135,8 @@ npm run preview  # Preview production build
 
 ## 🏗️ Architecture
 
-ChromeCam Studio follows a **modern React architecture** with a production-ready off-main-thread worker system for smooth 60fps UI performance.
+ChromeCam Studio follows a **modern React architecture** with a production-ready off-main-thread
+worker system for smooth 60fps UI performance.
 
 ```
 ├── components/
@@ -156,21 +161,22 @@ ChromeCam Studio follows a **modern React architecture** with a production-ready
 
 ### 🔧 Tech Stack
 
-| Layer          | Technology                        |
-| -------------- | --------------------------------- |
-| **Framework**  | React 19 with TypeScript 5.6      |
-| **Build Tool** | Vite 6 with ES Module Workers     |
-| **Styling**    | Tailwind CSS + M3 Design Tokens   |
-| **AI/ML**      | TensorFlow.js + MediaPipe         |
-| **Workers**    | OffscreenCanvas + Web Workers     |
-| **PWA**        | vite-plugin-pwa + Workbox         |
-| **Testing**    | Vitest + React Testing Library    |
+| Layer          | Technology                      |
+| -------------- | ------------------------------- |
+| **Framework**  | React 19 with TypeScript 5.6    |
+| **Build Tool** | Vite 6 with ES Module Workers   |
+| **Styling**    | Tailwind CSS + M3 Design Tokens |
+| **AI/ML**      | TensorFlow.js + MediaPipe       |
+| **Workers**    | OffscreenCanvas + Web Workers   |
+| **PWA**        | vite-plugin-pwa + Workbox       |
+| **Testing**    | Vitest + React Testing Library  |
 
 ### 🎯 Key Highlights
 
 - **🧵 Off-Main-Thread AI** — Web Workers with OffscreenCanvas for AI inference without UI jank
 - **🔄 Graceful Fallback** — Automatic main-thread fallback if workers unavailable
-- **🔒 Type-Safe Worker Protocol** — Fully typed message passing with timestamps and performance metrics
+- **🔒 Type-Safe Worker Protocol** — Fully typed message passing with timestamps and performance
+  metrics
 - **⚡ Adaptive Quality** — Dynamic frame skipping based on real-time FPS monitoring
 - **🎨 Mathematical Color System** — OKLCH-based tonal palette generation for Material 3
 - **📦 Smart Caching** — CacheFirst for ML models, StaleWhileRevalidate for styles

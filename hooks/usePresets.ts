@@ -159,20 +159,20 @@ export const usePresets = () => {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   interface StoredPreset {
-  id: string;
-  name: string;
-  icon?: string;
-  settings: Partial<CameraSettings>;
-  metadata: {
-    createdAt: string;
-    updatedAt: string;
-    isBuiltIn: boolean;
-  };
-}
+    id: string;
+    name: string;
+    icon?: string;
+    settings: Partial<CameraSettings>;
+    metadata: {
+      createdAt: string;
+      updatedAt: string;
+      isBuiltIn: boolean;
+    };
+  }
 
-// ...
+  // ...
 
-// Load presets from localStorage
+  // Load presets from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem(PRESETS_STORAGE_KEY);

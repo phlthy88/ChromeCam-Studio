@@ -67,9 +67,7 @@ export function useBodySegmentation({
 
         // Load TensorFlow
         if (!window.tf) {
-          await loadScript(
-            'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js'
-          );
+          await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js');
         }
         // Load MediaPipe Selfie Segmentation
         if (!window.bodySegmentation) {
