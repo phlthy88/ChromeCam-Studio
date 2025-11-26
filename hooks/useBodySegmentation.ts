@@ -55,26 +55,27 @@ export function useBodySegmentation({
   const loadScripts = useCallback(async () => {
     if (typeof window !== 'undefined' && !window.bodySegmentation) {
       try {
-        // Load TensorFlow
-        if (!window.tf) {
-          await new Promise((resolve, reject) => {
+        const loadScript = (url: string) => {
+          return new Promise((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js';
+            script.src = url;
             script.onload = resolve;
             script.onerror = reject;
             document.head.appendChild(script);
           });
+        };
+
+        // Load TensorFlow
+        if (!window.tf) {
+          await loadScript(
+            'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js'
+          );
         }
         // Load MediaPipe Selfie Segmentation
         if (!window.bodySegmentation) {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src =
-              'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
+          await loadScript(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+          );
         }
       } catch (error) {
         console.error('[useBodySegmentation] Failed to load scripts:', error);
@@ -198,26 +199,34 @@ export function useBodySegmentation({
     };
   }, [loadScripts]);
 
-  // ========================================================================
-  // FIX #1: THROTTLED AI INFERENCE LOOP WITH FRAME SKIP COUNTER
-  // ========================================================================
+  // ===========================================================================
+  // FIX: REFINED INFERENCE LOOP WITH SEMAPHORE (PREVENTS STACKING)
+  // ===========================================================================
   useEffect(() => {
     let isLoopActive = true;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let animationFrameId: number;
+    let isProcessing = false; // CRITICAL: Semaphore to prevent call stacking
     let frameSkipCounter = 0;
-    const FRAME_SKIP_INTERVAL = 4; // Process every 4th frame = ~15fps @ 60fps display
+    const FRAME_SKIP_INTERVAL = 3; // Process 1 out of every 4 frames (~15 FPS @ 60Hz)
 
     const inferenceLoop = async () => {
       if (!isLoopActive) return;
 
-      // CRITICAL FIX: Frame skip logic to prevent main thread saturation
+      // 1. Frame Skipping Logic
       frameSkipCounter++;
       if (frameSkipCounter < FRAME_SKIP_INTERVAL) {
-        // Schedule next check without processing
-        timeoutId = setTimeout(inferenceLoop, 16); // Check at ~60fps
+        animationFrameId = requestAnimationFrame(inferenceLoop);
         return;
       }
-      frameSkipCounter = 0; // Reset counter after processing
+      frameSkipCounter = 0;
+
+      // 2. CRITICAL: Prevent Overlapping Calls
+      // If the previous segmentation is still running, SKIP this frame entirely.
+      // This is the key fix for the "Death Spiral" - prevents async call stacking.
+      if (isProcessing) {
+        animationFrameId = requestAnimationFrame(inferenceLoop);
+        return;
+      }
 
       const video = videoRef.current;
       const { blur, portraitLighting, faceSmoothing, autoFrame, virtualBackground, qrMode } =
@@ -226,6 +235,8 @@ export function useBodySegmentation({
         blur > 0 || portraitLighting > 0 || faceSmoothing > 0 || autoFrame || virtualBackground;
 
       if (video && video.readyState >= 2 && !video.paused) {
+        isProcessing = true; // Lock - prevent concurrent processing
+
         try {
           // QR Code detection
           if (qrMode && barcodeDetectorRef.current && video.videoWidth > 0) {
@@ -255,6 +266,7 @@ export function useBodySegmentation({
 
             if (canRunWorker) {
               // Use Web Worker for off-main-thread processing
+              // AWAIT IS CRITICAL HERE - ensures we wait for completion
               const result = await segmentationManager.segment(
                 video,
                 settingsRef.current.autoFrame
@@ -264,7 +276,6 @@ export function useBodySegmentation({
                 console.warn('[AI] Worker segmentation error:', result.error);
               }
 
-              // Use autoFrameTransform from worker if available
               if (result.autoFrameTransform) {
                 targetTransformRef.current = result.autoFrameTransform;
               }
@@ -285,7 +296,6 @@ export function useBodySegmentation({
               setIsAiActive(true);
             }
 
-            // Reset transform if autoFrame is disabled
             if (!settingsRef.current.autoFrame) {
               targetTransformRef.current = { panX: 0, panY: 0, zoom: 1 };
             }
@@ -296,37 +306,38 @@ export function useBodySegmentation({
         } catch (e) {
           console.error('[AI] Runtime error during segmentation:', e);
           setAiRuntimeError(true);
-          setLoadingError('AI processing encountered an error. Some features may be unavailable.');
+          setLoadingError('AI processing encountered an error.');
+        } finally {
+          isProcessing = false; // Unlock - always release, even on error
         }
       }
 
       if (isLoopActive) {
-        // Schedule next inference check
-        timeoutId = setTimeout(inferenceLoop, 16); // Check at display refresh rate
+        animationFrameId = requestAnimationFrame(inferenceLoop);
       }
     };
 
-    inferenceLoop();
+    // Start the loop
+    animationFrameId = requestAnimationFrame(inferenceLoop);
 
     return () => {
       isLoopActive = false;
-      clearTimeout(timeoutId);
+      cancelAnimationFrame(animationFrameId);
     };
   }, [segmenter, aiRuntimeError, videoRef, qrResult, segmentationMode]);
-  // ========================================================================
+  // ===========================================================================
 
   // Cleanup worker on unmount
   useEffect(() => {
     return () => {
       // Note: We don't dispose the singleton here as other components might use it
-      // The singleton pattern means it persists for the app lifecycle
     };
   }, []);
 
   return {
     segmentationMaskRef,
     targetTransformRef,
-    faceLandmarks, // Will be null if no face detection - beauty effects need real landmarks
+    faceLandmarks,
     isAiActive,
     loadingStatus,
     loadingError,
