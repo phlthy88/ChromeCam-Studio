@@ -70,33 +70,44 @@ export function useWebGLRenderer({
 
   const rendererRef = useRef<WebGLLutRenderer | null>(null);
   const faceWarpRendererRef = useRef<WebGLFaceWarpRenderer | null>(null);
+  const lastSettingsKeyRef = useRef<string>('');
 
   const [isWebGLSupported, setIsWebGLSupported] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [currentLutName, setCurrentLutName] = useState('None');
 
-  // Debug beauty settings detection
-  console.log('[useWebGLRenderer] Beauty settings check:', {
+  // Debug beauty settings detection (only when settings change)
+  const settingsKey = JSON.stringify({
     hasBeautySettings,
-    beautySettings: beautySettings
-      ? {
-          eyeEnlargement: beautySettings.eyeEnlargement,
-          noseSlimming: beautySettings.noseSlimming,
-          jawSlimming: beautySettings.jawSlimming,
-          mouthScaling: beautySettings.mouthScaling,
-        }
-      : null,
-    hasFaceLandmarks: !!faceLandmarks,
-    faceLandmarksCount: faceLandmarks?.length || 0,
+    beautySettings,
     isWebGLSupported,
-    hasFaceWarpRenderer: !!faceWarpRendererRef.current,
   });
 
-  // Warn if beauty effects requested but WebGL not available
-  if (hasBeautySettings && !isWebGLSupported) {
-    console.warn(
-      '[useWebGLRenderer] ⚠️ Beauty effects requested but WebGL not available - using Canvas 2D enhancement fallback'
-    );
+  if (settingsKey !== lastSettingsKeyRef.current) {
+    console.log('[useWebGLRenderer] Beauty settings check:', {
+      hasBeautySettings,
+      beautySettings: beautySettings
+        ? {
+            eyeEnlargement: beautySettings.eyeEnlargement,
+            noseSlimming: beautySettings.noseSlimming,
+            jawSlimming: beautySettings.jawSlimming,
+            mouthScaling: beautySettings.mouthScaling,
+          }
+        : null,
+      hasFaceLandmarks: !!faceLandmarks,
+      faceLandmarksCount: faceLandmarks?.length || 0,
+      isWebGLSupported,
+      hasFaceWarpRenderer: !!faceWarpRendererRef.current,
+    });
+
+    // Warn if beauty effects requested but WebGL not available
+    if (hasBeautySettings && !isWebGLSupported) {
+      console.warn(
+        '[useWebGLRenderer] ⚠️ Beauty effects requested but WebGL not available - using Canvas 2D enhancement fallback'
+      );
+    }
+
+    lastSettingsKeyRef.current = settingsKey;
   }
 
   // Warn if beauty effects requested but WebGL not available
@@ -337,182 +348,6 @@ export function useWebGLRenderer({
       // Step 1: Apply face warping if beauty settings are enabled
       let processedSource: HTMLVideoElement | HTMLCanvasElement | ImageBitmap = source;
 
-      if (hasBeautySettings && beautySettings) {
-        if (faceWarpRendererRef.current && isWebGLSupported && faceLandmarks) {
-          // WebGL path - full beauty effects
-          console.log(`[useWebGLRenderer] 🎨 Applying WebGL beauty effects:`, {
-            eyeEnlargement: beautySettings.eyeEnlargement,
-            noseSlimming: beautySettings.noseSlimming,
-            jawSlimming: beautySettings.jawSlimming,
-            mouthScaling: beautySettings.mouthScaling,
-            faceLandmarks: faceLandmarks.length,
-          });
-          try {
-            // Apply face warp rendering
-            const warpedCanvas = faceWarpRendererRef.current.render(source, beautySettings);
-            console.log(
-              '[useWebGLRenderer] ✅ Face warp render completed, warped canvas:',
-              warpedCanvas
-            );
-            // Use the warped canvas as the source for LUT processing
-            if (faceWarpRendererRef.current.canvas) {
-              processedSource = faceWarpRendererRef.current.canvas;
-              console.log('[useWebGLRenderer] 🎯 Using warped canvas as source');
-            } else {
-              console.warn(
-                '[useWebGLRenderer] ⚠️ Face warp render completed but no canvas returned'
-              );
-            }
-          } catch (error) {
-            console.warn('[useWebGLRenderer] Face warp rendering failed:', error);
-            // Continue with original source if face warp fails
-          }
-        } else if (faceLandmarks) {
-          // Canvas 2D fallback - basic enhancement (requires face detection)
-          console.log(
-            `[useWebGLRenderer] 🎨 Applying Canvas 2D beauty enhancement (WebGL unavailable):`,
-            {
-              eyeEnlargement: beautySettings.eyeEnlargement,
-              noseSlimming: beautySettings.noseSlimming,
-              jawSlimming: beautySettings.jawSlimming,
-              mouthScaling: beautySettings.mouthScaling,
-              faceLandmarks: faceLandmarks.length,
-            }
-          );
-
-          // For now, just apply subtle contrast/brightness enhancement
-          // TODO: Implement Canvas 2D face warping as fallback
-          const contrastBoost = Math.max(
-            1.0,
-            1.0 +
-              (beautySettings.eyeEnlargement +
-                beautySettings.noseSlimming +
-                beautySettings.jawSlimming +
-                beautySettings.mouthScaling) *
-                0.01
-          );
-          const brightnessBoost = Math.max(
-            1.0,
-            1.0 +
-              (beautySettings.eyeEnlargement +
-                beautySettings.noseSlimming +
-                beautySettings.jawSlimming +
-                beautySettings.mouthScaling) *
-                0.005
-          );
-
-          // Apply basic enhancement using CSS filters
-          if (processedSource instanceof HTMLCanvasElement) {
-            const ctx = processedSource.getContext('2d');
-            if (ctx) {
-              // Simple brightness/contrast adjustment
-              const imageData = ctx.getImageData(
-                0,
-                0,
-                processedSource.width || 0,
-                processedSource.height || 0
-              );
-              if (!imageData) return null;
-              const data = imageData.data;
-
-              for (let i = 0; i < data.length - 3; i += 4) {
-                // Apply contrast and brightness
-                data[i] = Math.min(
-                  255,
-                  Math.max(0, (data[i]! - 128) * contrastBoost + 128 + (brightnessBoost - 1) * 50)
-                ); // R
-                data[i + 1] = Math.min(
-                  255,
-                  Math.max(
-                    0,
-                    (data[i + 1]! - 128) * contrastBoost + 128 + (brightnessBoost - 1) * 50
-                  )
-                ); // G
-                data[i + 2] = Math.min(
-                  255,
-                  Math.max(
-                    0,
-                    (data[i + 2]! - 128) * contrastBoost + 128 + (brightnessBoost - 1) * 50
-                  )
-                ); // B
-              }
-
-              ctx.putImageData(imageData, 0, 0);
-              console.log('[useWebGLRenderer] ✅ Applied Canvas 2D beauty enhancement');
-            }
-          }
-        } else {
-          // Basic enhancement without face detection
-          console.log(
-            `[useWebGLRenderer] 🎨 Applying basic beauty enhancement (no face detection):`,
-            {
-              eyeEnlargement: beautySettings.eyeEnlargement,
-              noseSlimming: beautySettings.noseSlimming,
-              jawSlimming: beautySettings.jawSlimming,
-              mouthScaling: beautySettings.mouthScaling,
-            }
-          );
-
-          // Apply subtle global enhancement
-          const contrastBoost = Math.max(
-            1.0,
-            1.0 +
-              (beautySettings.eyeEnlargement +
-                beautySettings.noseSlimming +
-                beautySettings.jawSlimming +
-                beautySettings.mouthScaling) *
-                0.005
-          );
-          const brightnessBoost = Math.max(
-            1.0,
-            1.0 +
-              (beautySettings.eyeEnlargement +
-                beautySettings.noseSlimming +
-                beautySettings.jawSlimming +
-                beautySettings.mouthScaling) *
-                0.002
-          );
-
-          if (processedSource instanceof HTMLCanvasElement) {
-            const ctx = processedSource.getContext('2d');
-            if (ctx) {
-              const imageData = ctx.getImageData(
-                0,
-                0,
-                processedSource.width || 0,
-                processedSource.height || 0
-              );
-              if (!imageData) return null;
-              const data = imageData.data;
-
-              for (let i = 0; i < data.length - 3; i += 4) {
-                data[i] = Math.min(
-                  255,
-                  Math.max(0, (data[i]! - 128) * contrastBoost + 128 + (brightnessBoost - 1) * 25)
-                ); // R
-                data[i + 1] = Math.min(
-                  255,
-                  Math.max(
-                    0,
-                    (data[i + 1]! - 128) * contrastBoost + 128 + (brightnessBoost - 1) * 25
-                  )
-                ); // G
-                data[i + 2] = Math.min(
-                  255,
-                  Math.max(
-                    0,
-                    (data[i + 2]! - 128) * contrastBoost + 128 + (brightnessBoost - 1) * 25
-                  )
-                ); // B
-              }
-
-              ctx.putImageData(imageData, 0, 0);
-              console.log('[useWebGLRenderer] ✅ Applied basic beauty enhancement');
-            }
-          }
-        }
-      }
-
       // Step 2: Apply LUT grading if enabled
       if (!enabled || lutPreset === 'none') {
         // If only beauty filters are enabled (no LUT), return the warped canvas
@@ -543,7 +378,11 @@ export function useWebGLRenderer({
           rendererRef.current.render(processedSource, normalizedIntensity);
           return webglCanvasRef.current;
         } catch (error) {
-          console.warn('[useWebGLRenderer] WebGL render failed, falling back to software:', error);
+          console.warn(
+            '[useWebGLRenderer] WebGL rendering failed, falling back to software:',
+            error
+          );
+          // Continue to software fallback
         }
       }
 
