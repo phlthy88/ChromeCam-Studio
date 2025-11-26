@@ -1,5 +1,5 @@
 import path from 'path';
-import { defineConfig, loadEnv, type UserConfig } from 'vite';
+import { defineConfig, loadEnv, type UserConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -8,6 +8,32 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const isDev = mode === 'development';
   const isProd = mode === 'production';
+
+  // ==========================================================================
+  // FIX: Custom plugin to ensure correct MIME types for workers
+  //
+  // This prevents the "video/mp2t" MIME type error that occurs when Vite
+  // misidentifies worker files. The plugin intercepts requests and sets
+  // the correct Content-Type header.
+  // ==========================================================================
+  const workerMimeFix: Plugin = {
+    name: 'worker-mime-fix',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url || '';
+
+        // Fix MIME type for worker files
+        if (url.includes('.worker') || url.includes('/workers/')) {
+          if (url.endsWith('.js') || url.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          } else if (url.endsWith('.ts')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          }
+        }
+        next();
+      });
+    },
+  };
 
   // Base configuration shared between dev and prod
   const baseConfig: UserConfig = {
@@ -36,6 +62,8 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    // Ensure binary assets aren't mangled during build
+    assetsInclude: ['**/*.wasm', '**/*.tflite', '**/*.bin'],
   };
 
   // Development-specific configuration
@@ -43,6 +71,7 @@ export default defineConfig(({ mode }) => {
     return {
       ...baseConfig,
       mode: 'development',
+      plugins: [...baseConfig.plugins!, workerMimeFix],
       server: {
         // -----------------------------------------------------------------------
         // FIX #3: PORT & WEBSOCKET CONFIGURATION

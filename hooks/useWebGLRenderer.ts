@@ -73,6 +73,11 @@ export function useWebGLRenderer({
   const softwareFallbackCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentLutRef = useRef<string>('');
   const lutIntensityRef = useRef(lutIntensity);
+
+  // Context loss event handler refs (stored so we can remove them on cleanup)
+  const contextLostHandlerRef = useRef<((e: Event) => void) | null>(null);
+  const contextRestoredHandlerRef = useRef<((e: Event) => void) | null>(null);
+
   const [isWebGLSupported, setIsWebGLSupported] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [currentLutName, setCurrentLutName] = useState('None');
@@ -83,7 +88,7 @@ export function useWebGLRenderer({
   }, [lutIntensity]);
 
   // ========================================================================
-  // FIX #2: DELAYED WEBGL INITIALIZATION WITH RETRY LOGIC
+  // WEBGL INITIALIZATION WITH CONTEXT LOSS HANDLING
   // ========================================================================
   useEffect(() => {
     if (!enabled) {
@@ -99,6 +104,21 @@ export function useWebGLRenderer({
       setIsReady(false);
       return;
     }
+
+    // =======================================================================
+    // FIX: Clean up old context loss handlers before creating new ones
+    // =======================================================================
+    const cleanupContextHandlers = () => {
+      if (webglCanvasRef.current) {
+        if (contextLostHandlerRef.current) {
+          webglCanvasRef.current.removeEventListener('webglcontextlost', contextLostHandlerRef.current);
+        }
+        if (contextRestoredHandlerRef.current) {
+          webglCanvasRef.current.removeEventListener('webglcontextrestored', contextRestoredHandlerRef.current);
+        }
+      }
+    };
+    cleanupContextHandlers();
 
     // CRITICAL FIX: Delay WebGL initialization to allow main thread to stabilize
     const initDelay = setTimeout(() => {
@@ -118,6 +138,50 @@ export function useWebGLRenderer({
         webglCanvasRef.current.width = 1920;
         webglCanvasRef.current.height = 1080;
       }
+
+      // =====================================================================
+      // FIX: ADD CONTEXT LOSS/RESTORE HANDLERS
+      //
+      // WebGL contexts can be lost when:
+      // - User switches tabs (GPU reclaims resources)
+      // - System goes to sleep
+      // - GPU driver crashes/restarts
+      // - Too many WebGL contexts are created
+      //
+      // Without these handlers, context loss causes silent black screens.
+      // =====================================================================
+      contextLostHandlerRef.current = (e: Event) => {
+        e.preventDefault(); // CRITICAL: Allows context to be restored
+        console.warn('[useWebGLRenderer] WebGL context lost - disposing renderers');
+        setIsReady(false);
+
+        // Dispose renderers - they hold stale GL references that will crash
+        if (rendererRef.current) {
+          try {
+            rendererRef.current.dispose();
+          } catch (disposeError) {
+            console.warn('[useWebGLRenderer] Error disposing LUT renderer:', disposeError);
+          }
+          rendererRef.current = null;
+        }
+        if (faceWarpRendererRef.current) {
+          try {
+            faceWarpRendererRef.current.dispose();
+          } catch (disposeError) {
+            console.warn('[useWebGLRenderer] Error disposing face warp renderer:', disposeError);
+          }
+          faceWarpRendererRef.current = null;
+        }
+      };
+
+      contextRestoredHandlerRef.current = () => {
+        console.log('[useWebGLRenderer] WebGL context restored - will reinitialize on next render');
+        // The effect will re-run and reinitialize when dependencies change,
+        // or you can force re-init here if needed
+      };
+
+      webglCanvasRef.current.addEventListener('webglcontextlost', contextLostHandlerRef.current);
+      webglCanvasRef.current.addEventListener('webglcontextrestored', contextRestoredHandlerRef.current);
 
       // CRITICAL FIX: Try WebGL context creation with error recovery
       let contextCreated = false;
@@ -166,6 +230,10 @@ export function useWebGLRenderer({
 
     return () => {
       clearTimeout(initDelay);
+
+      // Clean up context loss handlers
+      cleanupContextHandlers();
+
       if (rendererRef.current) {
         rendererRef.current.dispose();
         rendererRef.current = null;

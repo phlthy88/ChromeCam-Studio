@@ -38,6 +38,9 @@ precision highp float;
 uniform sampler2D u_texture;
 uniform vec2 u_resolution;
 
+// Fail-safe flag: skip warping when landmarks are invalid/missing
+uniform bool u_landmarksValid;
+
 // Landmarks passed as uniforms (normalized 0-1)
 uniform vec2 u_leftEye;
 uniform vec2 u_rightEye;
@@ -74,6 +77,13 @@ vec2 warp(vec2 uv, vec2 center, float radius, float strength, int mode) {
 
 void main() {
     vec2 uv = v_texCoord;
+
+    // FAIL-SAFE: If landmarks are invalid, bypass all warping
+    // This prevents the "black screen" crash when face detection fails
+    if (!u_landmarksValid) {
+        fragColor = texture(u_texture, uv);
+        return;
+    }
 
     // Adjust Aspect Ratio for circular warps
     float aspect = u_resolution.x / u_resolution.y;
@@ -373,7 +383,21 @@ export class WebGLFaceWarpRenderer {
     gl.uniform1f(jawSlimmingLocation, settings.jawSlimming / 100);
     gl.uniform1f(mouthScalingLocation, settings.mouthScaling / 100);
 
-    // Set landmark uniforms if available
+    // ========================================================================
+    // FAIL-SAFE: Validate landmarks before enabling warping
+    // ========================================================================
+    const landmarksValidLocation = gl.getUniformLocation(this.program, 'u_landmarksValid');
+
+    // Check that we have valid landmarks with non-zero coordinates
+    const hasValidLandmarks = !!(
+      this.landmarks &&
+      this.landmarks.length >= 5 &&
+      this.landmarks[0] &&
+      (this.landmarks[0].x !== 0 || this.landmarks[0].y !== 0)
+    );
+
+    gl.uniform1i(landmarksValidLocation, hasValidLandmarks ? 1 : 0);
+
     if (this.landmarks && this.landmarks.length >= 5) {
       // Support both test landmarks and MediaPipe Face Mesh landmarks
       // Test: [0]=Left Eye, [1]=Right Eye, [2]=Nose, [3]=Jaw Left, [4]=Jaw Right

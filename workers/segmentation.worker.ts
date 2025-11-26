@@ -16,47 +16,48 @@ type WorkerResponse =
     }
   | { type: 'error'; error: string };
 
-// ========================================================================
-// FIX: Use CDN URLs instead of local /mediapipe/ files
-// ========================================================================
+// =============================================================================
+// MediaPipe CDN Configuration
+// =============================================================================
 const MEDIAPIPE_CDN_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747';
-const selfieSegmentationUrl = `${MEDIAPIPE_CDN_BASE}/selfie_segmentation.js`;
 
-// WASM file location configuration - point to CDN
 const LOCATE_FILE = (file: string) => {
-  // All WASM files are on the CDN
   return `${MEDIAPIPE_CDN_BASE}/${file}`;
 };
-// ========================================================================
 
-// --- FIX: Force Polyfill importScripts for Module Workers ---
-(self as any).importScripts = async function (...urls: string[]) {
-  for (const url of urls) {
-    try {
-      console.log(`[Worker] Loading script: ${url}`);
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to load script: ${url} (status: ${response.status})`);
-      }
-      const scriptText = await response.text();
+// =============================================================================
+// FIX: Replace eval() with new Function() for better CSP compatibility
+//
+// The old approach used (0, eval)(scriptText) which is blocked by strict CSP.
+// new Function() is marginally better for CSP and avoids the eval keyword.
+// =============================================================================
+async function loadScriptFromCDN(url: string): Promise<void> {
+  console.log(`[Worker] Loading script: ${url}`);
 
-      // Check if we got HTML instead of JS (404 page)
-      if (scriptText.trim().startsWith('<!DOCTYPE') || scriptText.trim().startsWith('<html')) {
-        throw new Error(
-          `Failed to load script: ${url} - Server returned HTML instead of JavaScript`
-        );
-      }
-
-      // Use indirect eval to execute in global scope
-      (0, eval)(scriptText);
-      console.log(`[Worker] Successfully loaded: ${url}`);
-    } catch (error) {
-      console.error(`[Worker] Error loading script ${url}:`, error);
-      throw error;
-    }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch script: ${url} (status: ${response.status})`);
   }
-};
-// --- END FIX ---
+
+  const scriptText = await response.text();
+
+  // Validate we got JavaScript, not an HTML error page
+  const trimmed = scriptText.trim();
+  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<!doctype')) {
+    throw new Error(`CDN returned HTML instead of JavaScript for: ${url}`);
+  }
+
+  // Use Function constructor instead of eval()
+  // This executes in global scope and is slightly more CSP-friendly
+  try {
+    const executeScript = new Function(scriptText);
+    executeScript();
+    console.log(`[Worker] Successfully loaded: ${url}`);
+  } catch (execError) {
+    console.error(`[Worker] Script execution failed for ${url}:`, execError);
+    throw execError;
+  }
+}
 
 interface WorkerSegmentationResults {
   segmentationMask: ImageData | ImageBitmap;
@@ -83,21 +84,15 @@ let inputImageBitmap: ImageBitmap | null = null;
 // Load the MediaPipe script
 async function loadMediaPipe() {
   if (typeof (self as any).SelfieSegmentation === 'undefined') {
-    try {
-      console.log('[Worker] Loading MediaPipe from CDN...');
-      // Use custom async importScripts function
-      await (self as any).importScripts(selfieSegmentationUrl);
-      
-      // Verify that SelfieSegmentation was loaded
-      if (typeof (self as any).SelfieSegmentation === 'undefined') {
-        throw new Error('SelfieSegmentation not defined after loading script');
-      }
-      
-      console.log('[Worker] MediaPipe loaded successfully');
-    } catch (error) {
-      console.error('[Worker] Failed to load MediaPipe:', error);
-      throw error;
+    console.log('[Worker] Loading MediaPipe from CDN...');
+    const scriptUrl = `${MEDIAPIPE_CDN_BASE}/selfie_segmentation.js`;
+    await loadScriptFromCDN(scriptUrl);
+
+    // Verify the global was created
+    if (typeof (self as any).SelfieSegmentation === 'undefined') {
+      throw new Error('SelfieSegmentation not defined after loading script');
     }
+    console.log('[Worker] MediaPipe loaded successfully');
   }
 }
 
