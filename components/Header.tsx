@@ -55,7 +55,6 @@ const Header: React.FC<HeaderProps> = ({
     }
 
     const handler = (e: Event) => {
-      e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
