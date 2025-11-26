@@ -61,6 +61,7 @@ export default defineConfig(({ mode }) => {
           clientPort: 3001,
           timeout: 30000,
           overlay: false,
+          port: 3001,
         },
 
         watch: {
