@@ -1,5 +1,4 @@
 import type { FaceLandmarks } from '../types/face';
-import type { SegmentationConfig } from '../types/media';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
 
 // Import the worker using Vite's standard syntax.
@@ -263,10 +262,6 @@ class SegmentationManager {
         }
       }, 1000);
     });
-  }
-
-  updateConfig(_config: Partial<SegmentationConfig>): void {
-    // Not implemented
   }
 
   getMode(): SegmentationMode {

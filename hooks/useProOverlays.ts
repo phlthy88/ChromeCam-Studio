@@ -82,6 +82,9 @@ export function useProOverlays(): UseProOverlaysReturn {
   // Pre-allocate zebra pattern canvas (fixes DOM element creation per frame)
   const patternCache = useRef<Map<number, PatternCache>>(new Map());
 
+  // Reusable draw queue to avoid allocation every frame
+  const drawQueueRef = useRef<Array<{ x: number; y: number; w: number; h: number }>>([]);
+
   // Initialize zebra pattern canvas once with threshold-based caching
   const getZebraPattern = useCallback(
     (ctx: CanvasRenderingContext2D, threshold: number): CanvasPattern | null => {
@@ -322,7 +325,9 @@ export function useProOverlays(): UseProOverlaysReturn {
       const maxOverexposed = Math.ceil((pixelCount / (step * step)) * 0.05); // Reduced from 10% to 5% for earlier exit
 
       // Batch drawing for better performance
-      const drawQueue: Array<{ x: number; y: number; w: number; h: number }> = [];
+      // Reuse array by clearing it
+      const drawQueue = drawQueueRef.current;
+      drawQueue.length = 0;
 
       for (let y = 0; y < height; y += step) {
         for (let x = 0; x < width; x += step) {

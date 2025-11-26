@@ -270,6 +270,13 @@ export function useVideoRenderer({
   const requestRef = useRef<number | null>(null);
   const currentTransformRef = useRef<AutoFrameTransform>({ panX: 0, panY: 0, zoom: 1 });
   const settingsRef = useRef(settings);
+
+  // Memoize target aspect ratio to avoid repeated lookups
+  const targetAspectRatio = useMemo(() => {
+    const aspectPreset = ASPECT_RATIO_PRESETS.find((p) => p.id === settings.aspectRatioLock);
+    return aspectPreset?.ratio ?? null;
+  }, [settings.aspectRatioLock]);
+
   const filterCacheRef = useRef({
     baseFilter: '',
     contrast: 100,
@@ -447,17 +454,9 @@ export function useVideoRenderer({
         zebraThreshold,
         showFocusPeaking,
         focusPeakingColor,
-        aspectRatioLock,
       } = settingsRef.current;
 
       const filterPreset = FILTER_PRESETS[activeFilter] || FILTER_PRESETS['none'];
-
-      // Get target aspect ratio from presets
-      // Memoize aspect preset lookup to avoid Array.find() every frame
-      const targetAspectRatio = useMemo(() => {
-        const aspectPreset = ASPECT_RATIO_PRESETS.find((p) => p.id === aspectRatioLock);
-        return aspectPreset?.ratio ?? null;
-      }, [aspectRatioLock]);
 
       // Calculate current transform with smooth interpolation (optimized)
       if (autoFrame) {
@@ -505,11 +504,10 @@ export function useVideoRenderer({
           currentTransformRef.current.panY !== effectivePanY ||
           currentTransformRef.current.zoom !== effectiveZoom
         ) {
-          currentTransformRef.current = {
-            panX: effectivePanX,
-            panY: effectivePanY,
-            zoom: effectiveZoom,
-          };
+          // Mutate existing object instead of creating new one
+          currentTransformRef.current.panX = effectivePanX;
+          currentTransformRef.current.panY = effectivePanY;
+          currentTransformRef.current.zoom = effectiveZoom;
         }
       }
 
@@ -526,12 +524,14 @@ export function useVideoRenderer({
       if (canvas && ctx && video && video.readyState >= 2) {
         // Resize canvas to match video dimensions
         if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          [canvas, tempCanvas, video].forEach((el) => {
-            if (el) {
-              el.width = video.videoWidth;
-              el.height = video.videoHeight;
-            }
-          });
+          // Direct iteration - no array allocation
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          if (tempCanvas) {
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+          }
+          // Note: video element doesn't need width/height set
         }
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -590,20 +590,20 @@ export function useVideoRenderer({
             );
 
             // Update cache
-            filterCacheRef.current = {
-              baseFilter,
-              contrast: settingsRef.current.contrast,
-              saturation: settingsRef.current.saturation,
-              brightness: settingsRef.current.brightness,
-              grayscale: settingsRef.current.grayscale,
-              sepia: settingsRef.current.sepia,
-              hue: settingsRef.current.hue,
-              activeFilter,
-              autoGain,
-              hwContrast: hardwareCapabilities.contrast,
-              hwSaturation: hardwareCapabilities.saturation,
-              hwBrightness: hardwareCapabilities.brightness,
-            };
+            // Mutate cache object instead of creating new one
+            const cache = filterCacheRef.current;
+            cache.baseFilter = baseFilter;
+            cache.contrast = settingsRef.current.contrast;
+            cache.saturation = settingsRef.current.saturation;
+            cache.brightness = settingsRef.current.brightness;
+            cache.grayscale = settingsRef.current.grayscale;
+            cache.sepia = settingsRef.current.sepia;
+            cache.hue = settingsRef.current.hue;
+            cache.activeFilter = activeFilter;
+            cache.autoGain = autoGain;
+            cache.hwContrast = hardwareCapabilities.contrast;
+            cache.hwSaturation = hardwareCapabilities.saturation;
+            cache.hwBrightness = hardwareCapabilities.brightness;
           }
 
           const segmentationMask = segmentationMaskRef.current;
@@ -735,12 +735,13 @@ export function useVideoRenderer({
             if (needsNewGradient) {
               // Create and cache new gradient
               const gradient = createVignetteGradient(ctx, canvas.width, canvas.height, vignette);
-              vignetteCacheRef.current = {
-                gradient,
-                width: canvas.width,
-                height: canvas.height,
-                intensity: vignette,
-              };
+
+              // Mutate existing cache object
+              const cache = vignetteCacheRef.current;
+              cache.gradient = gradient;
+              cache.width = canvas.width;
+              cache.height = canvas.height;
+              cache.intensity = vignette;
               drawVignette(ctx, canvas.width, canvas.height, gradient);
             } else if (vignetteCache.gradient) {
               // Use cached gradient

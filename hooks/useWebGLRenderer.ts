@@ -15,6 +15,11 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { WebGLLutRenderer, WebGLFaceWarpRenderer, applyLutSoftware } from '../utils/webglLut';
 import { getCinematicLut } from '../data/cinematicLuts';
 import { FaceLandmarks } from '../types/face';
+import {
+  WEBGL_STABILIZATION_DELAY_MS,
+  WEBGL_CONTEXT_RETRY_DELAY_MS,
+  WEBGL_MAX_RETRIES,
+} from '../constants/webgl';
 
 export interface UseWebGLRendererOptions {
   /** Whether WebGL rendering is enabled */
@@ -247,7 +252,6 @@ export function useWebGLRenderer({
 
       // CRITICAL FIX: Try WebGL context creation with error recovery
       let retryCount = 0;
-      const MAX_RETRIES = 3;
 
       const tryCreateContext = () => {
         try {
@@ -279,12 +283,12 @@ export function useWebGLRenderer({
         } catch (error) {
           console.error('[useWebGLRenderer] Context creation failed:', error);
 
-          if (retryCount < MAX_RETRIES) {
+          if (retryCount < WEBGL_MAX_RETRIES) {
             retryCount++;
             console.warn(
-              `[useWebGLRenderer] Retrying context creation (${retryCount}/${MAX_RETRIES})...`
+              `[useWebGLRenderer] Retrying context creation (${retryCount}/${WEBGL_MAX_RETRIES})...`
             );
-            setTimeout(tryCreateContext, 1000 * retryCount); // Exponential backoff
+            setTimeout(tryCreateContext, WEBGL_CONTEXT_RETRY_DELAY_MS * retryCount);
           } else {
             console.error('[useWebGLRenderer] Failed to initialize WebGL after retries');
             if (isMounted) {
@@ -295,7 +299,7 @@ export function useWebGLRenderer({
       };
 
       tryCreateContext();
-    }, 500); // Wait 500ms for main thread to stabilize
+    }, WEBGL_STABILIZATION_DELAY_MS);
 
     return () => {
       isMounted = false;

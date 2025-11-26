@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+import {
+  LUMINANCE_RED_COEFFICIENT,
+  LUMINANCE_GREEN_COEFFICIENT,
+  LUMINANCE_BLUE_COEFFICIENT,
+} from '../constants/ai';
+
 export interface LowLightAnalysis {
   averageBrightness: number;
   minBrightness: number;
@@ -95,7 +101,9 @@ export function useAutoLowLight({
           const i = (y * sampleSize + x) * 4;
           // Calculate luminance (Rec. 709 coefficients)
           const luminance =
-            0.2126 * (data[i] || 0) + 0.7152 * (data[i + 1] || 0) + 0.0722 * (data[i + 2] || 0);
+            LUMINANCE_RED_COEFFICIENT * (data[i] || 0) +
+            LUMINANCE_GREEN_COEFFICIENT * (data[i + 1] || 0) +
+            LUMINANCE_BLUE_COEFFICIENT * (data[i + 2] || 0);
           // Calculate distance from center (normalized 0.0 to 0.5)
           const cx = x / sampleSize - 0.5;
           const cy = y / sampleSize - 0.5;

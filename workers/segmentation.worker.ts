@@ -6,6 +6,16 @@ import * as tf from '@tensorflow/tfjs';
 import * as bodyPix from '@tensorflow-models/body-pix';
 import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 
+import {
+  BODY_SEGMENTATION_THRESHOLD,
+  AUTO_FRAME_CALC_INTERVAL_MS,
+  FACE_BOX_Y_OFFSET,
+  FRAME_CENTER_POINT,
+  AUTOFRAME_TARGET_ZOOM_FACTOR,
+  AUTOFRAME_MIN_ZOOM,
+  AUTOFRAME_MAX_ZOOM,
+} from '../constants/ai';
+
 // =============================================================================
 // POLYFILLS for Worker Environment
 // =============================================================================
@@ -30,7 +40,7 @@ let autoFrameEnabled = false;
 
 // Auto-frame throttling state
 let lastAutoFrameCalc = 0;
-const AUTO_FRAME_CALC_INTERVAL = 500; // Calculate only every 500ms (2 FPS)
+const AUTO_FRAME_CALC_INTERVAL = AUTO_FRAME_CALC_INTERVAL_MS;
 let cachedAutoFrameTransform: ReturnType<typeof calculateAutoFrameTransform> = null;
 
 // =============================================================================
@@ -109,16 +119,16 @@ function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegment
   if (found && maxY > minY) {
     const boxCenterX = (minX + maxX) / 2;
     const boxHeight = maxY - minY;
-    const faceY = minY + boxHeight * 0.25;
+    const faceY = minY + boxHeight * FACE_BOX_Y_OFFSET;
 
     const centerXPercent = boxCenterX / width;
     const faceYPercent = faceY / height;
 
-    const targetPanX = (0.5 - centerXPercent) * 100;
-    const targetPanY = (0.5 - faceYPercent) * 100;
+    const targetPanX = (FRAME_CENTER_POINT - centerXPercent) * 100;
+    const targetPanY = (FRAME_CENTER_POINT - faceYPercent) * 100;
 
-    let targetZoom = (height * 0.6) / boxHeight;
-    targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
+    let targetZoom = (height * AUTOFRAME_TARGET_ZOOM_FACTOR) / boxHeight;
+    targetZoom = Math.max(AUTOFRAME_MIN_ZOOM, Math.min(targetZoom, AUTOFRAME_MAX_ZOOM));
 
     return { panX: targetPanX, panY: targetPanY, zoom: targetZoom };
   }
@@ -280,7 +290,7 @@ async function processFrame(imageBitmap: ImageBitmap, autoFrame: boolean) {
     const segmentation = await net.segmentPerson(canvas as unknown as HTMLCanvasElement, {
       flipHorizontal: false,
       internalResolution,
-      segmentationThreshold: 0.7,
+      segmentationThreshold: BODY_SEGMENTATION_THRESHOLD,
     });
 
     // Run face detection (optimized for high resolutions)

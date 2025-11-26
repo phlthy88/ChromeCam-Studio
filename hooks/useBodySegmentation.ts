@@ -71,61 +71,6 @@ export function useBodySegmentation({
         `Current globals - tf: ${!!window.tf}, bodySegmentation: ${!!window.bodySegmentation}`
       );
 
-      // Alternative loading method using different CDNs
-      const loadScriptsAlternative = async (): Promise<void> => {
-        console.log('[useBodySegmentation] Trying alternative script loading...');
-
-        try {
-          // Try to load from unpkg as fallback
-          if (!window.tf) {
-            console.log('[useBodySegmentation] Trying unpkg CDN for TensorFlow.js...');
-            await new Promise<void>((resolve, reject) => {
-              const script = document.createElement('script');
-              script.src = 'https://unpkg.com/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
-              script.crossOrigin = 'anonymous';
-              script.onload = () => {
-                console.log('[useBodySegmentation] TensorFlow.js loaded from unpkg');
-                resolve();
-              };
-              script.onerror = () => reject(new Error('Unpkg CDN failed for TensorFlow.js'));
-              document.head.appendChild(script);
-            });
-          }
-
-          if (!window.bodySegmentation) {
-            console.log('[useBodySegmentation] Trying unpkg CDN for MediaPipe...');
-            await new Promise<void>((resolve, reject) => {
-              const script = document.createElement('script');
-              script.src =
-                'https://unpkg.com/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js';
-              script.crossOrigin = 'anonymous';
-              script.onload = () => {
-                console.log('[useBodySegmentation] MediaPipe loaded from unpkg');
-                resolve();
-              };
-              script.onerror = () => reject(new Error('Unpkg CDN failed for MediaPipe'));
-              document.head.appendChild(script);
-            });
-          }
-
-          // Verify globals are set
-          let retries = 10;
-          while ((!window.tf || !window.bodySegmentation) && retries > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            retries--;
-          }
-
-          if (!window.tf) throw new Error('TensorFlow.js global not set after alternative loading');
-          if (!window.bodySegmentation)
-            throw new Error('MediaPipe global not set after alternative loading');
-
-          console.log('[useBodySegmentation] Alternative loading successful');
-        } catch (error) {
-          console.error('[useBodySegmentation] Alternative loading failed:', error);
-          throw error;
-        }
-      };
-
       // Note: Script loading capability is verified by CSP allowing external scripts
 
       // Prevent concurrent loading attempts
@@ -276,43 +221,27 @@ export function useBodySegmentation({
 
         console.error('[useBodySegmentation] Failed to load AI scripts after retries:', error);
 
-        // Try alternative loading method as fallback
-        console.log('[useBodySegmentation] Attempting alternative loading method...');
-        try {
-          await loadScriptsAlternative();
-        } catch (altError) {
-          console.error('[useBodySegmentation] Alternative loading also failed:', altError);
-
-          // Provide more specific error messages
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          if (
-            errorMessage.includes('network') ||
-            errorMessage.includes('fetch') ||
-            errorMessage.includes('timeout')
-          ) {
-            setLoadingError(
-              'Network error: Unable to download AI libraries. Please check your internet connection and try refreshing the page.'
-            );
-          } else if (
-            errorMessage.includes('CORS') ||
-            errorMessage.includes('cross-origin') ||
-            errorMessage.includes('blocked')
-          ) {
-            setLoadingError(
-              'Security error: AI libraries blocked by browser security policy. Try disabling browser extensions or using an incognito window.'
-            );
-          } else if (errorMessage.includes('not available')) {
-            setLoadingError(
-              'AI libraries loaded but not properly initialized. Please refresh the page.'
-            );
-          } else {
-            setLoadingError(
-              'AI libraries failed to load. Some camera effects may not be available.'
-            );
-          }
-
-          setSegmentationMode('disabled');
+        // Provide more specific error messages
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (
+          errorMessage.includes('network') ||
+          errorMessage.includes('fetch') ||
+          errorMessage.includes('timeout')
+        ) {
+          setLoadingError(
+            'Network error: Unable to download AI libraries. Please check your internet connection and try refreshing the page.'
+          );
+        } else if (
+          errorMessage.includes('CORS') ||
+          errorMessage.includes('cross-origin') ||
+          errorMessage.includes('blocked')
+        ) {
+          setLoadingError('Security error: AI libraries blocked by browser security policy.');
+        } else {
+          setLoadingError('AI libraries failed to load. Some features may not work properly.');
         }
+
+        setSegmentationMode('disabled');
       }
     }
   }, []);
