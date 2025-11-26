@@ -31,7 +31,7 @@ export const SEGMENTATION_FRAME_SKIP = 3;
 export const INFERENCE_FRAME_SKIP_FACTOR = 3;
 
 // Segmentation promise timeout
-export const SEGMENTATION_TIMEOUT_MS = 1000;
+export const SEGMENTATION_TIMEOUT_MS = 5000;
 
 // Auto-frame throttling interval
 export const AUTOFRAME_THROTTLE_MS = 500;
