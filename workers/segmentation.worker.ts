@@ -201,18 +201,9 @@ async function initSegmenter() {
 
     workerLogger.warn('[Worker] Setting up TensorFlow.js...');
 
-    // Initialize TensorFlow.js first
+    // Initialize TensorFlow.js first with CPU backend (WebGL not available in workers)
+    await tf.setBackend('cpu');
     await tf.ready();
-
-    // Try WebGL backend, fallback to CPU if not available
-    try {
-      await tf.setBackend('webgl');
-      await tf.ready();
-    } catch (backendError) {
-      workerLogger.warn('[Worker] WebGL backend failed, falling back to CPU:', backendError);
-      await tf.setBackend('cpu');
-      await tf.ready();
-    }
 
     workerLogger.warn(`[Worker] TensorFlow.js ready with ${tf.getBackend()} backend.`);
 
