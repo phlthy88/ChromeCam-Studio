@@ -66,7 +66,7 @@ class SegmentationManager {
       }
     }
 
-    this.mode = 'main-thread';
+    this.mode = 'disabled';
     this.isInitializing = false;
     return this.mode;
   }

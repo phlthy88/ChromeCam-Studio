@@ -174,14 +174,20 @@ export function useBodySegmentation({
               setFaceLandmarks(landmarks);
             }
           });
+        } else if (mode === 'disabled') {
+          // Worker unavailable, fall back to main thread
+          console.log('[AI] Worker unavailable, falling back to main thread');
+          setLoadingStatus('Worker unavailable, using main thread...');
+          await initMainThread();
         } else {
-          // If initialize() resolves but not with 'worker', it means timeout/error occurred
-          throw new Error('Worker initialization failed or timed out.');
+          // Unexpected mode
+          throw new Error(`Unexpected segmentation mode: ${mode}`);
         }
       } catch (error) {
         if (!isMounted) return;
-        console.warn('[AI] Worker initialization failed, falling back to main thread:', error);
-        await initMainThread();
+        console.error('[AI] Fatal initialization error:', error);
+        setLoadingError('AI system unavailable');
+        setSegmentationMode('disabled');
       }
     };
 
