@@ -23,6 +23,7 @@ interface ControlsPanelProps {
   onCloseMobile?: () => void;
   capabilities?: ExtendedMediaTrackCapabilities | null;
   detectedCapabilities?: DetectedCapabilities | null;
+  faceDetected?: boolean;
 }
 
 // Defined Defaults for Granular Resets
@@ -62,7 +63,6 @@ const DEFAULTS_EFFECTS = {
   vignette: 0,
   softwareSharpness: 0,
   autoFrame: false,
-  denoise: false,
   virtualBackground: false,
   virtualBackgroundImage: null,
 };
@@ -139,6 +139,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onCloseMobile,
   capabilities,
   detectedCapabilities,
+  faceDetected = false,
 }) => {
   // OBS Integration
   const {
@@ -252,7 +253,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
       noseSlimming: 'number',
       mouthScaling: 'number',
       autoFrame: 'boolean',
-      denoise: 'boolean',
       autoLowLight: 'boolean',
       virtualBackground: 'boolean',
       virtualBackgroundImage: 'string|null',
@@ -1322,15 +1322,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   onChange={(v) => update('autoFrame', v)}
                 />
 
-                <Toggle
-                  label="Noise Reduction"
-                  enabled={settings.denoise}
-                  onChange={(v) => update('denoise', v)}
-                />
-                <p className="text-xs text-on-surface-variant ml-1 mb-3">
-                  AI-based denoising coming soon - currently applies subtle contrast enhancement
-                </p>
-
                 <div className="pt-4 border-t border-outline-variant">
                   <Toggle
                     label="Virtual Background"
@@ -1573,6 +1564,14 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             {/* Beauty Filters */}
             <ControlSection title="Beauty Filters">
               <div className="space-y-5">
+                {/* Face Detection Status */}
+                <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  <div
+                    className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-success' : 'bg-error'}`}
+                  />
+                  {faceDetected ? 'Face detected' : 'No face detected'}
+                </div>
+
                 <Slider
                   label="Eye Enlargement"
                   value={settings.eyeEnlargement}

@@ -57,7 +57,6 @@ export interface CameraSettings {
 
   // AI/System
   autoFrame: boolean;
-  denoise: boolean;
   autoLowLight: boolean;
   virtualBackground: boolean;
   virtualBackgroundImage: string | null; // Data URL
@@ -168,7 +167,6 @@ export const DEFAULT_SETTINGS: CameraSettings = {
 
   // AI/System
   autoFrame: false,
-  denoise: false,
   autoLowLight: false,
   virtualBackground: false,
   virtualBackgroundImage: null,

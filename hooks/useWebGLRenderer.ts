@@ -348,6 +348,34 @@ export function useWebGLRenderer({
       // Step 1: Apply face warping if beauty settings are enabled
       let processedSource: HTMLVideoElement | HTMLCanvasElement | ImageBitmap = source;
 
+      if (hasBeautySettings && faceWarpRendererRef.current && beautySettings && faceLandmarks) {
+        try {
+          console.log(
+            '[useWebGLRenderer] Applying beauty filters with',
+            faceLandmarks.length,
+            'landmarks'
+          );
+
+          // ✅ FIX: Verify landmarks before rendering
+          if (faceLandmarks.length >= 478) {
+            // MediaPipe Face Mesh has 478 landmarks
+            faceWarpRendererRef.current.render(source, beautySettings);
+
+            if (faceWarpRendererRef.current.canvas) {
+              processedSource = faceWarpRendererRef.current.canvas;
+              console.log('[useWebGLRenderer] Beauty filters applied successfully');
+            }
+          } else {
+            console.warn(
+              '[useWebGLRenderer] Insufficient landmarks for beauty filters:',
+              faceLandmarks.length
+            );
+          }
+        } catch (error) {
+          console.warn('[useWebGLRenderer] Face warp rendering failed:', error);
+        }
+      }
+
       // Step 2: Apply LUT grading if enabled
       if (!enabled || lutPreset === 'none') {
         // If only beauty filters are enabled (no LUT), return the warped canvas

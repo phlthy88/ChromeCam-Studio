@@ -23,6 +23,7 @@ const WebcamApp: React.FC = () => {
     import('./settings').DetectedCapabilities | null
   >(null);
   const [processedAudioStream, setProcessedAudioStream] = useState<MediaStream | null>(null);
+  const [faceDetected, setFaceDetected] = useState(false);
   const { theme, setTheme } = useTheme();
 
   // Initialize dynamic color theming from ChromeOS/system
@@ -34,6 +35,11 @@ const WebcamApp: React.FC = () => {
   // Handle settings change
   const handleSettingsChange = useCallback((newSettings: CameraSettings) => {
     setSettings(newSettings);
+  }, []);
+
+  // Handle face detection status
+  const handleFaceDetected = useCallback((detected: boolean) => {
+    setFaceDetected(detected);
   }, []);
 
   // Handle keyboard shortcut events from VideoPanel
@@ -183,6 +189,7 @@ const WebcamApp: React.FC = () => {
                 onCloseMobile={() => setIsSidebarOpen(false)}
                 capabilities={capabilities}
                 detectedCapabilities={detectedCapabilities}
+                faceDetected={faceDetected}
               />
             </div>
           </aside>
@@ -212,6 +219,7 @@ const WebcamApp: React.FC = () => {
                 onCapabilitiesChange={setCapabilities}
                 onDetectedCapabilitiesChange={setDetectedCapabilities}
                 onProcessedAudioStream={setProcessedAudioStream}
+                onFaceDetected={handleFaceDetected}
                 broadcastMode={isBroadcastMode}
               />
             </CameraErrorBoundary>

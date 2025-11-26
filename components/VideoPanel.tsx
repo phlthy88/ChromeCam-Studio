@@ -24,6 +24,7 @@ interface VideoPanelProps {
   onCapabilitiesChange?: (capabilities: ExtendedMediaTrackCapabilities | null) => void;
   onDetectedCapabilitiesChange?: (capabilities: DetectedCapabilities | null) => void;
   onProcessedAudioStream?: (stream: MediaStream | null) => void;
+  onFaceDetected?: (detected: boolean) => void;
   broadcastMode?: boolean;
 }
 
@@ -51,6 +52,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   onCapabilitiesChange,
   onDetectedCapabilitiesChange,
   onProcessedAudioStream,
+  onFaceDetected,
   broadcastMode = false,
 }) => {
   // Detect ChromeOS
@@ -185,6 +187,12 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     settings.noseSlimming > 0 ||
     settings.jawSlimming > 0 ||
     settings.mouthScaling > 0;
+
+  // Monitor face detection status
+  useEffect(() => {
+    const faceDetected = !!(faceLandmarks && faceLandmarks.length > 0);
+    onFaceDetected?.(faceDetected);
+  }, [faceLandmarks, onFaceDetected]);
 
   // Canvas rendering with effects
   useVideoRenderer({

@@ -183,7 +183,6 @@ const DEFAULT_SETTINGS: CameraSettings = {
 
   // AI/System
   autoFrame: false,
-  denoise: false,
   autoLowLight: false,
   virtualBackground: false,
   virtualBackgroundImage: null,

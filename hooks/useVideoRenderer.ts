@@ -112,7 +112,6 @@ function drawVignette(
  * Build the base filter string from settings
  */
 function buildBaseFilterString(
-  denoise: boolean,
   hwContrast: boolean,
   hwSaturation: boolean,
   hwBrightness: boolean,
@@ -126,14 +125,6 @@ function buildBaseFilterString(
   filterPresetCss: string
 ): string {
   let baseFilter = '';
-
-  if (denoise) {
-    // TODO: Implement proper AI-based noise reduction
-    // For now, just apply slight contrast boost to reduce visual noise perception
-    const contrastBoost = hwContrast ? '100%' : '108%';
-    const saturationBoost = '102%';
-    baseFilter += `contrast(${contrastBoost}) saturate(${saturationBoost}) brightness(102%) `;
-  }
 
   const effectiveContrast = hwContrast ? 100 : contrast;
   const effectiveSaturation = hwSaturation ? 100 : saturation;
@@ -279,7 +270,6 @@ export function useVideoRenderer({
   const settingsRef = useRef(settings);
   const filterCacheRef = useRef({
     baseFilter: '',
-    denoise: false,
     contrast: 100,
     saturation: 100,
     brightness: 100,
@@ -301,19 +291,18 @@ export function useVideoRenderer({
 
   // Updated STABILIZED LANDMARK REF
   const stableLandmarksRef = useRef<FaceLandmarks | null>(null);
+  const landmarkUpdateCounterRef = useRef(0);
+
   useEffect(() => {
-    console.log('[useVideoRenderer] Received face landmarks:', faceLandmarks?.length || 0);
-    if (faceLandmarks) {
-      // Only update if different
-      const landmarksChanged =
-        !stableLandmarksRef.current ||
-        JSON.stringify(faceLandmarks) !== JSON.stringify(stableLandmarksRef.current);
-      if (landmarksChanged) {
+    if (faceLandmarks && faceLandmarks.length > 0) {
+      // Simple heuristic: Update every 10 frames to reduce churn
+      landmarkUpdateCounterRef.current++;
+
+      if (landmarkUpdateCounterRef.current >= 10 || !stableLandmarksRef.current) {
         stableLandmarksRef.current = faceLandmarks;
-        console.log('[useVideoRenderer] Updated stable landmarks:', faceLandmarks.length);
+        landmarkUpdateCounterRef.current = 0;
+        console.log('[useVideoRenderer] Face landmarks updated:', faceLandmarks.length, 'points');
       }
-    } else {
-      console.log('[useVideoRenderer] No face landmarks received');
     }
   }, [faceLandmarks]);
 
@@ -437,7 +426,6 @@ export function useVideoRenderer({
         vignette,
         softwareSharpness,
         autoFrame,
-        denoise,
         mirror,
         rotation,
         virtualBackground,
@@ -457,28 +445,43 @@ export function useVideoRenderer({
       const aspectPreset = ASPECT_RATIO_PRESETS.find((p) => p.id === aspectRatioLock);
       const targetAspectRatio = aspectPreset?.ratio ?? null;
 
-      // Calculate current transform with smooth interpolation
+      // Calculate current transform with smooth interpolation (optimized)
       if (autoFrame) {
         const speed = 0.05;
-        currentTransformRef.current.panX = lerp(
+
+        // Calculate new transform values
+        const newPanX = lerp(
           currentTransformRef.current.panX,
           targetTransformRef.current.panX,
           speed
         );
-        currentTransformRef.current.panY = lerp(
+        const newPanY = lerp(
           currentTransformRef.current.panY,
           targetTransformRef.current.panY,
           speed
         );
-        currentTransformRef.current.zoom = lerp(
+        const newZoom = lerp(
           currentTransformRef.current.zoom,
           targetTransformRef.current.zoom,
           speed
         );
+
+        // Only update if transform changed significantly (threshold: 0.5% for pan, 1% for zoom)
+        const panXChanged = Math.abs(newPanX - currentTransformRef.current.panX) > 0.5;
+        const panYChanged = Math.abs(newPanY - currentTransformRef.current.panY) > 0.5;
+        const zoomChanged = Math.abs(newZoom - currentTransformRef.current.zoom) > 0.01;
+
+        if (panXChanged || panYChanged || zoomChanged) {
+          currentTransformRef.current.panX = newPanX;
+          currentTransformRef.current.panY = newPanY;
+          currentTransformRef.current.zoom = newZoom;
+        }
       } else {
+        // Manual transform (no interpolation needed)
         const effectiveZoom = hardwareCapabilities.zoom ? 1 : settingsRef.current.zoom;
         const effectivePanX = hardwareCapabilities.panX ? 0 : settingsRef.current.panX;
         const effectivePanY = hardwareCapabilities.panY ? 0 : settingsRef.current.panY;
+
         currentTransformRef.current = {
           panX: effectivePanX,
           panY: effectivePanY,
@@ -487,6 +490,14 @@ export function useVideoRenderer({
       }
 
       const { panX, panY, zoom } = currentTransformRef.current;
+
+      // Check if transforms are needed (skip identity transforms for performance)
+      const needsTransform =
+        mirror ||
+        Math.abs(zoom - 1) > 0.01 ||
+        Math.abs(rotation) > 0.1 ||
+        Math.abs(panX) > 0.5 ||
+        Math.abs(panY) > 0.5;
 
       if (canvas && ctx && video && video.readyState >= 2) {
         // Resize canvas to match video dimensions
@@ -506,20 +517,23 @@ export function useVideoRenderer({
           // Compare mode: show raw video
           ctx.drawImage(video, 0, 0);
         } else {
-          // Apply transforms
-          ctx.translate(canvas.width / 2, canvas.height / 2);
-          if (mirror) ctx.scale(-1, 1);
-          ctx.scale(zoom, zoom);
-          ctx.rotate((rotation * Math.PI) / 180);
-          const xOffset = (panX / 100) * canvas.width;
-          const yOffset = (panY / 100) * canvas.height;
-          ctx.translate(xOffset, yOffset);
-          ctx.translate(-canvas.width / 2, -canvas.height / 2);
+          // Apply transforms only if needed (skip identity transforms for performance)
+          if (needsTransform) {
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            if (mirror) ctx.scale(-1, 1);
+            if (Math.abs(zoom - 1) > 0.01) ctx.scale(zoom, zoom);
+            if (Math.abs(rotation) > 0.1) ctx.rotate((rotation * Math.PI) / 180);
+            if (Math.abs(panX) > 0.5 || Math.abs(panY) > 0.5) {
+              const xOffset = (panX / 100) * canvas.width;
+              const yOffset = (panY / 100) * canvas.height;
+              ctx.translate(xOffset, yOffset);
+            }
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+          }
 
           // Build base filter string with caching to avoid string concatenation every frame
           const filterCache = filterCacheRef.current;
           const cacheValid =
-            filterCache.denoise === denoise &&
             filterCache.contrast === settingsRef.current.contrast &&
             filterCache.saturation === settingsRef.current.saturation &&
             filterCache.brightness === settingsRef.current.brightness &&
@@ -538,7 +552,6 @@ export function useVideoRenderer({
           } else {
             // Rebuild filter string and update cache
             baseFilter = buildBaseFilterString(
-              denoise,
               hardwareCapabilities.contrast,
               hardwareCapabilities.saturation,
               hardwareCapabilities.brightness,
@@ -555,7 +568,6 @@ export function useVideoRenderer({
             // Update cache
             filterCacheRef.current = {
               baseFilter,
-              denoise,
               contrast: settingsRef.current.contrast,
               saturation: settingsRef.current.saturation,
               brightness: settingsRef.current.brightness,
