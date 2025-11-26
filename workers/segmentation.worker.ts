@@ -16,22 +16,24 @@ type WorkerResponse =
     }
   | { type: 'error'; error: string };
 
-// MediaPipe script URL - references file from /public directory
-const selfieSegmentationUrl = '/mediapipe/selfie_segmentation.js';
+// ========================================================================
+// FIX: Use CDN URLs instead of local /mediapipe/ files
+// ========================================================================
+const MEDIAPIPE_CDN_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747';
+const selfieSegmentationUrl = `${MEDIAPIPE_CDN_BASE}/selfie_segmentation.js`;
 
-// WASM file location configuration
+// WASM file location configuration - point to CDN
 const LOCATE_FILE = (file: string) => {
-  // All files are served from the same directory as the worker
-  // which we assume is /mediapipe/
-  return `/mediapipe/${file}`;
+  // All WASM files are on the CDN
+  return `${MEDIAPIPE_CDN_BASE}/${file}`;
 };
+// ========================================================================
 
-// --- FIX START: Force Polyfill importScripts ---
-// In Module Workers, importScripts exists but throws an error.
-// We must overwrite it unconditionally to use our fetch+eval workaround.
+// --- FIX: Force Polyfill importScripts for Module Workers ---
 (self as any).importScripts = async function (...urls: string[]) {
   for (const url of urls) {
     try {
+      console.log(`[Worker] Loading script: ${url}`);
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to load script: ${url} (status: ${response.status})`);
@@ -47,13 +49,14 @@ const LOCATE_FILE = (file: string) => {
 
       // Use indirect eval to execute in global scope
       (0, eval)(scriptText);
+      console.log(`[Worker] Successfully loaded: ${url}`);
     } catch (error) {
-      console.error(`Error loading script ${url}:`, error);
+      console.error(`[Worker] Error loading script ${url}:`, error);
       throw error;
     }
   }
 };
-// --- FIX END ---
+// --- END FIX ---
 
 interface WorkerSegmentationResults {
   segmentationMask: ImageData | ImageBitmap;
@@ -74,18 +77,25 @@ interface WorkerSelfieSegmentation {
 // Internal state
 let segmenter: WorkerSelfieSegmentation | null = null;
 let isInitialized = false;
-let autoFrameEnabled: boolean = false; // Store autoFrame setting for this frame
-let inputImageBitmap: ImageBitmap | null = null; // Store the input image for auto frame calculation
+let autoFrameEnabled: boolean = false;
+let inputImageBitmap: ImageBitmap | null = null;
 
 // Load the MediaPipe script
 async function loadMediaPipe() {
-  if (typeof (self as DedicatedWorkerGlobalScope).SelfieSegmentation === 'undefined') {
+  if (typeof (self as any).SelfieSegmentation === 'undefined') {
     try {
+      console.log('[Worker] Loading MediaPipe from CDN...');
       // Use custom async importScripts function
       await (self as any).importScripts(selfieSegmentationUrl);
-      console.log('MediaPipe loaded successfully in worker');
+      
+      // Verify that SelfieSegmentation was loaded
+      if (typeof (self as any).SelfieSegmentation === 'undefined') {
+        throw new Error('SelfieSegmentation not defined after loading script');
+      }
+      
+      console.log('[Worker] MediaPipe loaded successfully');
     } catch (error) {
-      console.error('Failed to load MediaPipe in worker:', error);
+      console.error('[Worker] Failed to load MediaPipe:', error);
       throw error;
     }
   }
@@ -94,14 +104,15 @@ async function loadMediaPipe() {
 // Initialize the segmenter
 async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
   try {
+    console.log('[Worker] Initializing segmenter...');
     await loadMediaPipe();
 
-    // Type assertion simplified to avoid potential parsing issues
     const workerSelfieSegmentation = (self as any).SelfieSegmentation;
     if (!workerSelfieSegmentation) {
-      throw new Error('SelfieSegmentation is not available');
+      throw new Error('SelfieSegmentation is not available after loading');
     }
 
+    console.log('[Worker] Creating SelfieSegmentation instance...');
     const SelfieSegmentationConstructor: WorkerSelfieSegmentationConstructor =
       workerSelfieSegmentation;
 
@@ -122,9 +133,8 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
             let autoFrameTransform: { panX: number; panY: number; zoom: number } | undefined =
               undefined;
 
-            // If autoFrame was enabled for this frame, calculate the transform using the original input image
+            // If autoFrame was enabled for this frame, calculate the transform
             if (autoFrameEnabled && inputImageBitmap) {
-              // Create temporary canvas to get ImageData from the input image
               const tempCanvas = new OffscreenCanvas(
                 inputImageBitmap.width,
                 inputImageBitmap.height
@@ -145,7 +155,6 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
               }
             }
 
-            // Send the mask along with auto frame transform if needed
             const response: WorkerResponse = {
               type: 'mask',
               mask: maskBitmap,
@@ -155,23 +164,20 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
 
             self.postMessage(response, { transfer: [maskBitmap] });
 
-            // Clean up the input image bitmap after processing
+            // Clean up
             if (inputImageBitmap) {
               inputImageBitmap.close();
               inputImageBitmap = null;
             }
           })
           .catch((err) => {
-            console.error('Worker: Failed to create mask bitmap', err);
-
-            // Clean up the input image bitmap on error
+            console.error('[Worker] Failed to create mask bitmap:', err);
             if (inputImageBitmap) {
               inputImageBitmap.close();
               inputImageBitmap = null;
             }
           });
       } else {
-        // Clean up the input image bitmap if no segmentation results
         if (inputImageBitmap) {
           inputImageBitmap.close();
           inputImageBitmap = null;
@@ -179,13 +185,16 @@ async function initSegmenter(modelType: 'general' | 'landscape' = 'general') {
       }
     });
 
+    console.log('[Worker] Calling initialize()...');
     await selfieSegmentation.initialize();
+    
     segmenter = selfieSegmentation as unknown as WorkerSelfieSegmentation;
     isInitialized = true;
 
+    console.log('[Worker] Initialization complete!');
     self.postMessage({ type: 'init-complete', success: true });
   } catch (error) {
-    console.error('Worker: Initialization failed', error);
+    console.error('[Worker] Initialization failed:', error);
     self.postMessage({
       type: 'init-complete',
       success: false,
@@ -223,7 +232,6 @@ function calculateAutoFrameTransform(
   if (found) {
     const boxCenterX = (minX + maxX) / 2;
     const boxHeight = maxY - minY;
-    // Focus on the face/head area (upper ~25% of detected body)
     const faceY = minY + boxHeight * 0.25;
     const centerXPercent = boxCenterX / width;
     const faceYPercent = faceY / height;
@@ -247,10 +255,9 @@ async function processFrame(image: ImageBitmap, autoFrame: boolean) {
   if (!isInitialized || !segmenter) return;
 
   try {
-    // Store the autoFrame setting and input image for later use in onResults callback
     autoFrameEnabled = autoFrame;
 
-    // Clean up any previous input image bitmap if it wasn't cleaned up properly
+    // Clean up any previous input image bitmap
     if (inputImageBitmap) {
       inputImageBitmap.close();
     }
@@ -259,9 +266,8 @@ async function processFrame(image: ImageBitmap, autoFrame: boolean) {
     // Send the image to MediaPipe for segmentation
     await segmenter.send({ image });
   } catch (error) {
-    console.error('Worker: Processing failed', error);
+    console.error('[Worker] Processing failed:', error);
 
-    // Clean up the input image bitmap on error
     if (inputImageBitmap) {
       inputImageBitmap.close();
       inputImageBitmap = null;
