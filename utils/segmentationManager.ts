@@ -169,7 +169,7 @@ class SegmentationManager {
             const canvas = document.createElement('canvas');
             canvas.width = response.mask.width;
             canvas.height = response.mask.height;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             if (ctx) {
               ctx.drawImage(response.mask, 0, 0);
               const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);

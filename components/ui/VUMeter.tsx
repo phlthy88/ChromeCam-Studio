@@ -93,7 +93,7 @@ const VUMeter: React.FC<VUMeterProps> = ({ audioStream }) => {
           const volume = calculateRMSVolume(dataArray);
 
           const canvas = canvasRef.current;
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
           if (!ctx) return;
 
           const width = canvas.width;

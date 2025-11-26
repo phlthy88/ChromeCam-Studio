@@ -85,11 +85,14 @@ export function useProOverlays(): UseProOverlaysReturn {
   // Initialize zebra pattern canvas once with threshold-based caching
   const getZebraPattern = useCallback(
     (ctx: CanvasRenderingContext2D, threshold: number): CanvasPattern | null => {
-      if (!patternCache.current.has(threshold)) {
+      let cache = patternCache.current.get(threshold);
+
+      if (!cache) {
+        // Create new pattern canvas for this threshold
         const patternCanvas = document.createElement('canvas');
         patternCanvas.width = 8;
         patternCanvas.height = 8;
-        const pCtx = patternCanvas.getContext('2d');
+        const pCtx = patternCanvas.getContext('2d', { willReadFrequently: true });
         if (pCtx) {
           // Adjust pattern opacity based on threshold
           const opacity = Math.max(0.3, Math.min(0.8, (100 - threshold) / 100));
@@ -100,20 +103,23 @@ export function useProOverlays(): UseProOverlaysReturn {
           pCtx.lineTo(8, 0);
           pCtx.stroke();
         }
-        const cache = {
+        cache = {
           canvas: patternCanvas,
-          pattern: ctx.createPattern(patternCanvas, 'repeat'),
+          pattern: null, // Will be created below
         };
         patternCache.current.set(threshold, cache);
       }
-      // Recreate pattern if context changed (pattern is context-specific)
-      const cache = patternCache.current.get(threshold);
-      if (!cache) {
-        return null;
-      }
+
+      // Create pattern for this context if not exists or context changed
       if (!cache.pattern) {
-        cache.pattern = ctx.createPattern(cache.canvas, 'repeat');
+        try {
+          cache.pattern = ctx.createPattern(cache.canvas, 'repeat');
+        } catch (e) {
+          console.warn('[useProOverlays] Failed to create zebra pattern:', e);
+          return null;
+        }
       }
+
       return cache.pattern;
     },
     []
@@ -270,6 +276,7 @@ export function useProOverlays(): UseProOverlaysReturn {
       imageData: ImageData,
       zebraThreshold: number
     ) => {
+      const startTime = performance.now();
       const threshold = (zebraThreshold / 100) * 255;
       const data = imageData.data;
 
@@ -280,13 +287,16 @@ export function useProOverlays(): UseProOverlaysReturn {
 
       // Adaptive step size based on image resolution and performance needs
       const pixelCount = width * height;
-      let step = 4;
+      let step = 8; // Increased from 4 to 8 for better performance
       if (pixelCount > 1920 * 1080)
-        step = 6; // Larger step for 4K+
-      else if (pixelCount > 1280 * 720) step = 5; // Medium step for 1080p
+        step = 12; // Larger step for 4K+
+      else if (pixelCount > 1280 * 720) step = 10; // Medium step for 1080p
 
       let overexposedPixels = 0;
-      const maxOverexposed = Math.ceil((pixelCount / (step * step)) * 0.1); // Early exit if >10% pixels
+      const maxOverexposed = Math.ceil((pixelCount / (step * step)) * 0.05); // Reduced from 10% to 5% for earlier exit
+
+      // Batch drawing for better performance
+      const drawQueue: Array<{ x: number; y: number; w: number; h: number }> = [];
 
       for (let y = 0; y < height; y += step) {
         for (let x = 0; x < width; x += step) {
@@ -306,13 +316,31 @@ export function useProOverlays(): UseProOverlaysReturn {
               return;
             }
 
-            ctx.fillStyle = pattern || 'rgba(255, 0, 0, 0.5)';
-            ctx.fillRect(x, y, step, step);
+            // Queue draws instead of drawing immediately for batching
+            drawQueue.push({ x, y, w: step, h: step });
           }
         }
       }
 
+      // Batch draw all zebra stripes at once
+      if (drawQueue.length > 0) {
+        ctx.fillStyle = pattern || 'rgba(255, 0, 0, 0.5)';
+        for (const rect of drawQueue) {
+          ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        }
+      }
+
       ctx.restore();
+
+      // Performance monitoring
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      if (duration > 16.67) {
+        // Log if it takes more than one frame at 60fps
+        console.warn(
+          `[ZebraStripes] Slow render: ${duration.toFixed(2)}ms (${drawQueue.length} stripes, step=${step})`
+        );
+      }
     },
     [getZebraPattern]
   );
