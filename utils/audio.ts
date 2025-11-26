@@ -352,6 +352,7 @@ export function createAudioProcessingChain(
     compressorConfig?: CompressorConfig;
     enableNoiseGate?: boolean;
     noiseGateConfig?: NoiseGateConfig;
+    monitor?: boolean; // Route to speakers for tab audio capture
   } = {}
 ): AudioProcessingChain {
   const ctx = getAudioContext();
@@ -382,6 +383,12 @@ export function createAudioProcessingChain(
     currentNode = compressor;
   }
 
+  // Monitoring: Route to speakers for tab audio capture
+  if (options.monitor) {
+    currentNode.connect(ctx.destination);
+    console.log('[AudioUtils] Monitoring enabled - audio routed to tab audio');
+  }
+
   // Connect to output
   currentNode.connect(output);
 
@@ -401,14 +408,29 @@ export function createAudioProcessingChain(
  */
 export function disposeAudioProcessingChain(chain: AudioProcessingChain): void {
   chain.source.disconnect();
-
-  if (chain.noiseGate) {
-    chain.noiseGate.dispose();
-  }
-
-  if (chain.compressor) {
-    chain.compressor.disconnect();
-  }
-
+  chain.noiseGate?.dispose();
+  chain.compressor?.disconnect();
   chain.output.disconnect();
+}
+
+/**
+ * Enable/disable monitoring on an existing audio processing chain
+ */
+export function setAudioMonitoring(chain: AudioProcessingChain, enabled: boolean): void {
+  const ctx = getAudioContext();
+  const lastNode = chain.compressor || (chain.noiseGate ? chain.noiseGate.output : chain.source);
+
+  if (enabled) {
+    // Connect to speakers for tab audio capture
+    lastNode.connect(ctx.destination);
+    console.log('[AudioUtils] Monitoring enabled');
+  } else {
+    // Disconnect from speakers (keep output connection)
+    try {
+      lastNode.disconnect(ctx.destination);
+    } catch (e) {
+      // Already disconnected, ignore
+    }
+    console.log('[AudioUtils] Monitoring disabled');
+  }
 }

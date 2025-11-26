@@ -16,6 +16,7 @@ import {
   createAudioProcessingChain,
   disposeAudioProcessingChain,
   updateCompressor,
+  setAudioMonitoring,
   type AudioProcessingChain,
   type CompressorConfig,
   type NoiseGateConfig,
@@ -38,6 +39,8 @@ export interface UseAudioProcessorOptions {
   noiseGateThreshold: number;
   noiseGateAttack: number;
   noiseGateRelease: number;
+  /** Monitoring for broadcast mode */
+  monitor?: boolean;
 }
 
 export interface UseAudioProcessorReturn {
@@ -71,6 +74,7 @@ export function useAudioProcessor({
   noiseGateThreshold,
   noiseGateAttack,
   noiseGateRelease,
+  monitor = false,
 }: UseAudioProcessorOptions): UseAudioProcessorReturn {
   const chainRef = useRef<AudioProcessingChain | null>(null);
   const [processedStream, setProcessedStream] = useState<MediaStream | null>(null);
@@ -150,6 +154,7 @@ export function useAudioProcessor({
         compressorConfig,
         enableNoiseGate: noiseGateEnabled,
         noiseGateConfig,
+        monitor, // Enable monitoring for broadcast mode
       });
 
       chainRef.current = chain;
@@ -158,7 +163,7 @@ export function useAudioProcessor({
       setAudioError(null); // Clear any previous error on successful initialization
 
       // Start monitoring compressor reduction and gate state (throttled to 10fps)
-      const monitor = () => {
+      const startMonitoring = () => {
         if (chain.compressor) {
           setCompressorReduction(chain.compressor.reduction);
         }
@@ -167,10 +172,10 @@ export function useAudioProcessor({
           setNoiseGateOpen(chain.noiseGate.gateOpen);
         }
 
-        timeoutRef.current = setTimeout(monitor, 100); // 10fps monitoring
+        timeoutRef.current = setTimeout(startMonitoring, 100); // 10fps monitoring
       };
 
-      timeoutRef.current = setTimeout(monitor, 100);
+      timeoutRef.current = setTimeout(startMonitoring, 100);
     } catch (error) {
       console.error('Failed to create audio processing chain:', error);
       const errorMessage =
@@ -193,6 +198,7 @@ export function useAudioProcessor({
     noiseGateThreshold,
     noiseGateAttack,
     noiseGateRelease,
+    monitor,
     cleanup,
   ]);
 
@@ -226,6 +232,13 @@ export function useAudioProcessor({
       });
     }
   }, [noiseGateEnabled, noiseGateThreshold, noiseGateAttack, noiseGateRelease]);
+
+  // Update monitoring when broadcast mode changes
+  useEffect(() => {
+    if (chainRef.current) {
+      setAudioMonitoring(chainRef.current, monitor || false);
+    }
+  }, [monitor]);
 
   return {
     processedStream,

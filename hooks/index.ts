@@ -29,6 +29,8 @@ export type { UseVideoRendererOptions, UseVideoRendererReturn } from './useVideo
 export { useMediaRecorder } from './useMediaRecorder';
 export type { UseMediaRecorderOptions, UseMediaRecorderReturn } from './useMediaRecorder';
 export { useSystemAccentColor } from './useSystemAccentColor';
+export { useBroadcastMode } from './useBroadcastMode';
+export type { UseBroadcastModeReturn } from './useBroadcastMode';
 export { useTheme } from './useTheme';
 export { useToast } from '../contexts/ToastContext';
 export { ToastProvider } from './useToast';

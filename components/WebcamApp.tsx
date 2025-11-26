@@ -5,6 +5,7 @@ import VideoPanel from './VideoPanel';
 import { CameraSettings, DEFAULT_SETTINGS, GRID_OVERLAYS } from './settings';
 import { useTheme } from '../hooks/useTheme';
 import { useSystemAccentColor } from '../hooks/useSystemAccentColor';
+import { useBroadcastMode } from '../hooks/useBroadcastMode';
 import type { ExtendedMediaTrackCapabilities } from '../types/media.d.ts';
 import { CameraErrorBoundary } from './ErrorBoundary';
 
@@ -26,6 +27,9 @@ const WebcamApp: React.FC = () => {
 
   // Initialize dynamic color theming from ChromeOS/system
   useSystemAccentColor();
+
+  // Broadcast mode state
+  const { isBroadcastMode } = useBroadcastMode();
 
   // Handle settings change
   const handleSettingsChange = useCallback((newSettings: CameraSettings) => {
@@ -208,6 +212,7 @@ const WebcamApp: React.FC = () => {
                 onCapabilitiesChange={setCapabilities}
                 onDetectedCapabilitiesChange={setDetectedCapabilities}
                 onProcessedAudioStream={setProcessedAudioStream}
+                broadcastMode={isBroadcastMode}
               />
             </CameraErrorBoundary>
           </div>

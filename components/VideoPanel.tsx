@@ -12,7 +12,9 @@ import {
   useAudioProcessor,
   useToast,
   useVirtualCamera,
+  useBroadcastMode,
 } from '../hooks';
+import { BroadcastModeOverlay } from './BroadcastModeOverlay';
 
 import type { DetectedCapabilities } from './settings';
 
@@ -22,6 +24,7 @@ interface VideoPanelProps {
   onCapabilitiesChange?: (capabilities: ExtendedMediaTrackCapabilities | null) => void;
   onDetectedCapabilitiesChange?: (capabilities: DetectedCapabilities | null) => void;
   onProcessedAudioStream?: (stream: MediaStream | null) => void;
+  broadcastMode?: boolean;
 }
 
 /**
@@ -48,6 +51,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   onCapabilitiesChange,
   onDetectedCapabilitiesChange,
   onProcessedAudioStream,
+  broadcastMode = false,
 }) => {
   // Detect ChromeOS
   const isChromeOS = navigator.userAgent.includes('CrOS');
@@ -77,6 +81,12 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
 
   // Keep screen awake during camera operation
   useWakeLock();
+
+  // Broadcast mode state
+  const { isBroadcastMode: hookIsBroadcastMode, exitBroadcastMode } = useBroadcastMode();
+
+  // Combine broadcast mode from props and hook
+  const isBroadcastMode = broadcastMode || hookIsBroadcastMode;
 
   // Handle camera capabilities detection
   const handleCapabilitiesChange = useCallback(
@@ -147,6 +157,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     noiseGateThreshold: settings.audioNoiseGateThreshold,
     noiseGateAttack: settings.audioNoiseGateAttack,
     noiseGateRelease: settings.audioNoiseGateRelease,
+    monitor: isBroadcastMode,
   });
 
   // Notify parent of processed audio stream changes
@@ -326,17 +337,27 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   }, [handleSnapshot, toggleRecording]);
 
   return (
-    <div className="w-full h-full flex items-center justify-center bg-black overflow-hidden relative group">
+    <div
+      className={`
+        w-full h-full flex items-center justify-center
+        bg-black overflow-hidden relative group
+        ${isBroadcastMode ? 'cursor-none' : ''}
+      `}
+    >
+      {/* Broadcast Mode Overlay (only visible in broadcast mode) */}
+      {isBroadcastMode && <BroadcastModeOverlay onExit={exitBroadcastMode} />}
+
       {/* Flash Overlay */}
       <div
         className={`absolute inset-0 bg-white z-50 pointer-events-none transition-opacity duration-150 ${flashActive ? 'opacity-100' : 'opacity-0'}`}
       ></div>
 
-      {/* Status Indicators (Top Right) - Responsive positioning */}
-      {(isAiActive ||
-        isAudioProcessing ||
-        (settings.autoLowLight && autoGain > 5) ||
-        (isBeautyActive && faceLandmarks)) &&
+      {/* Status Indicators (Top Right) - Responsive positioning - Hidden in broadcast mode */}
+      {!isBroadcastMode &&
+        (isAiActive ||
+          isAudioProcessing ||
+          (settings.autoLowLight && autoGain > 5) ||
+          (isBeautyActive && faceLandmarks)) &&
         !isCompareActive && (
           <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-20 flex flex-col gap-1.5 sm:gap-2 items-end pointer-events-none">
             {isAudioProcessing && (
@@ -413,8 +434,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
           </div>
         )}
 
-      {/* Recording Indicator - Responsive positioning */}
-      {isRecording && (
+      {/* Recording Indicator - Responsive positioning - Hidden in broadcast mode */}
+      {!isBroadcastMode && isRecording && (
         <div
           className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-20 flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 bg-error-container/90 backdrop-blur-sm rounded-full border border-error/30 shadow-sm animate-pulse"
           role="status"
@@ -431,8 +452,8 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
         </div>
       )}
 
-      {/* QR Code Result - Responsive positioning */}
-      {qrResult && (
+      {/* QR Code Result - Responsive positioning - Hidden in broadcast mode */}
+      {!isBroadcastMode && qrResult && (
         <div className="absolute top-12 sm:top-14 md:top-16 left-1/2 -translate-x-1/2 z-50 animate-bounce px-2 w-full sm:w-auto">
           <div
             className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-1.5 sm:px-4 sm:py-2 bg-surface-container-high text-on-surface rounded-full shadow-elevation-3 cursor-pointer mx-auto"
@@ -475,72 +496,73 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
         aria-hidden="true"
       />
 
-      {/* M3 FLOATING TOOLBAR - Responsive for mobile/tablet/desktop */}
-      <div
-        className={`
-                absolute left-1/2 -translate-x-1/2 z-20
-                transition-transform duration-300 ease-out
-                /* Mobile: bottom-4, always show when tapped */
-                bottom-4 sm:bottom-6 lg:bottom-8
-                ${isMobileToolbarVisible ? 'translate-y-0' : 'translate-y-[150%]'}
-                lg:translate-y-[150%] lg:group-hover:translate-y-0
-            `}
-      >
+      {/* M3 FLOATING TOOLBAR - Responsive for mobile/tablet/desktop - Hidden in broadcast mode */}
+      {!isBroadcastMode && (
         <div
-          className="
+          className={`
+                  absolute left-1/2 -translate-x-1/2 z-20
+                  transition-transform duration-300 ease-out
+                  /* Mobile: bottom-4, always show when tapped */
+                  bottom-4 sm:bottom-6 lg:bottom-8
+                  ${isMobileToolbarVisible ? 'translate-y-0' : 'translate-y-[150%]'}
+                  lg:translate-y-[150%] lg:group-hover:translate-y-0
+              `}
+        >
+          <div
+            className="
                     flex items-center bg-surface-container-low/95 backdrop-blur-lg
                     rounded-full shadow-elevation-3 border border-outline-variant/30
                     /* Responsive padding and gaps */
                     gap-2 p-2 sm:gap-4 sm:p-3 md:gap-5 md:p-4 lg:gap-6 lg:p-4
                 "
-        >
-          {/* Secondary Actions (Left) */}
-          <div className="flex items-center gap-1 md:gap-2">
-            <button
-              onClick={togglePiP}
-              className="
+          >
+            {/* Secondary Actions (Left) */}
+            <div className="flex items-center gap-1 md:gap-2">
+              <button
+                onClick={togglePiP}
+                className="
                                 p-2 sm:p-2.5 md:p-3 rounded-full
                                 text-on-surface-variant hover:bg-on-surface-variant/10
                                 active:bg-on-surface-variant/20 transition-colors
                             "
-              title="Picture-in-Picture"
-              aria-label="Toggle Picture-in-Picture mode"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 md:h-6 md:w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
+                title="Picture-in-Picture"
+                aria-label="Toggle Picture-in-Picture mode"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 md:h-6 md:w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                  />
+                </svg>
+              </button>
 
-            <button
-              onClick={
-                isVirtualCameraActive
-                  ? stopVirtualCamera
-                  : () => {
-                      if (isChromeOS) {
-                        showToast(
-                          'Virtual camera on ChromeOS is browser-only. Use screen share for external apps.',
-                          'warning',
-                          5000
-                        );
+              <button
+                onClick={
+                  isVirtualCameraActive
+                    ? stopVirtualCamera
+                    : () => {
+                        if (isChromeOS) {
+                          showToast(
+                            'Virtual camera on ChromeOS is browser-only. Use screen share for external apps.',
+                            'warning',
+                            5000
+                          );
+                        }
+                        if (canvasRef.current) {
+                          startVirtualCamera(canvasRef.current);
+                        }
                       }
-                      if (canvasRef.current) {
-                        startVirtualCamera(canvasRef.current);
-                      }
-                    }
-              }
-              className={`
+                }
+                className={`
                                 relative p-2 sm:p-2.5 md:p-3 rounded-full
                                 transition-colors
                                 ${
@@ -549,89 +571,89 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                                     : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
                                 }
                             `}
-              title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
-              aria-label={isVirtualCameraActive ? 'Stop virtual camera' : 'Start virtual camera'}
-            >
-              {/* Active indicator dot */}
-              {isVirtualCameraActive && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full animate-pulse" />
-              )}
-              {/* Virtual Camera icon - video camera with broadcast waves */}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 md:h-6 md:w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
+                title={isVirtualCameraActive ? 'Stop Virtual Camera' : 'Start Virtual Camera'}
+                aria-label={isVirtualCameraActive ? 'Stop virtual camera' : 'Start virtual camera'}
               >
-                {/* Video camera body */}
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
-                />
-                {/* Broadcast indicator - small arc */}
+                {/* Active indicator dot */}
                 {isVirtualCameraActive && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full animate-pulse" />
+                )}
+                {/* Virtual Camera icon - video camera with broadcast waves */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 md:h-6 md:w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  {/* Video camera body */}
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M8.25 4.5a7.5 7.5 0 010 15"
-                    className="animate-pulse"
+                    d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
                   />
-                )}
-              </svg>
-            </button>
-          </div>
+                  {/* Broadcast indicator - small arc */}
+                  {isVirtualCameraActive && (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8.25 4.5a7.5 7.5 0 010 15"
+                      className="animate-pulse"
+                    />
+                  )}
+                </svg>
+              </button>
+            </div>
 
-          {/* Primary Actions (Center) */}
-          <div
-            className="
+            {/* Primary Actions (Center) */}
+            <div
+              className="
                         flex items-center gap-2 sm:gap-3 md:gap-4
                         px-1 sm:px-2
                         sm:border-x sm:border-outline-variant/20
                     "
-          >
-            {/* Snapshot: Filled Tonal Button - Responsive sizing */}
-            <button
-              onClick={handleSnapshot}
-              className="
+            >
+              {/* Snapshot: Filled Tonal Button - Responsive sizing */}
+              <button
+                onClick={handleSnapshot}
+                className="
                                 w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12
                                 flex items-center justify-center rounded-full
                                 text-on-surface-variant hover:bg-on-surface-variant/10
                                 active:bg-on-surface-variant/20 transition-colors
                             "
-              title="Take Snapshot"
-              aria-label="Take snapshot (Space)"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 md:h-6 md:w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
+                title="Take Snapshot"
+                aria-label="Take snapshot (Space)"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 md:h-6 md:w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </button>
 
-            {/* Record Button - Matching style with other toolbar buttons */}
-            <button
-              onClick={toggleRecording}
-              className={`
+              {/* Record Button - Matching style with other toolbar buttons */}
+              <button
+                onClick={toggleRecording}
+                className={`
                                 w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12
                                 flex items-center justify-center rounded-full
                                 transition-all duration-300
@@ -641,57 +663,58 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                                     : 'text-on-surface-variant hover:bg-on-surface-variant/10 active:bg-on-surface-variant/20'
                                 }
                             `}
-              title={isRecording ? 'Stop Recording' : 'Start Recording'}
-              aria-label={isRecording ? 'Stop recording (R)' : 'Start recording (R)'}
-              aria-pressed={isRecording}
-            >
-              <div
-                className={`transition-all duration-300 ${isRecording ? 'w-4 h-4 sm:w-5 sm:h-5 bg-current rounded-sm' : 'w-4 h-4 sm:w-5 sm:h-5 bg-error rounded-full'}`}
-                aria-hidden="true"
-              ></div>
-            </button>
-          </div>
+                title={isRecording ? 'Stop Recording' : 'Start Recording'}
+                aria-label={isRecording ? 'Stop recording (R)' : 'Start recording (R)'}
+                aria-pressed={isRecording}
+              >
+                <div
+                  className={`transition-all duration-300 ${isRecording ? 'w-4 h-4 sm:w-5 sm:h-5 bg-current rounded-sm' : 'w-4 h-4 sm:w-5 sm:h-5 bg-error rounded-full'}`}
+                  aria-hidden="true"
+                ></div>
+              </button>
+            </div>
 
-          {/* Secondary Actions (Right) */}
-          <div className="flex items-center gap-1 md:gap-2">
-            <button
-              onMouseDown={() => setIsCompareActive(true)}
-              onMouseUp={() => setIsCompareActive(false)}
-              onMouseLeave={() => setIsCompareActive(false)}
-              onTouchStart={() => setIsCompareActive(true)}
-              onTouchEnd={() => setIsCompareActive(false)}
-              className={`
+            {/* Secondary Actions (Right) */}
+            <div className="flex items-center gap-1 md:gap-2">
+              <button
+                onMouseDown={() => setIsCompareActive(true)}
+                onMouseUp={() => setIsCompareActive(false)}
+                onMouseLeave={() => setIsCompareActive(false)}
+                onTouchStart={() => setIsCompareActive(true)}
+                onTouchEnd={() => setIsCompareActive(false)}
+                className={`
                                 p-2 sm:p-2.5 md:p-3 rounded-full transition-colors
                                 ${isCompareActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-on-surface-variant/10'}
                             `}
-              title="Hold to Compare"
-              aria-label="Hold to compare with original (C)"
-              aria-pressed={isCompareActive}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 md:h-6 md:w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
+                title="Hold to Compare"
+                aria-label="Hold to compare with original (C)"
+                aria-pressed={isCompareActive}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 md:h-6 md:w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Hidden video elements */}
       <video

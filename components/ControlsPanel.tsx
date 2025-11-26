@@ -1720,6 +1720,104 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 </div>
               </div>
             </ControlSection>
+
+            {/* Streaming & Broadcast Section */}
+            <ControlSection title="Streaming & Broadcast">
+              <div className="space-y-4">
+                {/* Broadcast Mode Card */}
+                <div className="bg-surface-container-high p-4 rounded-xl border border-outline-variant/40">
+                  <div className="flex gap-3 mb-3">
+                    {/* Icon */}
+                    <div className="p-2 bg-red-500/10 text-red-500 rounded-full h-fit shrink-0">
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                      </svg>
+                    </div>
+
+                    {/* Title & Description */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-bold text-on-surface">YouTube / Twitch Live</h3>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                        Prepares a clean video feed for StreamYard, Restream, or OBS. Routes
+                        processed audio to tab audio for capture.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Enter Broadcast Mode Button */}
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('chromecam-enter-broadcast'));
+                    }}
+                    className="
+                      w-full py-2.5 px-4
+                      bg-primary text-on-primary
+                      rounded-full font-medium text-sm
+                      hover:shadow-lg hover:brightness-110
+                      active:scale-95
+                      transition-all duration-200
+                    "
+                  >
+                    Enter Broadcast Mode
+                  </button>
+
+                  {/* Instructions */}
+                  <div className="mt-3 p-3 bg-surface-container rounded-lg border border-outline-variant/20">
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                      <strong className="text-on-surface">How to use:</strong>
+                    </p>
+                    <ol className="text-[11px] text-on-surface-variant mt-2 space-y-1 list-decimal list-inside">
+                      <li>Click "Enter Broadcast Mode" above</li>
+                      <li>Open StreamYard/Restream in a new tab</li>
+                      <li>Click "Share Screen" → "Chrome Tab"</li>
+                      <li>Select "ChromeCam Studio" tab</li>
+                      <li>
+                        <strong className="text-on-surface">✓ Check "Share tab audio"</strong>
+                      </li>
+                      <li>Go live!</li>
+                    </ol>
+                    <p className="text-[10px] text-on-surface-variant/60 mt-2 text-center">
+                      Press{' '}
+                      <kbd className="px-1.5 py-0.5 bg-surface-container-high rounded text-on-surface font-mono">
+                        ESC
+                      </kbd>{' '}
+                      to exit broadcast mode
+                    </p>
+                  </div>
+                </div>
+
+                {/* Supported Platforms */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { name: 'StreamYard', icon: '🎥', url: 'https://streamyard.com' },
+                    { name: 'Restream', icon: '📡', url: 'https://restream.io' },
+                    { name: 'OBS.Live', icon: '🔴', url: 'https://obs.live' },
+                  ].map((platform) => (
+                    <a
+                      key={platform.name}
+                      href={platform.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="
+                        flex flex-col items-center justify-center
+                        p-3 rounded-lg
+                        bg-surface-container-high
+                        border border-outline-variant/30
+                        hover:bg-surface-container-highest
+                        hover:border-primary/50
+                        transition-all duration-200
+                        group
+                      "
+                    >
+                      <div className="text-2xl mb-1">{platform.icon}</div>
+                      <div className="text-[10px] text-on-surface-variant group-hover:text-primary font-medium">
+                        {platform.name}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </ControlSection>
           </>
         )}
       </div>
