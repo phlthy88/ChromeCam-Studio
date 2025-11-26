@@ -188,16 +188,17 @@ export function useBodySegmentation({
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Load MediaPipe Selfie Segmentation
-            if (!window.bodySegmentation) {
-              logger.info(
-                'useBodySegmentation',
-                '[useBodySegmentation] Loading MediaPipe Selfie Segmentation...'
-              );
+            if (!(window as any).SelfieSegmentation) {
+              logger.info('useBodySegmentation', 'Loading MediaPipe Selfie Segmentation...');
               await loadScript(
                 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
               );
               // Wait a bit for global to be set
-              await new Promise((resolve) => setTimeout(resolve, 100));
+              await new Promise((resolve) => setTimeout(resolve, 500));
+              // Set the global for compatibility
+              if ((window as any).SelfieSegmentation) {
+                (window as any).bodySegmentation = (window as any).SelfieSegmentation;
+              }
             }
 
             // Load TensorFlow.js WebGL backend (always load for compatibility)
@@ -239,7 +240,7 @@ export function useBodySegmentation({
       } catch (error) {
         scriptsLoadingPromise = null; // Clear the promise on error
 
-        console.error('[useBodySegmentation] Failed to load AI scripts after retries:', error);
+        logger.error('useBodySegmentation', 'Failed to load AI scripts after retries', error);
 
         // Provide more specific error messages
         const errorMessage = error instanceof Error ? error.message : String(error);
