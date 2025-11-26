@@ -87,7 +87,6 @@ export default defineConfig(({ mode }) => {
       optimizeDeps: {
         include: ['react', 'react-dom'],
         exclude: [],
-        force: isDev,
         esbuildOptions: {
           target: 'es2022',
           supported: {
@@ -129,7 +128,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       ...baseConfig.plugins!,
-      VitePWA({
+      isProd && VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'masked-icon.svg'],
         manifest: {
@@ -210,7 +209,7 @@ export default defineConfig(({ mode }) => {
           enabled: true,
         },
       }),
-    ],
+    ].filter(Boolean),
     build: {
       target: 'es2022',
       outDir: 'dist',
