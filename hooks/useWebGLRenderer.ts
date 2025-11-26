@@ -67,6 +67,21 @@ export function useWebGLRenderer({
       beautySettings.noseSlimming > 0 ||
       beautySettings.jawSlimming > 0 ||
       beautySettings.mouthScaling > 0);
+
+  // Debug beauty settings detection
+  console.log('[useWebGLRenderer] Beauty settings check:', {
+    hasBeautySettings,
+    beautySettings: beautySettings
+      ? {
+          eyeEnlargement: beautySettings.eyeEnlargement,
+          noseSlimming: beautySettings.noseSlimming,
+          jawSlimming: beautySettings.jawSlimming,
+          mouthScaling: beautySettings.mouthScaling,
+        }
+      : null,
+    hasFaceLandmarks: !!faceLandmarks,
+    faceLandmarksCount: faceLandmarks?.length || 0,
+  });
   const rendererRef = useRef<WebGLLutRenderer | null>(null);
   const faceWarpRendererRef = useRef<WebGLFaceWarpRenderer | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -204,13 +219,14 @@ export function useWebGLRenderer({
 
           // Initialize face warp renderer when AI is enabled (for landmark processing)
           if (enabled && !faceWarpRendererRef.current) {
+            console.log('[useWebGLRenderer] 🚀 Initializing face warp renderer...');
             const faceWarpRenderer = new WebGLFaceWarpRenderer();
             const initialized = faceWarpRenderer.initialize(webglCanvasRef.current);
             if (initialized) {
-              console.log('[useWebGLRenderer] Face warp renderer initialized');
+              console.log('[useWebGLRenderer] ✅ Face warp renderer initialized successfully');
               faceWarpRendererRef.current = faceWarpRenderer;
             } else {
-              console.warn('[useWebGLRenderer] Failed to initialize face warp renderer');
+              console.warn('[useWebGLRenderer] ❌ Failed to initialize face warp renderer');
             }
           }
 
@@ -305,23 +321,27 @@ export function useWebGLRenderer({
       let processedSource: HTMLVideoElement | HTMLCanvasElement | ImageBitmap = source;
 
       if (hasBeautySettings && faceWarpRendererRef.current && beautySettings && faceLandmarks) {
-        console.log(`[useWebGLRenderer] Applying beauty effects:`, {
+        console.log(`[useWebGLRenderer] 🎨 Applying beauty effects:`, {
           eyeEnlargement: beautySettings.eyeEnlargement,
           noseSlimming: beautySettings.noseSlimming,
           jawSlimming: beautySettings.jawSlimming,
           mouthScaling: beautySettings.mouthScaling,
           faceLandmarks: faceLandmarks.length,
+          hasWarpRenderer: !!faceWarpRendererRef.current,
         });
         try {
           // Apply face warp rendering
           const warpedCanvas = faceWarpRendererRef.current.render(source, beautySettings);
           console.log(
-            '[useWebGLRenderer] Face warp render completed, warped canvas:',
+            '[useWebGLRenderer] ✅ Face warp render completed, warped canvas:',
             warpedCanvas
           );
           // Use the warped canvas as the source for LUT processing
           if (faceWarpRendererRef.current.canvas) {
             processedSource = faceWarpRendererRef.current.canvas;
+            console.log('[useWebGLRenderer] 🎯 Using warped canvas as source');
+          } else {
+            console.warn('[useWebGLRenderer] ⚠️ Face warp render completed but no canvas returned');
           }
         } catch (error) {
           console.warn('[useWebGLRenderer] Face warp rendering failed:', error);
