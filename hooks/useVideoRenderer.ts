@@ -302,6 +302,7 @@ export function useVideoRenderer({
   // Updated STABILIZED LANDMARK REF
   const stableLandmarksRef = useRef<FaceLandmarks | null>(null);
   useEffect(() => {
+    console.log('[useVideoRenderer] Received face landmarks:', faceLandmarks?.length || 0);
     if (faceLandmarks) {
       // Only update if different
       const landmarksChanged =
@@ -309,7 +310,10 @@ export function useVideoRenderer({
         JSON.stringify(faceLandmarks) !== JSON.stringify(stableLandmarksRef.current);
       if (landmarksChanged) {
         stableLandmarksRef.current = faceLandmarks;
+        console.log('[useVideoRenderer] Updated stable landmarks:', faceLandmarks.length);
       }
+    } else {
+      console.log('[useVideoRenderer] No face landmarks received');
     }
   }, [faceLandmarks]);
 
@@ -338,12 +342,17 @@ export function useVideoRenderer({
       settings.cinematicLutIntensity,
       beautyEnabled,
       settings.eyeEnlargement,
+      stableLandmarksRef.current, // Include in deps to trigger re-render
       settings.noseSlimming,
       settings.jawSlimming,
       settings.mouthScaling,
     ]
   );
 
+  console.log(
+    '[useVideoRenderer] Calling useWebGLRenderer with faceLandmarks:',
+    webGLOptions.faceLandmarks?.length || 0
+  );
   const { isReady: isWebGLReady, applyLutGrading } = useWebGLRenderer(webGLOptions);
 
   // Get professional overlay functions
