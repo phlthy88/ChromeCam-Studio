@@ -58,15 +58,23 @@ export default defineConfig(({ mode }) => {
         headers: {
           'Content-Security-Policy': [
             "default-src 'self'",
+            // Enhanced worker-src for ChromeOS/Crostini compatibility
             "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
-            "img-src 'self' blob: data:",
+            "img-src 'self' blob: data: https:",
             "media-src 'self' blob:",
             "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
-            "worker-src 'self' blob:",
+            // Allow workers from self and blob, plus specific worker sources for MediaPipe
+            "worker-src 'self' blob: https://cdn.jsdelivr.net https://storage.googleapis.com",
+            // Enhanced for TensorFlow.js WASM in workers
+            "child-src 'self' blob:",
+            "frame-src 'self' blob:",
           ].join('; '),
           'Cross-Origin-Embedder-Policy': 'credentialless',
           'Cross-Origin-Opener-Policy': 'same-origin',
+          // Enhanced headers for ChromeOS/Crostini
+          'Cross-Origin-Resource-Policy': 'cross-origin',
+          'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self)',
         },
       },
       css: {
@@ -205,6 +213,7 @@ export default defineConfig(({ mode }) => {
             ],
           },
           workbox: {
+            maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB to allow large WASM files
             globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,wasm}'],
             cleanupOutdatedCaches: true,
             skipWaiting: true,

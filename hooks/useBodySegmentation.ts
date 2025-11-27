@@ -455,7 +455,17 @@ export function useBodySegmentation({
                 video,
                 settingsRef.current.autoFrame
               );
-              mask = result.mask;
+              // Convert ImageBitmap to ImageData for compatibility
+              if (result.mask instanceof ImageBitmap) {
+                const offscreenCanvas = new OffscreenCanvas(result.mask.width, result.mask.height);
+                const ctx = offscreenCanvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(result.mask, 0, 0);
+                  mask = ctx.getImageData(0, 0, result.mask.width, result.mask.height);
+                }
+              } else {
+                mask = result.mask;
+              }
               if (result.error) {
                 logger.warn('useBodySegmentation', '[AI] Worker segmentation error:', result.error);
               }

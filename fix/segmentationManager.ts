@@ -1,8 +1,8 @@
 /**
  * Segmentation Manager
- *
+ * 
  * Manages body segmentation processing via Web Worker or main thread fallback.
- *
+ * 
  * CRITICAL: This uses a DIRECT URL to public/workers/segmentation.worker.js
  * DO NOT use Vite's ?worker import syntax - it forces ES modules which break importScripts()
  */
@@ -50,7 +50,6 @@ class SegmentationManager {
   private _onFaceLandmarks?: (landmarks: FaceLandmarks) => void;
   private currentFps = 0;
   private currentLatency = 0;
-  private referenceCount = 0;
 
   // =============================================================================
   // Feature Detection
@@ -127,7 +126,7 @@ class SegmentationManager {
       // CRITICAL: Use direct URL string, NOT Vite's ?worker import
       // The worker file lives in public/workers/ and is served as-is
       const workerUrl = '/workers/segmentation.worker.js';
-
+      
       logger.info('SegmentationManager', `Creating classic worker from: ${workerUrl}`);
 
       try {
@@ -173,11 +172,11 @@ class SegmentationManager {
             if (id !== undefined && this.pendingCallbacks.has(id)) {
               const callback = this.pendingCallbacks.get(id)!;
               this.pendingCallbacks.delete(id);
-
+              
               // Update performance metrics
               if (fps !== undefined) this.currentFps = fps;
               if (latency !== undefined) this.currentLatency = latency;
-
+              
               callback({
                 mask: mask || null,
                 autoFrameTransform,
@@ -279,27 +278,6 @@ class SegmentationManager {
   }
 
   // =============================================================================
-  // Segmentation API (for backward compatibility)
-  // =============================================================================
-
-  async segment(video: HTMLVideoElement, autoFrame: boolean = false): Promise<SegmentationResult> {
-    if (this.mode !== 'worker' || !this.worker) {
-      return { mask: null, error: 'Worker not available' };
-    }
-
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      return { mask: null, error: 'Invalid video dimensions' };
-    }
-
-    try {
-      const imageBitmap = await createImageBitmap(video);
-      return await this.processFrame(imageBitmap, autoFrame);
-    } catch (e) {
-      return { mask: null, error: `Failed to create ImageBitmap: ${e}` };
-    }
-  }
-
-  // =============================================================================
   // Configuration
   // =============================================================================
 
@@ -336,22 +314,6 @@ class SegmentationManager {
       this.worker = null;
     }
     this.pendingCallbacks.clear();
-  }
-
-  acquire(): void {
-    this.referenceCount++;
-    logger.debug('SegmentationManager', `Acquired reference, count: ${this.referenceCount}`);
-  }
-
-  release(): void {
-    this.referenceCount--;
-    logger.debug('SegmentationManager', `Released reference, count: ${this.referenceCount}`);
-
-    if (this.referenceCount <= 0) {
-      this.referenceCount = 0;
-      logger.info('SegmentationManager', 'All references released, disposing manager');
-      this.dispose();
-    }
   }
 
   dispose(): void {

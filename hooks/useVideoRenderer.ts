@@ -95,14 +95,73 @@ function createVignetteGradient(
 }
 
 /**
+ * Optimized vignette cache manager
+ */
+class VignetteCache {
+  private gradients = new Map<string, CanvasGradient>();
+  private lastWidth = 0;
+  private lastHeight = 0;
+  private lastIntensity = 0;
+
+  getGradient(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    intensity: number
+  ): CanvasGradient {
+    // Check if dimensions or intensity changed
+    if (
+      width !== this.lastWidth ||
+      height !== this.lastHeight ||
+      intensity !== this.lastIntensity
+    ) {
+      // Create cache key and store gradient
+      const cacheKey = `${width}x${height}_${intensity}`;
+
+      if (!this.gradients.has(cacheKey)) {
+        const gradient = createVignetteGradient(ctx, width, height, intensity);
+        this.gradients.set(cacheKey, gradient);
+
+        // Limit cache size to prevent memory leaks
+        if (this.gradients.size > 10) {
+          const firstKey = this.gradients.keys().next().value;
+          if (firstKey) {
+            this.gradients.delete(firstKey);
+          }
+        }
+      }
+
+      this.lastWidth = width;
+      this.lastHeight = height;
+      this.lastIntensity = intensity;
+
+      return this.gradients.get(cacheKey)!;
+    }
+
+    // Return cached gradient
+    const cacheKey = `${width}x${height}_${intensity}`;
+    return this.gradients.get(cacheKey)!;
+  }
+
+  clear(): void {
+    this.gradients.clear();
+  }
+}
+
+const vignetteCache = new VignetteCache();
+
+/**
  * Draw a vignette effect on the canvas using cached gradient
  */
 function drawVignette(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  gradient: CanvasGradient
+  intensity: number
 ): void {
+  if (intensity <= 0) return;
+
+  const gradient = vignetteCache.getGradient(ctx, width, height, intensity);
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = gradient;
@@ -111,36 +170,50 @@ function drawVignette(
 }
 
 /**
- * Build the base filter string from settings
+ * Optimized filter string builder with memoization
  */
-function buildBaseFilterString(
-  hwContrast: boolean,
-  hwSaturation: boolean,
-  hwBrightness: boolean,
-  contrast: number,
-  saturation: number,
-  brightness: number,
-  grayscale: number,
-  sepia: number,
-  hue: number,
-  autoGain: number,
-  filterPresetCss: string
-): string {
-  let baseFilter = '';
+class FilterCache {
+  private cache = new Map<string, string>();
 
-  const effectiveContrast = hwContrast ? 100 : contrast;
-  const effectiveSaturation = hwSaturation ? 100 : saturation;
-  const effectiveBrightness = hwBrightness ? 100 : brightness;
-  const totalBrightness = effectiveBrightness + autoGain;
+  buildFilterString(settings: CameraSettings): string {
+    // Create a simple cache key from relevant settings
+    const key = `${settings.brightness}_${settings.contrast}_${settings.saturation}_${settings.hue}_${settings.sharpness}_${settings.grayscale}_${settings.sepia}`;
 
-  baseFilter += `brightness(${totalBrightness}%) contrast(${effectiveContrast}%) saturate(${effectiveSaturation}%) grayscale(${grayscale}%) sepia(${sepia}%) hue-rotate(${hue}deg) `;
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
 
-  if (filterPresetCss) {
-    baseFilter += filterPresetCss;
+    // Build filter string only when settings change
+    let filterString = '';
+
+    // Only add filters that are different from default
+    if (settings.brightness !== 100) filterString += `brightness(${settings.brightness}%) `;
+    if (settings.contrast !== 100) filterString += `contrast(${settings.contrast}%) `;
+    if (settings.saturation !== 100) filterString += `saturation(${settings.saturation}%) `;
+    if (settings.hue !== 0) filterString += `hue-rotate(${settings.hue}deg) `;
+    if (settings.sharpness !== 0) filterString += `blur(${settings.sharpness * 0.1}px) `;
+    if (settings.grayscale !== 0) filterString += `grayscale(${settings.grayscale}%) `;
+    if (settings.sepia !== 0) filterString += `sepia(${settings.sepia}%) `;
+
+    this.cache.set(key, filterString);
+
+    // Limit cache size
+    if (this.cache.size > 50) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
+    }
+
+    return filterString;
   }
 
-  return baseFilter;
+  clear(): void {
+    this.cache.clear();
+  }
 }
+
+const filterCache = new FilterCache();
 
 /**
  * Apply software sharpening using unsharp mask technique
@@ -277,20 +350,6 @@ export function useVideoRenderer({
     return aspectPreset?.ratio ?? null;
   }, [settings.aspectRatioLock]);
 
-  const filterCacheRef = useRef({
-    baseFilter: '',
-    contrast: 100,
-    saturation: 100,
-    brightness: 100,
-    grayscale: 0,
-    sepia: 0,
-    hue: 0,
-    activeFilter: 'none',
-    autoGain: 0,
-    hwContrast: false,
-    hwSaturation: false,
-    hwBrightness: false,
-  });
   const vignetteCacheRef = useRef({
     gradient: null as CanvasGradient | null,
     width: 0,
@@ -556,54 +615,30 @@ export function useVideoRenderer({
           }
 
           // Build base filter string with caching to avoid string concatenation every frame
-          const filterCache = filterCacheRef.current;
-          const cacheValid =
-            filterCache.contrast === settingsRef.current.contrast &&
-            filterCache.saturation === settingsRef.current.saturation &&
-            filterCache.brightness === settingsRef.current.brightness &&
-            filterCache.grayscale === settingsRef.current.grayscale &&
-            filterCache.sepia === settingsRef.current.sepia &&
-            filterCache.hue === settingsRef.current.hue &&
-            filterCache.activeFilter === activeFilter &&
-            filterCache.autoGain === autoGain &&
-            filterCache.hwContrast === hardwareCapabilities.contrast &&
-            filterCache.hwSaturation === hardwareCapabilities.saturation &&
-            filterCache.hwBrightness === hardwareCapabilities.brightness;
+          const baseFilter = filterCache.buildFilterString(settingsRef.current);
+          const effectiveContrast = hardwareCapabilities.contrast
+            ? 100
+            : settingsRef.current.contrast;
+          const effectiveBrightness = hardwareCapabilities.brightness
+            ? 100
+            : settingsRef.current.brightness;
+          const effectiveSaturation = hardwareCapabilities.saturation
+            ? 100
+            : settingsRef.current.saturation;
 
-          let baseFilter: string;
-          if (cacheValid) {
-            baseFilter = filterCache.baseFilter;
-          } else {
-            // Rebuild filter string and update cache
-            baseFilter = buildBaseFilterString(
-              hardwareCapabilities.contrast,
-              hardwareCapabilities.saturation,
-              hardwareCapabilities.brightness,
-              settingsRef.current.contrast,
-              settingsRef.current.saturation,
-              settingsRef.current.brightness,
-              settingsRef.current.grayscale,
-              settingsRef.current.sepia,
-              settingsRef.current.hue,
-              autoGain,
-              filterPreset?.css || ''
-            );
+          // Only add hardware adjustment to base filter if not using hardware controls
+          let finalFilter = baseFilter;
+          if (
+            effectiveContrast !== 100 ||
+            effectiveBrightness !== 100 ||
+            effectiveSaturation !== 100
+          ) {
+            finalFilter += `contrast(${effectiveContrast}%) brightness(${effectiveBrightness}%) saturate(${effectiveSaturation}%)`;
+          }
 
-            // Update cache
-            // Mutate cache object instead of creating new one
-            const cache = filterCacheRef.current;
-            cache.baseFilter = baseFilter;
-            cache.contrast = settingsRef.current.contrast;
-            cache.saturation = settingsRef.current.saturation;
-            cache.brightness = settingsRef.current.brightness;
-            cache.grayscale = settingsRef.current.grayscale;
-            cache.sepia = settingsRef.current.sepia;
-            cache.hue = settingsRef.current.hue;
-            cache.activeFilter = activeFilter;
-            cache.autoGain = autoGain;
-            cache.hwContrast = hardwareCapabilities.contrast;
-            cache.hwSaturation = hardwareCapabilities.saturation;
-            cache.hwBrightness = hardwareCapabilities.brightness;
+          // Apply auto gain if enabled
+          if (autoGain > 0) {
+            finalFilter += ` brightness(${100 + autoGain}%)`;
           }
 
           const segmentationMask = segmentationMaskRef.current;
@@ -625,10 +660,10 @@ export function useVideoRenderer({
 
             // Draw background (blurred or virtual)
             if (virtualBackground && bgImage) {
-              ctx.filter = blur > 0 ? `blur(${blur}px) ${baseFilter}` : baseFilter;
+              ctx.filter = blur > 0 ? `blur(${blur}px) ${finalFilter}` : finalFilter;
               ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
             } else {
-              ctx.filter = blur > 0 ? `blur(${blur}px) ${baseFilter}` : baseFilter;
+              ctx.filter = blur > 0 ? `blur(${blur}px) ${finalFilter}` : finalFilter;
               ctx.drawImage(video, 0, 0);
             }
             ctx.filter = 'none';
@@ -658,7 +693,7 @@ export function useVideoRenderer({
             );
             tempCtx.filter = 'none';
             tempCtx.globalCompositeOperation = 'source-in';
-            tempCtx.filter = baseFilter;
+            tempCtx.filter = finalFilter;
             tempCtx.drawImage(video, 0, 0);
             tempCtx.filter = 'none';
 
@@ -678,7 +713,7 @@ export function useVideoRenderer({
             ctx.drawImage(tempCanvas, 0, 0);
           } else {
             // No AI effects - direct draw with filters
-            ctx.filter = baseFilter || 'none';
+            ctx.filter = finalFilter || 'none';
             ctx.drawImage(video, 0, 0);
             ctx.filter = 'none';
           }
@@ -742,10 +777,10 @@ export function useVideoRenderer({
               cache.width = canvas.width;
               cache.height = canvas.height;
               cache.intensity = vignette;
-              drawVignette(ctx, canvas.width, canvas.height, gradient);
+              drawVignette(ctx, canvas.width, canvas.height, vignette);
             } else if (vignetteCache.gradient) {
               // Use cached gradient
-              drawVignette(ctx, canvas.width, canvas.height, vignetteCache.gradient);
+              drawVignette(ctx, canvas.width, canvas.height, vignetteCache.intensity || vignette);
             }
           }
 
