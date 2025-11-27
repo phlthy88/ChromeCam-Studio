@@ -36,7 +36,9 @@ try {
 } catch (e) {
   console.warn('[Worker] Failed to load local MediaPipe, falling back to CDN:', e);
   try {
-    importScripts('https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js');
+    importScripts(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
+    );
     console.log('[Worker] MediaPipe Selfie Segmentation loaded from CDN');
   } catch (cdnError) {
     console.error('[Worker] Failed to load MediaPipe from any source:', cdnError);
@@ -45,6 +47,16 @@ try {
 }
 
 console.log('[Worker] TensorFlow.js and MediaPipe Selfie Segmentation loaded successfully');
+
+// Ensure tf is globally available
+if (typeof tf === 'undefined') {
+  console.error('[Worker] CRITICAL: tf is not defined after loading. Worker cannot function.');
+  self.postMessage({
+    type: 'init-complete',
+    success: false,
+    error: 'TensorFlow.js not available globally',
+  });
+}
 
 // =============================================================================
 // Worker State
@@ -92,7 +104,8 @@ function calculateAutoFrameTransform(segmentationResult) {
     for (let x = 0; x < width; x += 8) {
       const idx = y * width + x;
       // Check if this pixel is part of the person (non-zero alpha value)
-      if (data[idx * 4] > 128) { // Assuming person pixels are marked with value > 128
+      if (data[idx * 4] > 128) {
+        // Assuming person pixels are marked with value > 128
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -154,10 +167,10 @@ async function segmentationToMask(segmentationResult) {
       // Use red channel value as the mask value (assuming grayscale)
       const maskValue = imageData.data[i * 4]; // R channel
       const offset = i * 4;
-      rgba[offset] = maskValue;     // R - person (255) or background (0)
+      rgba[offset] = maskValue; // R - person (255) or background (0)
       rgba[offset + 1] = maskValue; // G
       rgba[offset + 2] = maskValue; // B
-      rgba[offset + 3] = 255;       // A (fully opaque)
+      rgba[offset + 3] = 255; // A (fully opaque)
     }
 
     const processedImageData = new ImageData(rgba, width, height);
@@ -179,10 +192,20 @@ async function initSegmenter() {
   try {
     console.log('[Worker] Initializing TensorFlow.js and MediaPipe...');
 
+    // Ensure TensorFlow.js is available
+    if (typeof tf === 'undefined') {
+      throw new Error('TensorFlow.js not loaded. Check importScripts calls.');
+    }
+
     // Configure TensorFlow.js for WebGL backend
     await tf.setBackend('webgl');
     await tf.ready();
     console.log('[Worker] TensorFlow.js ready, backend:', tf.getBackend());
+
+    // Ensure SelfieSegmentation is available
+    if (typeof SelfieSegmentation === 'undefined') {
+      throw new Error('SelfieSegmentation not loaded. Check MediaPipe importScripts calls.');
+    }
 
     // Initialize MediaPipe Selfie Segmentation with local assets
     selfieSegmentation = new SelfieSegmentation({
@@ -191,13 +214,13 @@ async function initSegmenter() {
         const localPath = `/mediapipe/${file}`;
         console.log(`[Worker] Loading MediaPipe asset: ${localPath}`);
         return localPath;
-      }
+      },
     });
 
     // Configure the selfie segmentation instance
     selfieSegmentation.setOptions({
       modelSelection: 1, // General model (0 for landscape, 1 for portrait)
-      selfieMode: false
+      selfieMode: false,
     });
 
     // The segmenter will be created on demand during processing
@@ -208,13 +231,12 @@ async function initSegmenter() {
     console.log('[Worker] MediaPipe Selfie Segmentation model loaded successfully!');
 
     self.postMessage({ type: 'init-complete', success: true });
-
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
     self.postMessage({
       type: 'init-complete',
       success: false,
-      error: error.message || String(error)
+      error: error.message || String(error),
     });
   }
 }
@@ -269,7 +291,7 @@ async function processFrame(imageBitmap, autoFrame) {
       selfieSegmentation.onResults = onSegmentationResults;
 
       // Send the image for processing
-      selfieSegmentation.send({image: canvas}).catch(err => {
+      selfieSegmentation.send({ image: canvas }).catch((err) => {
         clearTimeout(timeoutId);
         reject(err);
       });
@@ -289,7 +311,7 @@ async function processFrame(imageBitmap, autoFrame) {
     const response = {
       type: 'mask',
       mask: maskBitmap,
-      timestamp: performance.now()
+      timestamp: performance.now(),
     };
 
     if (autoFrameTransform) {
@@ -301,7 +323,6 @@ async function processFrame(imageBitmap, autoFrame) {
 
     // Dispose of the segmenter and canvas to free memory
     segmenter.dispose();
-
   } catch (error) {
     console.error('[Worker] Processing failed:', error);
     self.postMessage({ type: 'error', error: String(error) });
@@ -315,18 +336,18 @@ async function processFrame(imageBitmap, autoFrame) {
 // Message Handler
 // =============================================================================
 
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
   const msg = e.data;
 
   switch (msg.type) {
     case 'init':
       await initSegmenter();
       break;
-      
+
     case 'process':
       await processFrame(msg.image, msg.autoFrame);
       break;
-      
+
     case 'close':
       console.log('[Worker] Closing...');
       if (selfieSegmentation) {
@@ -335,7 +356,7 @@ self.onmessage = async function(e) {
       isInitialized = false;
       self.close();
       break;
-      
+
     default:
       console.warn('[Worker] Unknown message type:', msg.type);
   }
