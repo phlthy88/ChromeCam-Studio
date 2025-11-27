@@ -232,9 +232,20 @@ async function initSegmenter() {
     // Initialize MediaPipe Selfie Segmentation with local assets
     selfieSegmentation = new SelfieSegmentation({
       locateFile: (file) => {
-        // Try local assets first, fallback to CDN
+        // Handle different file types appropriately for MediaPipe
         const localPath = `/mediapipe/${file}`;
-        console.log(`[Worker] Loading MediaPipe asset: ${localPath}`);
+
+        // Log different file types for debugging
+        if (file.endsWith('.tflite')) {
+          console.log(`[Worker] Loading MediaPipe model (.tflite): ${localPath}`);
+        } else if (file.endsWith('.wasm')) {
+          console.log(`[Worker] Loading MediaPipe WASM: ${localPath}`);
+        } else if (file.endsWith('.js')) {
+          console.log(`[Worker] Loading MediaPipe script: ${localPath}`);
+        } else {
+          console.log(`[Worker] Loading MediaPipe asset: ${localPath}`);
+        }
+
         return localPath;
       },
     });

@@ -28,8 +28,8 @@ export default defineConfig(({ mode }) => {
       global: 'globalThis',
     },
     plugins: [react()],
-    // Include wasm files for TensorFlow.js WASM backend
-    assetsInclude: ['**/*.wasm'],
+    // Include wasm and tflite files for TensorFlow.js and MediaPipe
+    assetsInclude: ['**/*.wasm', '**/*.tflite'],
   };
 
   // Development-specific configuration
