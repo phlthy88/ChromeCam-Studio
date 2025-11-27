@@ -38,8 +38,8 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- DNS prefetch for external resources -->
-    <link rel="dns-prefetch" href="//cdn.jsdelivr.net" />
+    <!-- Preconnect for external resources -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="dns-prefetch" href="//storage.googleapis.com" />
 
     <!-- Material 3 Design Tokens -->
@@ -49,8 +49,7 @@
     <link rel="stylesheet" href="/styles/main.css" />
 
     <!-- Performance optimizations -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Removed unused preconnect to Google Fonts -->
 
     <!-- AI/ML Libraries loaded dynamically when needed for better performance -->
   </head>
