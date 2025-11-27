@@ -49,6 +49,24 @@ class SegmentationManager {
   private messageId = 0;
   private _onFaceLandmarks?: (landmarks: FaceLandmarks) => void;
   private currentFps = 0;
+
+  // Preload TensorFlow.js to speed up worker initialization
+  private async preloadTensorFlow(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
+      script.onload = () => {
+        // Remove the script after loading to avoid conflicts
+        document.head.removeChild(script);
+        resolve();
+      };
+      script.onerror = () => {
+        document.head.removeChild(script);
+        reject(new Error('Failed to preload TensorFlow.js'));
+      };
+      document.head.appendChild(script);
+    });
+  }
   private currentLatency = 0;
   private referenceCount = 0;
 
@@ -94,7 +112,7 @@ class SegmentationManager {
     logger.info('SegmentationManager', `Worker support: ${canUseWorker}`, {
       Worker: SegmentationManager.supportsWorker(),
       OffscreenCanvas: SegmentationManager.supportsOffscreenCanvas(),
-      ImageBitmap: SegmentationManager.supportsImageBitmap()
+      ImageBitmap: SegmentationManager.supportsImageBitmap(),
     });
 
     if (canUseWorker) {
@@ -122,7 +140,16 @@ class SegmentationManager {
   // Worker Initialization
   // =============================================================================
 
-  private initializeWorker(): Promise<boolean> {
+  private async initializeWorker(): Promise<boolean> {
+    // Preload TensorFlow.js to improve worker initialization speed
+    try {
+      logger.info('SegmentationManager', 'Preloading TensorFlow.js for worker...');
+      await this.preloadTensorFlow();
+      logger.info('SegmentationManager', 'TensorFlow.js preloaded successfully');
+    } catch (e) {
+      logger.warn('SegmentationManager', 'Failed to preload TensorFlow.js, continuing anyway:', e);
+    }
+
     return new Promise((resolve) => {
       // CRITICAL: Use direct URL string, NOT Vite's ?worker import
       // The worker file lives in public/workers/ and is served as-is
@@ -139,15 +166,18 @@ class SegmentationManager {
         return;
       }
 
-      // Timeout for initialization (30 seconds)
+      // Timeout for initialization (60 seconds - increased for slow networks/model loading)
       const initTimeout = setTimeout(() => {
-        logger.error('SegmentationManager', 'Worker initialization timeout (30s) - falling back to main thread');
+        logger.error(
+          'SegmentationManager',
+          'Worker initialization timeout (60s) - falling back to main thread'
+        );
         if (this.worker) {
           this.worker.terminate();
           this.worker = null;
         }
         resolve(false);
-      }, 30000);
+      }, 60000);
 
       // Handle worker messages
       this.worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
@@ -182,7 +212,7 @@ class SegmentationManager {
                 mask: mask || null,
                 autoFrameTransform,
                 fps: this.currentFps,
-                latency: this.currentLatency
+                latency: this.currentLatency,
               });
             } else if (mask) {
               // Unsolicited mask (e.g., from continuous processing)
@@ -233,10 +263,7 @@ class SegmentationManager {
   // Frame Processing
   // =============================================================================
 
-  async processFrame(
-    frame: ImageBitmap,
-    autoFrame: boolean = false
-  ): Promise<SegmentationResult> {
+  async processFrame(frame: ImageBitmap, autoFrame: boolean = false): Promise<SegmentationResult> {
     if (this.mode === 'disabled') {
       return { mask: null, error: 'Segmentation disabled' };
     }
@@ -263,10 +290,7 @@ class SegmentationManager {
       this.pendingCallbacks.set(id, resolve);
 
       // Transfer the ImageBitmap to the worker (zero-copy)
-      this.worker.postMessage(
-        { type: 'process', id, image: frame, autoFrame },
-        [frame]
-      );
+      this.worker.postMessage({ type: 'process', id, image: frame, autoFrame }, [frame]);
 
       // Timeout for individual frame processing
       setTimeout(() => {

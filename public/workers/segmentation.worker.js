@@ -30,9 +30,7 @@ try {
 } catch (e) {
   console.warn('[Worker] Failed to load local MediaPipe, falling back to CDN:', e);
   try {
-    importScripts(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
-    );
+    importScripts('https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js');
     console.log('[Worker] MediaPipe Selfie Segmentation loaded from CDN');
   } catch (cdnError) {
     console.error('[Worker] Failed to load MediaPipe from any source:', cdnError);
@@ -40,18 +38,47 @@ try {
   }
 }
 
-console.log('[Worker] TensorFlow.js and MediaPipe Selfie Segmentation loaded successfully');
-
-// Ensure tf is globally available
-if (typeof tf === 'undefined') {
-  console.error('[Worker] CRITICAL: tf is not defined after loading. Worker cannot function.');
+// Check if SelfieSegmentation is available
+if (typeof SelfieSegmentation === 'undefined') {
+  console.error('[Worker] SelfieSegmentation not available after loading');
   self.postMessage({
     type: 'init-complete',
     success: false,
-    error: 'TensorFlow.js not available globally',
+    error: 'SelfieSegmentation not available globally'
   });
+} else {
+  console.log('[Worker] SelfieSegmentation global available');
+}
 }
 
+console.log('[Worker] TensorFlow.js and MediaPipe Selfie Segmentation loaded successfully');
+
+// Check if required globals are available
+if (typeof tf === 'undefined') {
+  console.error('[Worker] CRITICAL: tf is not defined after loading. Worker cannot function.');
+  console.error('[Worker] Available globals:', Object.keys(self));
+  self.postMessage({
+    type: 'init-complete',
+    success: false,
+    error: 'TensorFlow.js not available globally'
+  });
+} else {
+  console.log('[Worker] TensorFlow.js global available, version:', tf?.version || 'unknown');
+}
+
+if (typeof SelfieSegmentation === 'undefined') {
+  console.error('[Worker] SelfieSegmentation not available after loading');
+  self.postMessage({
+    type: 'init-complete',
+    success: false,
+    error: 'SelfieSegmentation not available globally'
+  });
+} else {
+  console.log('[Worker] SelfieSegmentation global available');
+}
+
+// =============================================================================
+// Worker State
 // =============================================================================
 // Worker State
 // =============================================================================
