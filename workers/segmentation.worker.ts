@@ -1,11 +1,5 @@
 // workers/segmentation.worker.ts
 
-// Import TensorFlow libraries directly
-// Vite will bundle these into the worker file
-import * as tf from '@tensorflow/tfjs';
-import * as bodyPix from '@tensorflow-models/body-pix';
-import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
-
 import {
   BODY_SEGMENTATION_THRESHOLD,
   AUTO_FRAME_CALC_INTERVAL_MS,
@@ -16,13 +10,22 @@ import {
   AUTOFRAME_MAX_ZOOM,
 } from '../constants/ai';
 
+// Type imports only (these don't emit code)
+import type * as tfTypes from '@tensorflow/tfjs';
+import type * as bodyPixTypes from '@tensorflow-models/body-pix';
+import type * as faceLandmarksTypes from '@tensorflow-models/face-landmarks-detection';
+
 // =============================================================================
-// POLYFILLS for Worker Environment
+// POLYFILLS & SETUP
 // =============================================================================
 
-// Ensure atob is available for TensorFlow.js base64 decoding
+// Robust global polyfill for libraries expecting 'global' or 'window'
+if (typeof self !== 'undefined') {
+  (self as any).global = self;
+}
+
+// Ensure atob is available
 if (typeof atob === 'undefined') {
-  // Copy atob from self (worker global) to globalThis
   if (typeof self !== 'undefined' && (self as any).atob) {
     (globalThis as any).atob = (self as any).atob;
   }
@@ -48,8 +51,13 @@ const workerLogger = {
 // Worker State
 // =============================================================================
 
-let net: bodyPix.BodyPix | null = null;
-let faceDetector: faceLandmarksDetection.FaceLandmarksDetector | null = null;
+// Modules loaded dynamically
+let tf: typeof tfTypes;
+let bodyPix: typeof bodyPixTypes;
+let faceLandmarksDetection: typeof faceLandmarksTypes;
+
+let net: bodyPixTypes.BodyPix | null = null;
+let faceDetector: faceLandmarksTypes.FaceLandmarksDetector | null = null;
 let isInitialized = false;
 let isInitializing = false;
 let autoFrameEnabled = false;
@@ -75,9 +83,9 @@ async function initFaceDetector(): Promise<boolean> {
     }
 
     const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
-    const detectorConfig: faceLandmarksDetection.MediaPipeFaceMeshTfjsModelConfig = {
+    const detectorConfig: faceLandmarksTypes.MediaPipeFaceMeshTfjsModelConfig = {
       runtime: 'tfjs',
-      refineLandmarks: false, // ✅ CHANGED: Disable for better CPU performance
+      refineLandmarks: false,
       maxFaces: 1,
     };
 
@@ -93,7 +101,7 @@ async function initFaceDetector(): Promise<boolean> {
 // =============================================================================
 // Auto-Frame Transform Calculation
 // =============================================================================
-function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegmentation) {
+function calculateAutoFrameTransform(segmentation: bodyPixTypes.SemanticPersonSegmentation) {
   const { width, height, data } = segmentation;
 
   let minX = width;
@@ -161,7 +169,7 @@ function calculateAutoFrameTransform(segmentation: bodyPix.SemanticPersonSegment
 // =============================================================================
 // Convert Segmentation to ImageBitmap Mask
 // =============================================================================
-async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentation) {
+async function segmentationToMask(segmentation: bodyPixTypes.SemanticPersonSegmentation) {
   const { width, height, data } = segmentation;
   const rgba = new Uint8ClampedArray(width * height * 4);
 
@@ -183,7 +191,6 @@ async function segmentationToMask(segmentation: bodyPix.SemanticPersonSegmentati
 // =============================================================================
 
 async function initSegmenter() {
-  // Prevent double-initialization
   if (isInitializing || isInitialized) {
     workerLogger.warn('[Worker] Already initialized or initializing');
     self.postMessage({
@@ -199,41 +206,41 @@ async function initSegmenter() {
 
   try {
     workerLogger.info('[Worker] Starting initialization...');
-    workerLogger.info('[Worker] Diagnostic Info:', {
+
+    // 1. Load Modules Dynamically
+    // This prevents the worker from crashing/hanging at startup
+    workerLogger.info('[Worker] Loading TensorFlow modules dynamically...');
+    const modules = await Promise.all([
+      import('@tensorflow/tfjs'),
+      import('@tensorflow-models/body-pix'),
+      import('@tensorflow-models/face-landmarks-detection')
+    ]);
+
+    tf = modules[0];
+    bodyPix = modules[1];
+    faceLandmarksDetection = modules[2];
+
+    workerLogger.info('[Worker] Modules loaded. Diagnostic Info:', {
       tfVersion: tf.version.tfjs,
       tfBackend: tf.getBackend(),
       isWorker: typeof WorkerGlobalScope !== 'undefined',
-      isModule: typeof importScripts !== 'function',
       offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
     });
 
-    // =============================================================================
-    // FIX 1: FORCE CPU BACKEND WITH VERIFICATION
-    // =============================================================================
-    workerLogger.info('[Worker] Setting TensorFlow.js backend to CPU (WebGL not available in workers)...');
-    
-    // Try to set CPU backend
+    // 2. Set Backend to CPU
+    workerLogger.info('[Worker] Setting TensorFlow.js backend to CPU...');
     await tf.setBackend('cpu');
     await tf.ready();
-    
-    // ✅ CRITICAL: Verify backend actually switched
+
     const actualBackend = tf.getBackend();
-    workerLogger.info(`[Worker] TensorFlow.js backend: ${actualBackend}`);
-    
     if (actualBackend !== 'cpu') {
-      throw new Error(
-        `Failed to initialize CPU backend. Current backend: ${actualBackend}. ` +
-        `WebGL is not supported in Web Workers.`
-      );
+      throw new Error(`Failed to initialize CPU backend. Current: ${actualBackend}`);
     }
 
-    // =============================================================================
-    // FIX 2: ADD TIMEOUT TO MODEL LOADING
-    // =============================================================================
+    // 3. Load BodyPix with Timeout
     workerLogger.info('[Worker] Loading BodyPix model...');
-    
-    const MODEL_LOAD_TIMEOUT = 25000; // 25 seconds (leave 5s buffer for face detection)
-    
+    const MODEL_LOAD_TIMEOUT = 25000;
+
     const loadBodyPixWithTimeout = () => {
       return Promise.race([
         bodyPix.load({
@@ -251,32 +258,25 @@ async function initSegmenter() {
     net = await loadBodyPixWithTimeout();
     workerLogger.info('[Worker] BodyPix model loaded successfully');
 
-    // =============================================================================
-    // FIX 3: OPTIONAL FACE DETECTION (CAN FAIL WITHOUT BREAKING)
-    // =============================================================================
+    // 4. Load Face Mesh (Optional)
     workerLogger.info('[Worker] Loading Face Mesh model (optional)...');
-    
     try {
       const faceInitSuccess = await Promise.race([
         initFaceDetector(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
-      
-      if (faceInitSuccess) {
-        workerLogger.info('[Worker] Face Mesh model loaded successfully');
-      } else {
+
+      if (!faceInitSuccess) {
         workerLogger.warn('[Worker] Face Mesh model loading timed out - continuing without face detection');
       }
     } catch (faceError) {
       workerLogger.warn('[Worker] Face Mesh loading failed (non-critical):', faceError);
-      // Continue without face detection
     }
 
     isInitialized = true;
     isInitializing = false;
     workerLogger.info('[Worker] ✅ Initialization complete!');
 
-    // Send success message immediately
     self.postMessage({
       type: 'init-complete',
       success: true,
@@ -289,7 +289,6 @@ async function initSegmenter() {
     const errorMessage = error instanceof Error ? error.message : String(error);
     workerLogger.error('[Worker] ❌ Initialization failed:', errorMessage);
 
-    // Send failure message with specific error
     self.postMessage({
       type: 'init-complete',
       success: false,
