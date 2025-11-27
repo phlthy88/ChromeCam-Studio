@@ -1,7 +1,30 @@
 import path from 'path';
-import { defineConfig, loadEnv, type UserConfig } from 'vite';
+import { defineConfig, loadEnv, type UserConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// Plugin to configure MIME types for MediaPipe and TensorFlow.js files
+const mimeTypesPlugin = (): Plugin => ({
+  name: 'configure-mime-types',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url || '';
+
+      // Set MIME types for specific file extensions
+      if (url.endsWith('.tflite')) {
+        res.setHeader('Content-Type', 'application/octet-stream');
+      } else if (url.endsWith('.wasm')) {
+        res.setHeader('Content-Type', 'application/wasm');
+      } else if (url.endsWith('.binarypb')) {
+        res.setHeader('Content-Type', 'application/octet-stream');
+      } else if (url.includes('/mediapipe/') && url.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      }
+
+      next();
+    });
+  },
+});
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -27,7 +50,7 @@ export default defineConfig(({ mode }) => {
       // Provide globals for workers
       global: 'globalThis',
     },
-    plugins: [react()],
+    plugins: [react(), mimeTypesPlugin()],
     // Include wasm and tflite files for TensorFlow.js and MediaPipe
     assetsInclude: ['**/*.wasm', '**/*.tflite'],
   };
