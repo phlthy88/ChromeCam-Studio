@@ -15,18 +15,12 @@
 // =============================================================================
 
 try {
-  // Load TensorFlow.js locally to avoid CDN issues in workers
-  importScripts('/mediapipe/selfie_segmentation_solution_simd_wasm_bin.js');
-  console.log('[Worker] TensorFlow.js loaded locally');
+  // Load TensorFlow.js from CDN (local bundling would make app too large)
+  importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
+  console.log('[Worker] TensorFlow.js loaded from CDN');
 } catch (e) {
-  console.warn('[Worker] Failed to load local TensorFlow.js, falling back to CDN:', e);
-  try {
-    importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
-    console.log('[Worker] TensorFlow.js loaded from CDN');
-  } catch (cdnError) {
-    console.error('[Worker] Failed to load TensorFlow.js from any source:', cdnError);
-    throw new Error('TensorFlow.js loading failed');
-  }
+  console.error('[Worker] Failed to load TensorFlow.js from CDN:', e);
+  throw new Error('TensorFlow.js loading failed');
 }
 
 try {
