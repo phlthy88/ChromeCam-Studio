@@ -66,6 +66,7 @@ const ControlSection: React.FC<ControlSectionProps> = ({
                     `}
           onClick={toggleSection}
           aria-expanded={isOpen}
+          aria-label={isOpen ? `Collapse ${title} section` : `Expand ${title} section`}
         >
           <span className="md-title-medium text-on-surface select-none">{title}</span>
         </button>
@@ -83,6 +84,7 @@ const ControlSection: React.FC<ControlSectionProps> = ({
                                 active:bg-primary/[0.1]
                                 transition-all duration-short2 ease-standard
                             `}
+              aria-label={`Reset ${title} settings`}
             >
               Reset
             </button>
@@ -99,6 +101,7 @@ const ControlSection: React.FC<ControlSectionProps> = ({
                         `}
             onClick={toggleSection}
             aria-expanded={isOpen}
+            aria-label={isOpen ? `Collapse ${title} section` : `Expand ${title} section`}
           >
             <svg
               className="w-5 h-5"

@@ -406,6 +406,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               onClick={() => setIsProMode(!isProMode)}
               className="md-label-small sm:md-label-medium transition-colors duration-short2 ease-standard px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]"
               title={isProMode ? 'Switch to Basic Mode' : 'Switch to Pro Mode'}
+              aria-label={isProMode ? 'Switch to Basic Mode' : 'Switch to Pro Mode'}
             >
               {isProMode ? 'Basic' : 'Pro'}
             </button>
@@ -420,6 +421,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                     : 'text-on-surface-variant hover:text-on-surface hover:bg-on-surface/[0.04]'
                                 }
                             `}
+              aria-label={resetConfirm ? 'Confirm Reset All' : 'Reset All Settings'}
             >
               {resetConfirm ? 'Confirm' : 'Reset All'}
             </button>
@@ -1028,6 +1030,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 key={filter.id}
                 onClick={() => update('activeFilter', filter.id)}
                 className="flex-shrink-0 snap-start flex flex-col items-center gap-2 group"
+                aria-label={`Apply ${filter.name} filter`}
               >
                 <div
                   className={`

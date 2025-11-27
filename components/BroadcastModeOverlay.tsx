@@ -24,6 +24,7 @@ export const BroadcastModeOverlay: React.FC<BroadcastModeOverlayProps> = ({ onEx
             active:scale-95
             transition-all duration-200
           "
+          aria-label="Exit Broadcast Mode"
         >
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

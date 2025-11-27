@@ -135,6 +135,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 <button
                   onClick={this.handleRetry}
                   className="px-4 py-2 bg-primary text-on-primary rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                  aria-label="Try Again"
                 >
                   Try Again
                 </button>
@@ -142,6 +143,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <button
                 onClick={this.handleReload}
                 className="px-4 py-2 bg-surface-container-high text-on-surface rounded-full font-medium hover:bg-surface-container-highest active:scale-95 transition-all"
+                aria-label="Reload App"
               >
                 Reload App
               </button>
@@ -242,6 +244,7 @@ export class CameraErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoun
               <button
                 onClick={this.handleRetry}
                 className="w-full px-4 py-3 bg-primary text-on-primary rounded-full font-medium hover:shadow-elevation-1 active:scale-95 transition-all"
+                aria-label="Reload Camera"
               >
                 Reload Camera
               </button>
@@ -250,6 +253,7 @@ export class CameraErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoun
                 <button
                   onClick={this.handleRefreshPermissions}
                   className="w-full px-4 py-2 bg-surface-container text-on-surface rounded-full font-medium hover:bg-surface-container-high active:scale-95 transition-all"
+                  aria-label="Request Camera Permissions"
                 >
                   Request Permissions
                 </button>

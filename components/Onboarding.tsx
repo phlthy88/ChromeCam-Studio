@@ -195,6 +195,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onComplete, onSk
                 cursor: 'pointer',
                 fontSize: '12px',
               }}
+              aria-label="Skip onboarding"
             >
               Skip
             </button>
@@ -210,6 +211,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onComplete, onSk
                   cursor: 'pointer',
                   fontSize: '12px',
                 }}
+                aria-label="Previous step"
               >
                 Previous
               </button>
@@ -226,6 +228,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ isOpen, onComplete, onSk
                 cursor: 'pointer',
                 fontSize: '12px',
               }}
+              aria-label={currentStep === onboardingSteps.length - 1 ? 'Finish onboarding' : 'Next step'}
             >
               {currentStep === onboardingSteps.length - 1 ? 'Finish' : 'Next'}
             </button>
