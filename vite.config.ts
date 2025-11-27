@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
       global: 'globalThis',
     },
     plugins: [react()],
-    // Only include wasm, as model files are now bundled.
+    // Include wasm files for TensorFlow.js WASM backend
     assetsInclude: ['**/*.wasm'],
   };
 
@@ -63,10 +63,8 @@ export default defineConfig(({ mode }) => {
             "img-src 'self' blob: data:",
             "media-src 'self' blob:",
             "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
-            // Allow worker to be loaded as a blob
             "worker-src 'self' blob:",
           ].join('; '),
-          // These headers are required for SharedArrayBuffer, which TF.js may use
           'Cross-Origin-Embedder-Policy': 'credentialless',
           'Cross-Origin-Opener-Policy': 'same-origin',
         },
@@ -85,21 +83,17 @@ export default defineConfig(({ mode }) => {
         },
       },
       // =========================================================================
-      // WORKER CONFIG: Use 'es' format for consistency with production
+      // WORKER CONFIG: Simplified for better TensorFlow.js bundling
       // =========================================================================
       worker: {
         format: 'es',
-        plugins: () => [react()],
+        // Removed React plugin - not needed in worker context
+        plugins: () => [],
         rollupOptions: {
           output: {
             entryFileNames: 'workers/[name].[hash].js',
-            manualChunks: {
-              'tfjs-worker': [
-                '@tensorflow/tfjs',
-                '@tensorflow-models/body-pix',
-                '@tensorflow-models/face-landmarks-detection',
-              ],
-            },
+            // Removed manual chunking - let Vite handle automatic code splitting
+            // TF.js libraries are large and work better with automatic splitting
           },
         },
       },
@@ -211,7 +205,7 @@ export default defineConfig(({ mode }) => {
             ],
           },
           workbox: {
-            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,wasm}'],
             cleanupOutdatedCaches: true,
             skipWaiting: true,
             clientsClaim: true,
@@ -263,6 +257,7 @@ export default defineConfig(({ mode }) => {
             vendor: ['react', 'react-dom'],
             tfjs: [
               '@tensorflow/tfjs',
+              '@tensorflow/tfjs-backend-wasm',
               '@tensorflow-models/body-pix',
               '@tensorflow-models/face-landmarks-detection',
             ],
@@ -279,15 +274,17 @@ export default defineConfig(({ mode }) => {
       cssCodeSplit: true,
       cssMinify: true,
     },
+    // =========================================================================
+    // PRODUCTION WORKER CONFIG: Simplified for better bundling
+    // =========================================================================
     worker: {
       format: 'es',
-      plugins: () => [react()],
+      // Removed React plugin - not needed in worker context
+      plugins: () => [],
       rollupOptions: {
         output: {
           entryFileNames: 'workers/[name].[hash].js',
-          manualChunks: {
-            'tfjs-worker': ['@tensorflow/tfjs', '@tensorflow-models/body-pix'],
-          },
+          // Removed manual chunking - automatic splitting works better
         },
       },
     },

@@ -21,8 +21,17 @@ export const LUMINANCE_BLUE_COEFFICIENT = 0.0722;
 // Model loading timeout (30 seconds)
 export const MODEL_LOAD_TIMEOUT_MS = 30000;
 
-// Worker initialization timeout
-export const WORKER_INIT_TIMEOUT_MS = 30000;
+// Worker initialization timeout - increased for slow networks and WASM loading
+export const WORKER_INIT_TIMEOUT_MS = 45000; // 45 seconds
+
+// Backend initialization timeout
+export const BACKEND_INIT_TIMEOUT_MS = 10000; // 10 seconds
+
+// BodyPix model loading timeout
+export const BODYPIX_LOAD_TIMEOUT_MS = 20000; // 20 seconds
+
+// Face detection initialization timeout (non-blocking)
+export const FACE_DETECTION_TIMEOUT_MS = 5000; // 5 seconds
 
 // Segmentation processing interval (process every 3rd frame for performance)
 export const SEGMENTATION_FRAME_SKIP = 3;
@@ -50,5 +59,5 @@ export const AI = {
 
   // Timeouts
   MODEL_LOAD_TIMEOUT: 30000,
-  WORKER_INIT_TIMEOUT: 10000,
+  WORKER_INIT_TIMEOUT: 45000,
 } as const;

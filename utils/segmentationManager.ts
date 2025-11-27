@@ -91,7 +91,7 @@ class SegmentationManager {
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        // Worker initialization - keep quiet to reduce console noise
+        logger.info('SegmentationManager', 'Creating worker instance...');
 
         this.worker = new SegmentationWorker();
         let resolved = false; // Prevent double-resolution
@@ -101,7 +101,7 @@ class SegmentationManager {
             resolved = true;
             logger.error(
               'SegmentationManager',
-              'Worker initialization timeout (30s) - falling back to main thread'
+              `Worker initialization timeout (${WORKER_INIT_TIMEOUT_MS}ms) - Check: 1) Network connectivity for TF.js downloads, 2) Browser DevTools Console for worker errors, 3) CSP headers allow worker-src`
             );
             this.terminateWorker();
             resolve(false);
@@ -113,6 +113,9 @@ class SegmentationManager {
             type: string;
             success: boolean;
             error?: string;
+            backend?: string;
+            faceDetectionAvailable?: boolean;
+            initTimeMs?: number;
             timestamp?: number;
           };
 
@@ -122,11 +125,22 @@ class SegmentationManager {
             clearTimeout(timeoutId);
 
             if (response.success) {
-              logger.info('SegmentationManager', 'Worker initialized successfully');
+              logger.info(
+                'SegmentationManager',
+                `Worker initialized successfully in ${response.initTimeMs || '?'}ms`,
+                {
+                  backend: response.backend || 'unknown',
+                  faceDetection: response.faceDetectionAvailable || false,
+                }
+              );
               this.setupWorkerMessageHandler();
               resolve(true);
             } else {
-              logger.error('SegmentationManager', 'Worker init failed', response.error);
+              logger.error(
+                'SegmentationManager',
+                'Worker init failed',
+                response.error || 'Unknown error'
+              );
               this.terminateWorker();
               resolve(false);
             }
