@@ -170,10 +170,11 @@ class SegmentationManager {
 
           case 'mask':
             if (id !== undefined && this.pendingCallbacks.has(id)) {
-              const callback = this.pendingCallbacks.get(id)!;
+              const callback = this.pendingCallbacks.get(id);
               this.pendingCallbacks.delete(id);
               
-              // Update performance metrics
+              if (callback) {
+                // Update performance metrics
               if (fps !== undefined) this.currentFps = fps;
               if (latency !== undefined) this.currentLatency = latency;
               
@@ -183,6 +184,7 @@ class SegmentationManager {
                 fps: this.currentFps,
                 latency: this.currentLatency
               });
+              }
             } else if (mask) {
               // Unsolicited mask (e.g., from continuous processing)
               // Just log it for now

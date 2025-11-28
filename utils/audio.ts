@@ -6,6 +6,8 @@
  * and provides consistent audio handling across the application.
  */
 
+import { logger } from './logger';
+
 // Singleton AudioContext instance
 let audioContextInstance: AudioContext | null = null;
 
@@ -30,7 +32,9 @@ export function getAudioContext(): AudioContext {
 
   // Resume if suspended (required after user interaction on some browsers)
   if (audioContextInstance.state === 'suspended') {
-    audioContextInstance.resume().catch(console.warn);
+    audioContextInstance
+      .resume()
+      .catch(err => logger.warn('audio', 'Failed to resume AudioContext:', err));
   }
 
   return audioContextInstance;
@@ -386,7 +390,7 @@ export function createAudioProcessingChain(
   // Monitoring: Route to speakers for tab audio capture
   if (options.monitor) {
     currentNode.connect(ctx.destination);
-    console.log('[AudioUtils] Monitoring enabled - audio routed to tab audio');
+    logger.info('audio', 'Monitoring enabled - audio routed to tab audio');
   }
 
   // Connect to output
@@ -423,14 +427,14 @@ export function setAudioMonitoring(chain: AudioProcessingChain, enabled: boolean
   if (enabled) {
     // Connect to speakers for tab audio capture
     lastNode.connect(ctx.destination);
-    console.log('[AudioUtils] Monitoring enabled');
+    logger.info('audio', 'Monitoring enabled');
   } else {
     // Disconnect from speakers (keep output connection)
     try {
       lastNode.disconnect(ctx.destination);
-    } catch (e) {
+    } catch (_e) {
       // Already disconnected, ignore
     }
-    console.log('[AudioUtils] Monitoring disabled');
+    logger.info('audio', 'Monitoring disabled');
   }
 }

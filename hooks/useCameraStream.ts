@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { logger } from '../utils/logger';
 import type { CameraSettings, DetectedCapabilities } from '../components/settings';
 import { RESOLUTION_PRESETS } from '../components/settings';
 import type {
@@ -269,7 +270,7 @@ export function useCameraStream({
               await videoTrack.applyConstraints(initialConstraints as MediaTrackConstraints);
             }
           } catch (e) {
-            console.warn('[Camera] Initial constraints not supported:', e);
+            logger.warn('useCameraStream', 'Initial constraints not supported:', e);
           }
 
           // Store capabilities and notify callback
@@ -296,15 +297,15 @@ export function useCameraStream({
           await videoRef.current.play().catch((e) => {
             // AbortError is expected when component unmounts during play request
             if (e.name !== 'AbortError') {
-              console.warn('[useCameraStream] Play failed:', e);
+              logger.warn('useCameraStream', 'Play failed:', e);
             }
           });
         } else {
-          console.error('[useCameraStream] Video element not available');
+          logger.error('useCameraStream', 'Video element not available');
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Unknown error');
-        console.error('[Camera] Stream error:', error);
+        logger.error('useCameraStream', 'Stream error:', error);
         setError(
           error.name === 'NotReadableError' ? 'Camera is in use.' : 'Could not start camera.'
         );
@@ -476,8 +477,9 @@ export function useCameraStream({
       if (hasChanges) {
         // Enhanced track validation before applying constraints
         if (!track || track.readyState === 'ended' || !track.enabled || track.readyState !== 'live') {
-          console.debug(
-            '[Camera] Skipping constraint application - track invalid:',
+          logger.debug(
+            'useCameraStream',
+            'Skipping constraint application - track invalid:',
             {
               trackExists: !!track,
               readyState: track?.readyState,
@@ -498,9 +500,9 @@ export function useCameraStream({
             errorMessage.includes('Invalid state') ||
             errorMessage.includes('The associated Track is in an invalid state')
           ) {
-            console.debug('[Camera] Track in invalid state (expected):', track.readyState);
+            logger.debug('useCameraStream', 'Track in invalid state (expected):', track.readyState);
           } else if (isMounted) {
-            console.warn('[Camera] Failed to apply hardware constraints:', e);
+            logger.warn('useCameraStream', 'Failed to apply hardware constraints:', e);
           }
         }
       }

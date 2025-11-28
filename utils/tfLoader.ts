@@ -7,6 +7,15 @@
 
 import { logger } from './logger';
 
+import type { Tf } from '../types/tensorflow';
+
+// Extend the Window interface to include tf
+declare global {
+  interface Window {
+    tf?: Tf;
+  }
+}
+
 // Global flag to track TensorFlow.js loading status
 let tfLoadingPromise: Promise<void> | null = null;
 let tfLoaded = false;
@@ -31,7 +40,7 @@ export async function ensureTfjsLoaded(): Promise<void> {
   // Create a new loading promise
   tfLoadingPromise = (async () => {
     // Check if TensorFlow.js is already available globally
-    if (typeof window !== 'undefined' && (window as any).tf) {
+    if (typeof window !== 'undefined' && window.tf) {
       logger.info('tfLoader', 'TensorFlow.js already available globally');
       tfLoaded = true;
       return;
@@ -42,7 +51,7 @@ export async function ensureTfjsLoaded(): Promise<void> {
     // Create script element for TensorFlow.js
     const scriptPromise = new Promise<void>((resolve, reject) => {
       // Check again if tf exists in case it was loaded while we set up the promise
-      if ((window as any).tf) {
+      if (window.tf) {
         logger.debug('tfLoader', 'TensorFlow.js became available during setup');
         tfLoaded = true;
         resolve();
@@ -57,7 +66,7 @@ export async function ensureTfjsLoaded(): Promise<void> {
         logger.debug('tfLoader', 'TensorFlow.js script loaded, waiting for global availability');
         // Wait briefly to ensure tf is available on the global window
         setTimeout(() => {
-          if ((window as any).tf) {
+          if (window.tf) {
             logger.info('tfLoader', 'TensorFlow.js loaded and available globally');
             tfLoaded = true;
             resolve();
@@ -68,7 +77,7 @@ export async function ensureTfjsLoaded(): Promise<void> {
         }, 100);
       };
       
-      script.onerror = (error) => {
+      script.onerror = (error: Event | string) => {
         logger.error('tfLoader', 'Failed to load TensorFlow.js script', error);
         reject(new Error('Failed to load TensorFlow.js'));
       };
@@ -105,8 +114,8 @@ export async function ensureTfjsLoaded(): Promise<void> {
 export async function ensureTfjsWebGLBackend(): Promise<void> {
   await ensureTfjsLoaded();
   
-  if (typeof window !== 'undefined' && (window as any).tf) {
-    const tf = (window as any).tf;
+  if (typeof window !== 'undefined' && window.tf) {
+    const tf = window.tf;
     
     try {
       // Check if WebGL backend is already ready

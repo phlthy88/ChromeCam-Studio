@@ -191,7 +191,7 @@ export function useOffscreenRenderer({
     return () => {
       cancelAnimationFrame(frameIdRef.current);
     };
-  }, [isWorkerReady, settings, isAiActive]); // Dependencies for loop restart
+  }, [isWorkerReady, settings, isAiActive, segmentationMaskRef, videoRef]); // Dependencies for loop restart
 
   return { isWorkerReady };
 }

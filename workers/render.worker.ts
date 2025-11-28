@@ -1,5 +1,6 @@
 import { WebGLVideoRenderer } from '../utils/webglVideoRenderer';
 import { logger } from '../utils/logger';
+import { CameraSettings } from '../components/settings';
 
 let renderer: WebGLVideoRenderer | null = null;
 let canvas: OffscreenCanvas | null = null;
@@ -15,7 +16,7 @@ type WorkerMessage =
 interface RenderPayload {
   videoBitmap: ImageBitmap;
   maskBitmap: ImageBitmap | null;
-  settings: any; // TODO: Import CameraSettings type if shared
+  settings: CameraSettings;
 }
 
 // Handle messages from the main thread

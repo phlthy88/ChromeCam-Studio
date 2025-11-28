@@ -29,14 +29,11 @@ class Logger {
     // Only output in development or for errors/warnings
     if (import.meta.env.DEV || level === 'error' || level === 'warn') {
       const prefix = `[${level.toUpperCase()}][${component}]`;
+      const con = console;
       if (level === 'error') {
-        console.error(prefix, message, data || '');
+        con.error(prefix, message, data || '');
       } else if (level === 'warn') {
-        console.warn(prefix, message, data || '');
-      } else if (level === 'debug') {
-        console.debug(prefix, message, data || '');
-      } else {
-        console.info(prefix, message, data || '');
+        con.warn(prefix, message, data || '');
       }
     }
   }

@@ -43,6 +43,8 @@ interface WorkerMessage {
 // Singleton Manager
 // =============================================================================
 
+type WorkerFactory = () => Worker;
+
 class SegmentationManager {
   private worker: Worker | null = null;
   private mode: SegmentationMode = 'disabled';
@@ -55,13 +57,23 @@ class SegmentationManager {
   private currentLatency = 0;
   private referenceCount = 0;
   private initializationAttempts = 0;
-  private maxInitializationAttempts = 3;
+  private config = {
+    maxInitializationAttempts: 3,
+    baseRetryDelay: 1000, // 1 second
+    initializationTimeout: 45000, // 45 seconds
+  };
   private lastError: string | null = null;
+  private workerFactory: WorkerFactory;
   private initTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Disposal timeout management - prevents "death spiral" in React Strict Mode
   private disposeTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly DISPOSE_DELAY_MS = 2000; // 2s grace period
+
+  constructor(workerFactory?: WorkerFactory) {
+    this.workerFactory =
+      workerFactory ?? (() => new Worker('/workers/segmentation.worker.js', { type: 'classic' }));
+  }
 
   // =============================================================================
   // Feature Detection
@@ -84,7 +96,6 @@ class SegmentationManager {
   // =============================================================================
 
   async initialize(): Promise<SegmentationMode> {
-    // If already initializing, return the existing promise to avoid duplicate initialization
     if (this.initializationPromise) {
       logger.info(
         'SegmentationManager',
@@ -93,35 +104,24 @@ class SegmentationManager {
       return this.initializationPromise;
     }
 
-    // If already initialized and worker is still active, return current mode
     if (this.mode !== 'disabled' && this.worker !== null) {
       logger.info('SegmentationManager', `Already initialized in ${this.mode} mode`);
       return this.mode;
     }
 
-    // Check if we've exceeded max initialization attempts
-    if (this.initializationAttempts >= this.maxInitializationAttempts) {
-      logger.error(
-        'SegmentationManager',
-        `Max initialization attempts (${this.maxInitializationAttempts}) exceeded. Last error: ${this.lastError}`
-      );
-      return 'disabled';
-    }
-
     this.isInitializing = true;
-    this.initializationAttempts++;
-    logger.info(
-      'SegmentationManager',
-      `Starting initialization (attempt ${this.initializationAttempts}/${this.maxInitializationAttempts})...`
-    );
+    this.initializationAttempts = 0; // Reset for a new cycle of retries
 
-    // Store the initialization promise to prevent concurrent initializations
+    // Store the promise
     this.initializationPromise = this.performInitialization();
 
     try {
-      const mode = await this.initializationPromise;
-      return mode;
+      // Await the final result of the initialization (with retries)
+      const finalMode = await this.initializationPromise;
+      this.mode = finalMode;
+      return finalMode;
     } finally {
+      this.isInitializing = false;
       this.initializationPromise = null;
     }
   }
@@ -132,51 +132,57 @@ class SegmentationManager {
       SegmentationManager.supportsOffscreenCanvas() &&
       SegmentationManager.supportsImageBitmap();
 
-    logger.info('SegmentationManager', `Worker support: ${canUseWorker}`, {
-      Worker: SegmentationManager.supportsWorker(),
-      OffscreenCanvas: SegmentationManager.supportsOffscreenCanvas(),
-      ImageBitmap: SegmentationManager.supportsImageBitmap(),
-    });
+    if (!canUseWorker) {
+      this.lastError = 'Worker features not supported by browser';
+      logger.warn('SegmentationManager', this.lastError);
+      return 'main-thread';
+    }
 
-    if (canUseWorker) {
+    while (this.initializationAttempts < this.config.maxInitializationAttempts) {
+      this.initializationAttempts++;
+      logger.info(
+        'SegmentationManager',
+        `Starting initialization attempt ${this.initializationAttempts}/${this.config.maxInitializationAttempts}...`
+      );
+
       try {
         const workerInitialized = await this.initializeWorker();
 
-        // Check if manager was disposed while we were waiting for initialization
-        if (!this.isInitializing && this.mode === 'disabled') {
+        if (this.mode === 'disabled' && !this.isInitializing) {
           logger.warn('SegmentationManager', 'Manager was disposed during initialization');
-          // Clean up the worker that was just created
           if (this.worker) {
             this.worker.terminate();
             this.worker = null;
           }
-          return this.mode; // returns 'disabled'
+          return 'disabled';
         }
 
         if (workerInitialized) {
-          this.mode = 'worker';
-          this.isInitializing = false;
           this.lastError = null;
-          this.initializationAttempts = 0; // Reset on success
-          logger.info('SegmentationManager', 'Worker mode initialized successfully');
-          return this.mode;
+          return 'worker'; // Success!
         } else {
-          this.lastError = 'Worker initialization returned false';
+          // This case happens if initializeWorker resolves to false (e.g., timeout)
+          this.lastError = this.lastError || 'Worker initialization promise returned false';
         }
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
         this.lastError = errorMsg;
-        logger.warn('SegmentationManager', 'Worker initialization failed:', e);
+        logger.warn('SegmentationManager', `Initialization attempt failed: ${errorMsg}`);
       }
-    } else {
-      this.lastError = 'Worker features not supported by browser';
+
+      // If we are here, the attempt failed. Wait before the next one.
+      if (this.initializationAttempts < this.config.maxInitializationAttempts) {
+        const delay = this.config.baseRetryDelay * Math.pow(2, this.initializationAttempts - 1);
+        logger.info('SegmentationManager', `Retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
 
-    // Fallback to main thread (or disabled if no fallback available)
-    this.mode = 'main-thread';
-    this.isInitializing = false;
-    logger.info('SegmentationManager', 'Falling back to main-thread mode');
-    return this.mode;
+    logger.error(
+      'SegmentationManager',
+      `All initialization attempts failed. Last error: ${this.lastError}`
+    );
+    return 'main-thread'; // Fallback after all attempts failed
   }
 
   // =============================================================================
@@ -185,15 +191,10 @@ class SegmentationManager {
 
   private async initializeWorker(): Promise<boolean> {
     return new Promise((resolve) => {
-      // CRITICAL: Use direct URL string, NOT Vite's ?worker import
-      // The worker file lives in public/workers/ and is served as-is
-      const workerUrl = '/workers/segmentation.worker.js';
-
-      logger.info('SegmentationManager', `Creating classic worker from: ${workerUrl}`);
+      logger.info('SegmentationManager', 'Creating worker...');
 
       try {
-        // Explicitly create as CLASSIC worker (not module)
-        this.worker = new Worker(workerUrl, { type: 'classic' });
+        this.worker = this.workerFactory();
       } catch (e) {
         logger.error('SegmentationManager', 'Failed to create worker:', e);
         resolve(false);
@@ -238,19 +239,21 @@ class SegmentationManager {
 
           case 'mask':
             if (id !== undefined && this.pendingCallbacks.has(id)) {
-              const callback = this.pendingCallbacks.get(id)!;
+              const callback = this.pendingCallbacks.get(id);
               this.pendingCallbacks.delete(id);
 
-              // Update performance metrics
-              if (fps !== undefined) this.currentFps = fps;
-              if (latency !== undefined) this.currentLatency = latency;
+              if (callback) {
+                // Update performance metrics
+                if (fps !== undefined) this.currentFps = fps;
+                if (latency !== undefined) this.currentLatency = latency;
 
-              callback({
-                mask: mask || null,
-                autoFrameTransform,
-                fps: this.currentFps,
-                latency: this.currentLatency,
-              });
+                callback({
+                  mask: mask || null,
+                  autoFrameTransform,
+                  fps: this.currentFps,
+                  latency: this.currentLatency,
+                });
+              }
             } else if (mask) {
               // Unsolicited mask (e.g., from continuous processing)
               // Just log it for now
@@ -370,6 +373,14 @@ class SegmentationManager {
   // =============================================================================
   // Configuration
   // =============================================================================
+
+  /**
+   * (For Testing) Overrides the default configuration.
+   * @param newConfig Partial configuration object.
+   */
+  configure(newConfig: Partial<typeof this.config>): void {
+    this.config = { ...this.config, ...newConfig };
+  }
 
   updateConfig(_config: Partial<SegmentationConfig>): void {
     // Future: send config updates to worker

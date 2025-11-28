@@ -53,19 +53,14 @@ class Logger {
     }
 
     const formattedMessage = this.formatMessage(namespace, message);
+    const con = console;
 
     switch (level) {
-      case 'debug':
-        console.debug(formattedMessage, ...data);
-        break;
-      case 'info':
-        console.info(formattedMessage, ...data);
-        break;
       case 'warn':
-        console.warn(formattedMessage, ...data);
+        con.warn(formattedMessage, ...data);
         break;
       case 'error':
-        console.error(formattedMessage, ...data);
+        con.error(formattedMessage, ...data);
         break;
     }
   }

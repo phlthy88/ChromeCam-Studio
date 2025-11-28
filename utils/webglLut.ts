@@ -6,6 +6,7 @@
  */
 
 import { FaceLandmarks } from '../types/face';
+import { logger } from './logger';
 
 // Vertex shader - simple pass-through for full-screen quad (GLSL ES 1.0 for LUT)
 const VERTEX_SHADER = `
@@ -230,17 +231,17 @@ export class WebGLFaceWarpRenderer {
     this._canvas = canvas;
 
     // WebGL2 is required for beauty effects due to GLSL ES 3.0 shaders
-    console.log('[WebGLFaceWarpRenderer] Attempting to get WebGL2 context...');
-    console.log('[WebGLFaceWarpRenderer] Canvas dimensions:', canvas.width, 'x', canvas.height);
-    console.log('[WebGLFaceWarpRenderer] Canvas valid:', !!canvas);
+    logger.info('WebGLFaceWarpRenderer', 'Attempting to get WebGL2 context...');
+    logger.info('WebGLFaceWarpRenderer', `Canvas dimensions: ${canvas.width}x${canvas.height}`);
+    logger.info('WebGLFaceWarpRenderer', `Canvas valid: ${!!canvas}`);
 
     // First check if WebGL2 is supported at all
     const webgl2Supported = !!window.WebGL2RenderingContext;
-    console.log('[WebGLFaceWarpRenderer] WebGL2 supported by browser:', webgl2Supported);
+    logger.info('WebGLFaceWarpRenderer', `WebGL2 supported by browser: ${webgl2Supported}`);
 
     // Check if WebGL1 works first
     const webgl1Context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    console.log('[WebGLFaceWarpRenderer] WebGL1 context available:', !!webgl1Context);
+    logger.info('WebGLFaceWarpRenderer', `WebGL1 context available: ${!!webgl1Context}`);
 
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
@@ -249,40 +250,41 @@ export class WebGLFaceWarpRenderer {
     }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
-      console.warn('[WebGLFaceWarpRenderer] WebGL2 context creation failed');
+      logger.warn('WebGLFaceWarpRenderer', 'WebGL2 context creation failed');
 
       // Try WebGL1 as fallback to see if basic WebGL works
       const webgl1Context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
       if (webgl1Context) {
-        console.log(
-          '[WebGLFaceWarpRenderer] WebGL1 context available but WebGL2 required for beauty effects'
+        logger.info(
+          'WebGLFaceWarpRenderer',
+          'WebGL1 context available but WebGL2 required for beauty effects'
         );
       } else {
-        console.warn('[WebGLFaceWarpRenderer] No WebGL context available at all');
+        logger.warn('WebGLFaceWarpRenderer', 'No WebGL context available at all');
       }
 
-      console.warn(
-        '[WebGLFaceWarpRenderer] WebGL2 not supported - beauty effects will be disabled. ' +
-          'Please check: 1) Hardware acceleration enabled in Chrome, 2) WebGL not disabled in chrome://flags'
+      logger.warn(
+        'WebGLFaceWarpRenderer',
+        'WebGL2 not supported - beauty effects will be disabled. Please check: 1) Hardware acceleration enabled in Chrome, 2) WebGL not disabled in chrome://flags'
       );
       return false;
     }
 
-    console.log('[WebGLFaceWarpRenderer] WebGL2 context initialized successfully');
+    logger.info('WebGLFaceWarpRenderer', 'WebGL2 context initialized successfully');
 
     // Compile shaders - use GLSL ES 3.0 compatible vertex shader
     const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, FACE_WARP_VERTEX);
     const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, FACE_WARP_FRAGMENT);
 
     if (!vertexShader || !fragmentShader) {
-      console.error('[WebGLFaceWarpRenderer] Shader compilation failed');
+      logger.error('WebGLFaceWarpRenderer', 'Shader compilation failed');
       return false;
     }
 
     // Create and link program
     this.program = this.gl.createProgram();
     if (!this.program) {
-      console.error('[WebGLFaceWarpRenderer] Failed to create shader program');
+      logger.error('WebGLFaceWarpRenderer', 'Failed to create shader program');
       return false;
     }
 
@@ -291,8 +293,9 @@ export class WebGLFaceWarpRenderer {
     this.gl.linkProgram(this.program);
 
     if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
-      console.error(
-        '[WebGLFaceWarpRenderer] Shader program link error:',
+      logger.error(
+        'WebGLFaceWarpRenderer',
+        'Shader program link error:',
         this.gl.getProgramInfoLog(this.program)
       );
       return false;
@@ -328,7 +331,7 @@ export class WebGLFaceWarpRenderer {
     this.gl.compileShader(shader);
 
     if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-      console.error('Shader compile error:', this.gl.getShaderInfoLog(shader));
+      logger.error('WebGLFaceWarpRenderer', 'Shader compile error:', this.gl.getShaderInfoLog(shader));
       this.gl.deleteShader(shader);
       return null;
     }
@@ -374,8 +377,9 @@ export class WebGLFaceWarpRenderer {
     }
   ): void {
     if (!this.gl || !this.program || !this._canvas) {
-      console.error(
-        '[WebGLFaceWarpRenderer] Cannot render: missing WebGL context, program, or canvas'
+      logger.error(
+        'WebGLFaceWarpRenderer',
+        'Cannot render: missing WebGL context, program, or canvas'
       );
       return;
     }
@@ -548,7 +552,7 @@ export class WebGLLutRenderer {
     }) as WebGLRenderingContext | null;
 
     if (!this.gl) {
-      console.error('[WebGLLutRenderer] WebGL context creation failed, falling back to Canvas 2D');
+      logger.error('WebGLLutRenderer', 'WebGL context creation failed, falling back to Canvas 2D');
       return false;
     }
 
@@ -557,14 +561,14 @@ export class WebGLLutRenderer {
     const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
 
     if (!vertexShader || !fragmentShader) {
-      console.error('[WebGLLutRenderer] Shader compilation failed');
+      logger.error('WebGLLutRenderer', 'Shader compilation failed');
       return false;
     }
 
     // Create and link program
     this.program = this.gl.createProgram();
     if (!this.program) {
-      console.error('[WebGLLutRenderer] Failed to create shader program');
+      logger.error('WebGLLutRenderer', 'Failed to create shader program');
       return false;
     }
 
@@ -573,8 +577,9 @@ export class WebGLLutRenderer {
     this.gl.linkProgram(this.program);
 
     if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
-      console.error(
-        '[WebGLLutRenderer] Shader program link error:',
+      logger.error(
+        'WebGLLutRenderer',
+        'Shader program link error:',
         this.gl.getProgramInfoLog(this.program)
       );
       return false;
@@ -612,7 +617,7 @@ export class WebGLLutRenderer {
     this.gl.compileShader(shader);
 
     if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-      console.error('Shader compile error:', this.gl.getShaderInfoLog(shader));
+      logger.error('WebGLLutRenderer', 'Shader compile error:', this.gl.getShaderInfoLog(shader));
       this.gl.deleteShader(shader);
       return null;
     }
@@ -643,7 +648,7 @@ export class WebGLLutRenderer {
    */
   loadLut(lutData: LutData): void {
     if (!this.gl || !this.lutTexture) {
-      console.error('[WebGLLutRenderer] Cannot load LUT: WebGL context or texture not available');
+      logger.error('WebGLLutRenderer', 'Cannot load LUT: WebGL context or texture not available');
       return;
     }
 

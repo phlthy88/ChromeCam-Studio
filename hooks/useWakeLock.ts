@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { logger } from '../utils/logger';
 import type { WakeLockSentinel } from '../types/media.d.ts';
 
 /**
@@ -31,14 +32,14 @@ export function useWakeLock() {
         }
 
         wakeLockRef.current = await navigator.wakeLock.request('screen');
-        console.log('[WakeLock] Screen wake lock acquired');
+        logger.info('useWakeLock', 'Screen wake lock acquired');
       } catch (err) {
         // Only warn for unexpected errors (not visibility-related)
         if (err instanceof Error && err.name === 'NotAllowedError') {
           // Page not visible or user hasn't interacted - this is expected, don't warn
-          console.debug('[WakeLock] Wake lock not allowed (page may not be visible)');
+          logger.debug('useWakeLock', 'Wake lock not allowed (page may not be visible)');
         } else {
-          console.warn('[WakeLock] Failed to acquire:', err);
+          logger.warn('useWakeLock', 'Failed to acquire:', err);
         }
       }
     };
@@ -56,7 +57,7 @@ export function useWakeLock() {
         // Page hidden - wake lock is automatically released by browser
         // Just clear our reference
         wakeLockRef.current = null;
-        console.log('[WakeLock] Screen wake lock released (page hidden)');
+        logger.info('useWakeLock', 'Screen wake lock released (page hidden)');
       }
     };
 
