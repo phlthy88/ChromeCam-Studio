@@ -14,17 +14,36 @@
 // Load TensorFlow.js and BodyPix - MUST be separate importScripts calls
 // =============================================================================
 
-console.log('[Worker] Loading TensorFlow.js...');
-importScripts('/mediapipe/tf.min.js');
+try {
+  importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
+  console.log('[Worker] TensorFlow.js loaded successfully');
+} catch (e) {
+  console.error('[Worker] Failed to load TensorFlow.js:', e);
+  throw e;
+}
 
-console.log('[Worker] Loading BodyPix...');
-importScripts('/mediapipe/body-pix.min.js');
+console.log('[Worker] Loading BodyPix from CDN...');
+try {
+  importScripts(
+    'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.1/dist/body-pix.min.js'
+  );
+  console.log('[Worker] BodyPix loaded successfully');
+} catch (e) {
+  console.error('[Worker] Failed to load BodyPix:', e);
+  throw e;
+}
 
 console.log('[Worker] TensorFlow.js and BodyPix loaded via importScripts');
 console.log('[Worker] TensorFlow.js available:', !!self.tf);
 console.log('[Worker] BodyPix available:', !!self.BodyPix);
-console.log('[Worker] Checking self keys:', Object.keys(self).filter(k => k.includes('body') || k.includes('Body') || k.includes('tf')));
-console.log('[Worker] All globals after importScripts:', Object.keys(self).filter(k => k.includes('body') || k.includes('Body') || k.includes('tf')));
+console.log(
+  '[Worker] Checking self keys:',
+  Object.keys(self).filter((k) => k.includes('body') || k.includes('Body') || k.includes('tf'))
+);
+console.log(
+  '[Worker] All globals after importScripts:',
+  Object.keys(self).filter((k) => k.includes('body') || k.includes('Body') || k.includes('tf'))
+);
 
 // Debug: Check for common issues
 if (!self.tf) {
@@ -97,13 +116,17 @@ function calculateAutoFrameTransform(segmentation) {
 
 async function segmentationToMask(segmentation) {
   const { width, height, data } = segmentation;
-  
+
   // Validate input data
   if (!width || !height || !data || data.length === 0) {
-    console.error('[Worker] Invalid segmentation data:', { width, height, dataLength: data?.length });
+    console.error('[Worker] Invalid segmentation data:', {
+      width,
+      height,
+      dataLength: data?.length,
+    });
     return null;
   }
-  
+
   const rgba = new Uint8ClampedArray(width * height * 4);
 
   for (let i = 0; i < data.length; i++) {
@@ -136,7 +159,9 @@ async function initSegmenter() {
     console.log('[Worker] Initializing TensorFlow.js...');
 
     // Configure TensorFlow.js for WebGL backend
+    console.log('[Worker] Setting backend to webgl...');
     await tf.setBackend('webgl');
+    console.log('[Worker] Waiting for TensorFlow.js to be ready...');
     await tf.ready();
     console.log('[Worker] TensorFlow.js ready, backend:', tf.getBackend());
 
@@ -147,15 +172,22 @@ async function initSegmenter() {
     // Debug: Check if BodyPix is accessible
     if (!self.BodyPix) {
       console.error('[Worker] BodyPix global not found. Available globals:', Object.keys(self));
-      throw new Error('BodyPix global not found. Available globals: ' + Object.keys(self).join(', '));
+      throw new Error(
+        'BodyPix global not found. Available globals: ' + Object.keys(self).join(', ')
+      );
     }
 
     if (typeof self.BodyPix.load !== 'function') {
-      throw new Error('BodyPix.load is not a function. Available methods: ' + Object.keys(self.BodyPix).join(', '));
+      throw new Error(
+        'BodyPix.load is not a function. Available methods: ' + Object.keys(self.BodyPix).join(', ')
+      );
     }
 
     // Load BodyPix with MobileNetV1 architecture
     // This downloads ~7MB model on first use, cached thereafter
+    console.log('[Worker] Starting BodyPix.load() - this may take 10-30 seconds on first load...');
+    const loadStartTime = performance.now();
+
     net = await self.BodyPix.load({
       architecture: 'MobileNetV1',
       outputStride: 16,
@@ -163,12 +195,14 @@ async function initSegmenter() {
       quantBytes: 2,
     });
 
+    const loadTime = ((performance.now() - loadStartTime) / 1000).toFixed(2);
     isInitialized = true;
-    console.log('[Worker] BodyPix model loaded successfully!');
+    console.log(`[Worker] BodyPix model loaded successfully in ${loadTime}s!`);
 
     self.postMessage({ type: 'init-complete', success: true });
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
+    console.error('[Worker] Error stack:', error.stack);
     self.postMessage({
       type: 'init-complete',
       success: false,
@@ -192,7 +226,7 @@ async function processFrame(imageBitmap, autoFrame) {
     console.error('[Worker] Invalid imageBitmap in processFrame:', {
       imageBitmapExists: !!imageBitmap,
       width: imageBitmap?.width,
-      height: imageBitmap?.height
+      height: imageBitmap?.height,
     });
     if (imageBitmap) {
       imageBitmap.close();
