@@ -192,9 +192,14 @@ export function useWebGLRenderer({
         return;
       }
 
-      // Create canvas for LUT renderer
+      // Create canvas for LUT renderer with validation
       if (!webglCanvasRef.current) {
-        webglCanvasRef.current = document.createElement('canvas');
+        const canvas = document.createElement('canvas');
+        if (!canvas) {
+          console.error('[useWebGLRenderer] Failed to create canvas element');
+          return;
+        }
+        webglCanvasRef.current = canvas;
         // CRITICAL FIX: Set canvas size immediately to prevent context loss
         webglCanvasRef.current.width = 1920;
         webglCanvasRef.current.height = 1080;
@@ -256,42 +261,80 @@ export function useWebGLRenderer({
 
       const tryCreateContext = () => {
         try {
-          if (!webglCanvasRef.current) return;
+          if (!webglCanvasRef.current) {
+            throw new Error('Canvas ref not available');
+          }
+
+          logger.info(
+            'useWebGLRenderer',
+            `[useWebGLRenderer] Initializing WebGL LUT renderer (attempt ${retryCount + 1}/${WEBGL_MAX_RETRIES + 1})...`
+          );
 
           // Initialize LUT renderer first (this confirms WebGL works)
           const renderer = new WebGLLutRenderer();
           const initialized = renderer.initialize(webglCanvasRef.current);
 
-          if (initialized && isMounted) {
-            rendererRef.current = renderer;
-            setIsReady(true);
+          if (!initialized) {
+            throw new Error(
+              'WebGLLutRenderer.initialize() returned false - WebGL context creation or shader compilation failed'
+            );
+          }
 
-            // Only initialize face warp renderer AFTER WebGL is confirmed to work
-            if (enabled && !faceWarpRendererRef.current) {
-              logger.info('useWebGLRenderer', '[useWebGLRenderer] 🚀 Initializing face warp renderer...');
+          if (!isMounted) {
+            logger.warn('useWebGLRenderer', 'Component unmounted during WebGL initialization');
+            renderer.dispose();
+            return;
+          }
+
+          rendererRef.current = renderer;
+          setIsReady(true);
+          logger.info('useWebGLRenderer', '✅ WebGL LUT renderer initialized successfully');
+
+          // Only initialize face warp renderer AFTER WebGL is confirmed to work
+          if (enabled && !faceWarpRendererRef.current) {
+            logger.info('useWebGLRenderer', '[useWebGLRenderer] 🚀 Initializing face warp renderer...');
+            try {
               const faceWarpRenderer = new WebGLFaceWarpRenderer();
               const warpInitialized = faceWarpRenderer.initialize(webglCanvasRef.current);
               if (warpInitialized) {
-                logger.info('useWebGLRenderer', '[useWebGLRenderer] ✅ Face warp renderer initialized successfully');
+                logger.info(
+                  'useWebGLRenderer',
+                  '[useWebGLRenderer] ✅ Face warp renderer initialized successfully'
+                );
                 faceWarpRendererRef.current = faceWarpRenderer;
               } else {
-                console.warn('[useWebGLRenderer] ❌ Failed to initialize face warp renderer');
+                console.warn(
+                  '[useWebGLRenderer] ❌ Failed to initialize face warp renderer - will fall back to Canvas 2D'
+                );
               }
+            } catch (warpError) {
+              console.warn(
+                '[useWebGLRenderer] Face warp renderer initialization error:',
+                warpError,
+                '- will fall back to Canvas 2D'
+              );
             }
-          } else {
-            throw new Error('WebGL initialization failed');
           }
         } catch (error) {
-          console.error('[useWebGLRenderer] Context creation failed:', error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error('[useWebGLRenderer] WebGL context creation failed:', errorMessage);
+
+          // Log additional diagnostic information
+          if (error instanceof Error && error.stack) {
+            console.debug('[useWebGLRenderer] Error stack:', error.stack);
+          }
 
           if (retryCount < WEBGL_MAX_RETRIES) {
             retryCount++;
+            const nextDelay = WEBGL_CONTEXT_RETRY_DELAY_MS * retryCount; // Exponential backoff
             console.warn(
-              `[useWebGLRenderer] Retrying context creation (${retryCount}/${WEBGL_MAX_RETRIES})...`
+              `[useWebGLRenderer] Retrying context creation in ${nextDelay}ms (${retryCount}/${WEBGL_MAX_RETRIES})...`
             );
-            setTimeout(tryCreateContext, WEBGL_CONTEXT_RETRY_DELAY_MS * retryCount);
+            setTimeout(tryCreateContext, nextDelay);
           } else {
-            console.error('[useWebGLRenderer] Failed to initialize WebGL after retries');
+            console.error(
+              `[useWebGLRenderer] Failed to initialize WebGL after ${WEBGL_MAX_RETRIES} retries. Last error: ${errorMessage}`
+            );
             if (isMounted) {
               setIsWebGLSupported(false);
             }

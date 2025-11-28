@@ -12,20 +12,51 @@ export function useWakeLock() {
 
   useEffect(() => {
     const requestWakeLock = async () => {
-      if (navigator.wakeLock) {
-        try {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-        } catch (err) {
+      // Only request wake lock if supported and page is visible
+      if (!navigator.wakeLock) {
+        return;
+      }
+
+      // Check if page is visible before requesting
+      if (document.visibilityState !== 'visible') {
+        // Don't warn - this is expected if page is backgrounded
+        return;
+      }
+
+      try {
+        // Release existing lock if present
+        if (wakeLockRef.current !== null) {
+          await wakeLockRef.current.release();
+          wakeLockRef.current = null;
+        }
+
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        console.log('[WakeLock] Screen wake lock acquired');
+      } catch (err) {
+        // Only warn for unexpected errors (not visibility-related)
+        if (err instanceof Error && err.name === 'NotAllowedError') {
+          // Page not visible or user hasn't interacted - this is expected, don't warn
+          console.debug('[WakeLock] Wake lock not allowed (page may not be visible)');
+        } else {
           console.warn('[WakeLock] Failed to acquire:', err);
         }
       }
     };
 
-    requestWakeLock();
+    // Initial request only if page is visible
+    if (document.visibilityState === 'visible') {
+      requestWakeLock();
+    }
 
     const handleVisibilityChange = () => {
-      if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible') {
+        // Page became visible - request wake lock
         requestWakeLock();
+      } else if (wakeLockRef.current !== null) {
+        // Page hidden - wake lock is automatically released by browser
+        // Just clear our reference
+        wakeLockRef.current = null;
+        console.log('[WakeLock] Screen wake lock released (page hidden)');
       }
     };
 
@@ -33,7 +64,10 @@ export function useWakeLock() {
 
     return () => {
       if (wakeLockRef.current !== null) {
-        wakeLockRef.current.release();
+        wakeLockRef.current.release().catch(() => {
+          // Ignore errors on cleanup
+        });
+        wakeLockRef.current = null;
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

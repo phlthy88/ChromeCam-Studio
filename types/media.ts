@@ -357,6 +357,43 @@ export interface FileSystemFileHandle {
 }
 
 // =============================================================================
+// BodyPix API
+// =============================================================================
+
+export interface BodyPixAPI {
+  load(config: BodyPixConfig): Promise<BodyPixNet>;
+  version: string;
+}
+
+export interface BodyPixConfig {
+  architecture: 'MobileNetV1' | 'ResNet50';
+  outputStride: 8 | 16 | 32;
+  multiplier: 0.25 | 0.5 | 0.75 | 1.0;
+  quantBytes: 1 | 2 | 4;
+}
+
+export interface BodyPixNet {
+  segmentPerson(
+    input: HTMLImageElement | HTMLCanvasElement | ImageData,
+    config: BodyPixSegmentationConfig
+  ): Promise<BodyPixSegmentation>;
+  dispose(): void;
+}
+
+export interface BodyPixSegmentationConfig {
+  flipHorizontal?: boolean;
+  internalResolution?: 'low' | 'medium' | 'high' | 'full';
+  segmentationThreshold?: number;
+  scoreThreshold?: number;
+}
+
+export interface BodyPixSegmentation {
+  data: Uint8Array;
+  width: number;
+  height: number;
+}
+
+// =============================================================================
 // Wake Lock API
 // =============================================================================
 
@@ -422,6 +459,7 @@ export interface SelfieSegmentationConstructor {
 declare global {
   interface Window {
     bodySegmentation?: BodySegmentationAPI;
+    bodyPix?: BodyPixAPI;
     BarcodeDetector?: BarcodeDetectorConstructor;
     showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
     SelfieSegmentation?: SelfieSegmentationConstructor;

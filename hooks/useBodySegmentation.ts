@@ -97,9 +97,11 @@ export function useBodySegmentation({
     }
   }, []);
 
-  const [loadingError, setLoadingError] = useState<string | null>(null);
+  // Dynamic Performance Management
+  const [currentFrameSkipInterval, setCurrentFrameSkipInterval] = useState(INFERENCE_FRAME_SKIP_FACTOR);
   const [aiRuntimeError, setAiRuntimeError] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Initializing AI...');
+  const [loadingError, setLoadingError] = useState<string | null>(null);
   const [isAiActive, setIsAiActive] = useState(false);
   const [qrResult, setQrResult] = useState<string | null>(null);
   const [segmentationMode, setSegmentationMode] = useState<SegmentationMode>('disabled');
@@ -180,7 +182,12 @@ export function useBodySegmentation({
         setLoadingStatus('Initializing AI Worker...');
         const mode = await segmentationManager.initialize();
 
-        if (!isMounted) return;
+        if (!isMounted) {
+          // Component unmounted during initialization - release reference
+          logger.info('useBodySegmentation', 'Component unmounted during initialization, releasing reference');
+          segmentationManager.release();
+          return;
+        }
 
         if (mode === 'worker') {
           setSegmentationMode('worker');
@@ -201,7 +208,11 @@ export function useBodySegmentation({
           await initMainThread();
         }
       } catch (error) {
-        if (!isMounted) return;
+        if (!isMounted) {
+          // Component unmounted during error handling - release reference
+          segmentationManager.release();
+          return;
+        }
 
         logger.error('useBodySegmentation', '[AI] Fatal initialization error:', error);
 
@@ -230,6 +241,7 @@ export function useBodySegmentation({
     return () => {
       isMounted = false;
       // Release reference to the singleton manager
+      // Note: This no longer auto-disposes, allowing the worker to be reused
       segmentationManager.release();
     };
   }, [loadScripts]);
@@ -243,17 +255,22 @@ export function useBodySegmentation({
     let animationFrameId: number;
     let isProcessing = false; // CRITICAL: Semaphore to prevent call stacking
     let frameSkipCounter = 0;
-    const FRAME_SKIP_INTERVAL = INFERENCE_FRAME_SKIP_FACTOR;
+    let consecutiveTimeouts = 0; // Track consecutive timeouts for recovery
+    let lastPerformanceUpdate = performance.now();
 
+    // Dynamic frame skipping based on performance
+    const TARGET_FRAME_TIME = 16.67; // ~60fps target
+    const MAX_SKIP_INTERVAL = 10;
+    
     const inferenceLoop = async () => {
       if (!isLoopActive || segmentationMode === 'disabled') {
         animationFrameId = requestAnimationFrame(inferenceLoop);
         return;
       }
 
-      // 1. Frame Skipping Logic
+      // 1. Frame Skipping Logic (Dynamic)
       frameSkipCounter++;
-      if (frameSkipCounter < FRAME_SKIP_INTERVAL) {
+      if (frameSkipCounter < currentFrameSkipInterval) {
         animationFrameId = requestAnimationFrame(inferenceLoop);
         return;
       }
@@ -302,6 +319,8 @@ export function useBodySegmentation({
             video.videoWidth > 0
           ) {
             let mask: ImageData | null = null;
+            let resultFps = 0;
+            let resultLatency = 0;
 
             if (canRunWorker) {
               // Use Web Worker for off-main-thread processing
@@ -310,18 +329,40 @@ export function useBodySegmentation({
                 video,
                 settingsRef.current.autoFrame
               );
+              
+              // Update performance metrics
+              if (result.fps !== undefined) resultFps = result.fps;
+              if (result.latency !== undefined) resultLatency = result.latency;
+              
+              // Handle consecutive timeout recovery
+              if (result.error && result.error.includes('Segmentation timeout')) {
+                consecutiveTimeouts++;
+                logger.warn('useBodySegmentation', `[AI] Worker segmentation timeout (${consecutiveTimeouts}/3):`, result.error);
+                
+                if (consecutiveTimeouts >= 3) {
+                  logger.error('useBodySegmentation', '[AI] Too many consecutive timeouts, re-initializing worker...');
+                  segmentationManager.terminateWorker();
+                  setSegmentationMode('disabled');
+                  consecutiveTimeouts = 0;
+                }
+              } else {
+                consecutiveTimeouts = 0; // Reset on successful processing
+              }
+              
               // Convert ImageBitmap to ImageData for compatibility
               if (result.mask instanceof ImageBitmap) {
                 const offscreenCanvas = new OffscreenCanvas(result.mask.width, result.mask.height);
                 const ctx = offscreenCanvas.getContext('2d');
-                if (ctx) {
-                  ctx.drawImage(result.mask, 0, 0);
-                  mask = ctx.getImageData(0, 0, result.mask.width, result.mask.height);
+                if (!ctx) {
+                  throw new Error('Failed to get 2D context from offscreen canvas');
                 }
+                ctx.drawImage(result.mask, 0, 0);
+                mask = ctx.getImageData(0, 0, result.mask.width, result.mask.height);
               } else {
                 mask = result.mask;
               }
-              if (result.error) {
+
+              if (result.error && !result.error.includes('Segmentation timeout')) {
                 logger.warn('useBodySegmentation', '[AI] Worker segmentation error:', result.error);
               }
 
@@ -347,6 +388,26 @@ export function useBodySegmentation({
 
             if (!settingsRef.current.autoFrame) {
               targetTransformRef.current = { panX: 0, panY: 0, zoom: 1 };
+            }
+            
+            // Dynamic frame skipping adjustment based on performance
+            const now = performance.now();
+            if (now - lastPerformanceUpdate > 1000) { // Update every second
+              lastPerformanceUpdate = now;
+
+              // Adjust frame skipping based on actual performance
+              if (resultLatency > 0) {
+                const currentFrameTime = 1000 / Math.max(resultFps, 1);
+
+                if (resultLatency > 2500) { // Very slow, increase skip more aggressively
+                  setCurrentFrameSkipInterval(prev => Math.min(prev + 2, MAX_SKIP_INTERVAL));
+                } else if (resultLatency > 1500) { // Slow, increase skip
+                  setCurrentFrameSkipInterval(prev => Math.min(prev + 1, MAX_SKIP_INTERVAL));
+                } else if (currentFrameTime < TARGET_FRAME_TIME * 0.8 && currentFrameSkipInterval > INFERENCE_FRAME_SKIP_FACTOR) {
+                  // Fast enough, reduce skip to improve responsiveness
+                  setCurrentFrameSkipInterval(prev => Math.max(prev - 1, INFERENCE_FRAME_SKIP_FACTOR));
+                }
+              }
             }
           } else if (!isAiNeeded && isMounted) {
             segmentationMaskRef.current = null;
@@ -376,7 +437,7 @@ export function useBodySegmentation({
       isMounted = false;
       cancelAnimationFrame(animationFrameId);
     };
-  }, [segmenter, aiRuntimeError, videoRef, qrResult, segmentationMode]);
+  }, [segmenter, aiRuntimeError, videoRef, qrResult, segmentationMode, currentFrameSkipInterval]);
   // ===========================================================================
 
   // Cleanup worker on unmount

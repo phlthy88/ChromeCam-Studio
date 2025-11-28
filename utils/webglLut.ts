@@ -230,6 +230,18 @@ export class WebGLFaceWarpRenderer {
     this._canvas = canvas;
 
     // WebGL2 is required for beauty effects due to GLSL ES 3.0 shaders
+    console.log('[WebGLFaceWarpRenderer] Attempting to get WebGL2 context...');
+    console.log('[WebGLFaceWarpRenderer] Canvas dimensions:', canvas.width, 'x', canvas.height);
+    console.log('[WebGLFaceWarpRenderer] Canvas valid:', !!canvas);
+
+    // First check if WebGL2 is supported at all
+    const webgl2Supported = !!window.WebGL2RenderingContext;
+    console.log('[WebGLFaceWarpRenderer] WebGL2 supported by browser:', webgl2Supported);
+
+    // Check if WebGL1 works first
+    const webgl1Context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    console.log('[WebGLFaceWarpRenderer] WebGL1 context available:', !!webgl1Context);
+
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
       premultipliedAlpha: false,
@@ -237,9 +249,21 @@ export class WebGLFaceWarpRenderer {
     }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
+      console.warn('[WebGLFaceWarpRenderer] WebGL2 context creation failed');
+
+      // Try WebGL1 as fallback to see if basic WebGL works
+      const webgl1Context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (webgl1Context) {
+        console.log(
+          '[WebGLFaceWarpRenderer] WebGL1 context available but WebGL2 required for beauty effects'
+        );
+      } else {
+        console.warn('[WebGLFaceWarpRenderer] No WebGL context available at all');
+      }
+
       console.warn(
         '[WebGLFaceWarpRenderer] WebGL2 not supported - beauty effects will be disabled. ' +
-          'Please use a browser that supports WebGL2 (Chrome 56+, Firefox 51+, Safari 14.1+, Edge 79+)'
+          'Please check: 1) Hardware acceleration enabled in Chrome, 2) WebGL not disabled in chrome://flags'
       );
       return false;
     }

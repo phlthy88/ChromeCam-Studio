@@ -61,16 +61,16 @@ export default defineConfig(({ mode }) => {
       ...baseConfig,
       mode: 'development',
       server: {
-        port: 3001,
+        port: 3002,
         strictPort: true,
         host: true,
         cors: true,
 
         hmr: {
-          clientPort: 3001,
+          clientPort: 3002,
           timeout: 30000,
           overlay: false,
-          port: 3001,
+          port: 3002,
         },
 
         watch: {
@@ -285,15 +285,55 @@ export default defineConfig(({ mode }) => {
       minify: 'esbuild',
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            tfjs: [
-              '@tensorflow/tfjs',
-              '@tensorflow/tfjs-backend-wasm',
-              '@tensorflow-models/body-pix',
-              '@tensorflow-models/face-landmarks-detection',
-            ],
-            obs: ['obs-websocket-js'],
+          manualChunks: (id) => {
+            // Vendor libraries
+            if (id.includes('node_modules')) {
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'vendor';
+              }
+              if (id.includes('@tensorflow') || id.includes('tensorflow-models')) {
+                return 'tensorflow';
+              }
+              if (id.includes('obs-websocket-js')) {
+                return 'obs';
+              }
+              // Other node_modules go to vendor
+              return 'vendor';
+            }
+
+            // Application code splitting
+            if (
+              id.includes('components/VideoPanel') ||
+              id.includes('hooks/useVideoRenderer') ||
+              id.includes('hooks/useBodySegmentation') ||
+              id.includes('hooks/useCameraStream')
+            ) {
+              return 'video-core';
+            }
+
+            if (
+              id.includes('components/ControlsPanel') ||
+              id.includes('components/Header') ||
+              id.includes('hooks/useMediaRecorder') ||
+              id.includes('hooks/useVirtualCamera')
+            ) {
+              return 'controls';
+            }
+
+            if (
+              id.includes('hooks/useBroadcastMode') ||
+              id.includes('components/BroadcastModeOverlay')
+            ) {
+              return 'broadcast';
+            }
+
+            if (
+              id.includes('hooks/useAutoLowLight') ||
+              id.includes('hooks/useAudioProcessor') ||
+              id.includes('hooks/useProOverlays')
+            ) {
+              return 'advanced-features';
+            }
           },
           chunkFileNames: 'assets/js/[name]-[hash].js',
           entryFileNames: 'assets/js/[name]-[hash].js',

@@ -10,10 +10,10 @@
     "jsxImportSource": "react",
 
     "strict": true,
+    "strictNullChecks": true,
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "allowJs": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,

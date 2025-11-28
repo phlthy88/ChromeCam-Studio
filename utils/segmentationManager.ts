@@ -46,13 +46,20 @@ class SegmentationManager {
   private worker: Worker | null = null;
   private mode: SegmentationMode = 'disabled';
   private isInitializing = false;
+  private initializationPromise: Promise<SegmentationMode> | null = null;
   private pendingCallbacks: Map<number, (result: SegmentationResult) => void> = new Map();
   private messageId = 0;
   private _onFaceLandmarks?: (landmarks: FaceLandmarks) => void;
   private currentFps = 0;
-
   private currentLatency = 0;
   private referenceCount = 0;
+  private initializationAttempts = 0;
+  private maxInitializationAttempts = 3;
+  private lastError: string | null = null;
+
+  // Disposal timeout management - prevents "death spiral" in React Strict Mode
+  private disposeTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly DISPOSE_DELAY_MS = 2000; // 2s grace period
 
   // =============================================================================
   // Feature Detection
@@ -75,19 +82,43 @@ class SegmentationManager {
   // =============================================================================
 
   async initialize(): Promise<SegmentationMode> {
-    if (this.isInitializing) {
-      logger.warn('SegmentationManager', 'Already initializing, returning current mode');
-      return this.mode;
+    // If already initializing, return the existing promise to avoid duplicate initialization
+    if (this.initializationPromise) {
+      logger.info('SegmentationManager', 'Already initializing, waiting for existing initialization');
+      return this.initializationPromise;
     }
 
-    if (this.mode !== 'disabled') {
+    // If already initialized and worker is still active, return current mode
+    if (this.mode !== 'disabled' && this.worker !== null) {
       logger.info('SegmentationManager', `Already initialized in ${this.mode} mode`);
       return this.mode;
     }
 
-    this.isInitializing = true;
-    logger.info('SegmentationManager', 'Starting initialization...');
+    // Check if we've exceeded max initialization attempts
+    if (this.initializationAttempts >= this.maxInitializationAttempts) {
+      logger.error(
+        'SegmentationManager',
+        `Max initialization attempts (${this.maxInitializationAttempts}) exceeded. Last error: ${this.lastError}`
+      );
+      return 'disabled';
+    }
 
+    this.isInitializing = true;
+    this.initializationAttempts++;
+    logger.info('SegmentationManager', `Starting initialization (attempt ${this.initializationAttempts}/${this.maxInitializationAttempts})...`);
+
+    // Store the initialization promise to prevent concurrent initializations
+    this.initializationPromise = this.performInitialization();
+
+    try {
+      const mode = await this.initializationPromise;
+      return mode;
+    } finally {
+      this.initializationPromise = null;
+    }
+  }
+
+  private async performInitialization(): Promise<SegmentationMode> {
     const canUseWorker =
       SegmentationManager.supportsWorker() &&
       SegmentationManager.supportsOffscreenCanvas() &&
@@ -102,15 +133,35 @@ class SegmentationManager {
     if (canUseWorker) {
       try {
         const workerInitialized = await this.initializeWorker();
+
+        // Check if manager was disposed while we were waiting for initialization
+        if (!this.isInitializing && this.mode === 'disabled') {
+          logger.warn('SegmentationManager', 'Manager was disposed during initialization');
+          // Clean up the worker that was just created
+          if (this.worker) {
+            this.worker.terminate();
+            this.worker = null;
+          }
+          return this.mode; // returns 'disabled'
+        }
+
         if (workerInitialized) {
           this.mode = 'worker';
           this.isInitializing = false;
+          this.lastError = null;
+          this.initializationAttempts = 0; // Reset on success
           logger.info('SegmentationManager', 'Worker mode initialized successfully');
           return this.mode;
+        } else {
+          this.lastError = 'Worker initialization returned false';
         }
       } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        this.lastError = errorMsg;
         logger.warn('SegmentationManager', 'Worker initialization failed:', e);
       }
+    } else {
+      this.lastError = 'Worker features not supported by browser';
     }
 
     // Fallback to main thread (or disabled if no fallback available)
@@ -141,18 +192,18 @@ class SegmentationManager {
         return;
       }
 
-      // Timeout for initialization (60 seconds - increased for slow networks/model loading)
+      // Timeout for initialization (45 seconds - balanced for slow networks/model loading)
       const initTimeout = setTimeout(() => {
         logger.error(
           'SegmentationManager',
-          'Worker initialization timeout (60s) - falling back to main thread'
+          'Worker initialization timeout (45s) - falling back to main thread'
         );
         if (this.worker) {
           this.worker.terminate();
           this.worker = null;
         }
         resolve(false);
-      }, 60000);
+      }, 45000);
 
       // Handle worker messages
       this.worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
@@ -267,13 +318,13 @@ class SegmentationManager {
       // Transfer the ImageBitmap to the worker (zero-copy)
       this.worker.postMessage({ type: 'process', id, image: frame, autoFrame }, [frame]);
 
-      // Timeout for individual frame processing
+      // Timeout for individual frame processing (3 seconds - more reasonable for complex scenes)
       setTimeout(() => {
         if (this.pendingCallbacks.has(id)) {
           this.pendingCallbacks.delete(id);
           resolve({ mask: null, error: 'Segmentation timeout' });
         }
-      }, 1000);
+      }, 3000);
     });
   }
 
@@ -292,9 +343,13 @@ class SegmentationManager {
 
     try {
       const imageBitmap = await createImageBitmap(video);
+      if (!imageBitmap || imageBitmap.width === 0 || imageBitmap.height === 0) {
+        throw new Error('Invalid ImageBitmap created');
+      }
       return await this.processFrame(imageBitmap, autoFrame);
     } catch (e) {
-      return { mask: null, error: `Failed to create ImageBitmap: ${e}` };
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      return { mask: null, error: `Failed to create ImageBitmap: ${errorMessage}` };
     }
   }
 
@@ -338,6 +393,13 @@ class SegmentationManager {
   }
 
   acquire(): void {
+    // Cancel pending disposal if we're re-acquiring (React remount)
+    if (this.disposeTimeout) {
+      clearTimeout(this.disposeTimeout);
+      this.disposeTimeout = null;
+      logger.debug('SegmentationManager', 'Dispose cancelled - component re-acquired reference');
+    }
+
     this.referenceCount++;
     logger.debug('SegmentationManager', `Acquired reference, count: ${this.referenceCount}`);
   }
@@ -348,16 +410,57 @@ class SegmentationManager {
 
     if (this.referenceCount <= 0) {
       this.referenceCount = 0;
-      logger.info('SegmentationManager', 'All references released, disposing manager');
-      this.dispose();
+      logger.info(
+        'SegmentationManager',
+        `All references released, scheduling disposal in ${this.DISPOSE_DELAY_MS}ms`
+      );
+
+      // Clear any existing timeout
+      if (this.disposeTimeout) {
+        clearTimeout(this.disposeTimeout);
+      }
+
+      // Schedule disposal after grace period
+      // This prevents "death spiral" during React Strict Mode remounts
+      this.disposeTimeout = setTimeout(() => {
+        logger.info('SegmentationManager', 'Disposal grace period ended, executing dispose');
+        this.dispose();
+        this.disposeTimeout = null;
+      }, this.DISPOSE_DELAY_MS);
+    } else if (this.referenceCount < 0) {
+      logger.warn('SegmentationManager', 'Reference count went negative, resetting to 0');
+      this.referenceCount = 0;
     }
   }
 
+  /**
+   * Force disposal of the manager and worker
+   * Should only be called when the application is shutting down
+   */
   dispose(): void {
+    // Ensure we clear any pending timeout if called manually
+    if (this.disposeTimeout) {
+      clearTimeout(this.disposeTimeout);
+      this.disposeTimeout = null;
+    }
+
+    logger.info('SegmentationManager', 'Disposing manager (forced)');
     this.terminateWorker();
     this.mode = 'disabled';
     this.isInitializing = false;
-    logger.info('SegmentationManager', 'Disposed');
+    this.referenceCount = 0;
+  }
+
+  /**
+   * Check if the manager should be disposed based on inactivity
+   * Call this periodically or when needed
+   */
+  disposeIfUnused(): void {
+    if (this.referenceCount <= 0 && this.worker !== null) {
+      logger.info('SegmentationManager', 'No active references, disposing manager');
+      this.dispose();
+      this.mode = 'disabled';
+    }
   }
 }
 

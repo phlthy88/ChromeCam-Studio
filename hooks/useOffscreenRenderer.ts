@@ -24,6 +24,7 @@ export function useOffscreenRenderer({
   const [isWorkerReady, setIsWorkerReady] = useState(false);
   const frameIdRef = useRef<number>(0);
   const isProcessingRef = useRef(false);
+  const canvasTransferredRef = useRef(false);
 
   // Initialize worker
   useEffect(() => {
@@ -55,36 +56,41 @@ export function useOffscreenRenderer({
       worker.terminate();
       workerRef.current = null;
       setIsWorkerReady(false);
+      canvasTransferredRef.current = false;
       cancelAnimationFrame(frameIdRef.current);
     };
   }, []);
 
   // Initialize canvas transfer
   useEffect(() => {
-    if (!workerRef.current || !canvasRef.current) return;
+    if (!workerRef.current || !canvasRef.current || !isWorkerReady) return;
+
+    // Skip if we've already successfully transferred this canvas
+    if (canvasTransferredRef.current) {
+      logger.debug('useOffscreenRenderer', 'Canvas already transferred, skipping');
+      return;
+    }
 
     const canvas = canvasRef.current;
-    
-    // Check if canvas is already transferred (detached)
-    // We can check this by seeing if we can get a context (it will fail or return null if detached, but getting context here might interfere with transfer)
-    // A safer way is to track it via ref or try/catch
-    
+
     try {
       // Transfer control to offscreen
       // Note: transferControlToOffscreen throws if the canvas has already been transferred
       // or if a context has already been acquired.
       const offscreen = canvas.transferControlToOffscreen();
-      
+
       workerRef.current.postMessage(
         { type: 'init', payload: { canvas: offscreen } },
         [offscreen]
       );
+
+      canvasTransferredRef.current = true;
       logger.info('useOffscreenRenderer', 'Canvas control transferred to worker');
     } catch (e) {
       // Canvas might already be transferred or not support transfer
       // or a context was already created on it by the main thread renderer
       const errorMessage = e instanceof Error ? e.message : String(e);
-      
+
       if (errorMessage.includes('Cannot get context from a canvas that has transferred its control to offscreen')) {
          logger.warn('useOffscreenRenderer', 'Canvas already transferred, skipping transfer');
       } else if (errorMessage.includes('OffscreenCanvas is not implemented')) {
@@ -92,8 +98,16 @@ export function useOffscreenRenderer({
       } else {
          logger.warn('useOffscreenRenderer', 'Failed to transfer canvas control (context likely already exists)', errorMessage);
       }
+
+      // Mark as not ready since transfer failed
+      setIsWorkerReady(false);
     }
-  }, [isWorkerReady]); // Only run once when worker is ready
+
+    // Reset transfer flag when canvas changes (via React key)
+    return () => {
+      canvasTransferredRef.current = false;
+    };
+  }, [isWorkerReady, canvasRef]); // Re-run when worker is ready OR canvas ref changes
 
   // Render loop
   useEffect(() => {
@@ -117,13 +131,34 @@ export function useOffscreenRenderer({
       isProcessingRef.current = true;
 
       try {
-        // Create bitmap from video
-        const videoBitmap = await createImageBitmap(video);
+        // Create bitmap from video with validation
+        let videoBitmap: ImageBitmap;
+        try {
+          videoBitmap = await createImageBitmap(video);
+          if (!videoBitmap) {
+            throw new Error('createImageBitmap returned null for video');
+          }
+          if (videoBitmap.width === 0 || videoBitmap.height === 0) {
+            throw new Error(`Invalid video bitmap dimensions: ${videoBitmap.width}x${videoBitmap.height}`);
+          }
+        } catch (e) {
+          console.error('[useOffscreenRenderer] Failed to create video bitmap:', e);
+          return;
+        }
         
         // Prepare mask bitmap if available
         let maskBitmap: ImageBitmap | null = null;
         if (isAiActive && segmentationMaskRef.current) {
-           maskBitmap = await createImageBitmap(segmentationMaskRef.current);
+          try {
+            maskBitmap = await createImageBitmap(segmentationMaskRef.current);
+            if (!maskBitmap) {
+              console.warn('[useOffscreenRenderer] createImageBitmap returned null for mask, continuing without mask');
+              maskBitmap = null;
+            }
+          } catch (e) {
+            console.warn('[useOffscreenRenderer] Failed to create mask bitmap:', e);
+            maskBitmap = null;
+          }
         }
 
         // Send to worker

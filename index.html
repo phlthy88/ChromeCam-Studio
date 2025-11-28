@@ -10,10 +10,10 @@
       http-equiv="Content-Security-Policy"
       content="
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval';
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
-      connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com ws: wss:;
+      connect-src 'self' ws: wss:;
       img-src 'self' blob: data:;
       media-src 'self' blob:;
       worker-src 'self' blob:;
@@ -39,8 +39,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- Preconnect for external resources -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <link rel="dns-prefetch" href="//storage.googleapis.com" />
+    <!-- Removed unused CDN preconnects since we now load TensorFlow.js locally -->
 
     <!-- Material 3 Design Tokens -->
     <link rel="stylesheet" href="/styles/m3-tokens.css" />

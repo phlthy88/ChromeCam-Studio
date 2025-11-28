@@ -1,24 +1,38 @@
 /**
- * Segmentation Worker - TensorFlow.js Body Segmentation
- * 
+ * Segmentation Worker - TensorFlow.js BodyPix
+ *
  * CRITICAL: This file MUST live in public/workers/ to bypass Vite's module system.
  * Do NOT move this to src/ or use any TypeScript import syntax.
- * 
- * Uses TensorFlow.js Body Segmentation model which:
+ *
+ * Uses TensorFlow.js BodyPix model which:
  * - Loads models via HTTP fetch (not importScripts)
  * - Uses pure WebGL (no WASM dependencies)
  * - Works correctly in both classic and module workers
- * - More modern and actively maintained than BodyPix
  */
 
 // =============================================================================
-// Load TensorFlow.js and Body Segmentation - MUST be separate importScripts calls
+// Load TensorFlow.js and BodyPix - MUST be separate importScripts calls
 // =============================================================================
 
+console.log('[Worker] Loading TensorFlow.js...');
 importScripts('/mediapipe/tf.min.js');
+
+console.log('[Worker] Loading BodyPix...');
 importScripts('/mediapipe/body-pix.min.js');
 
-console.log('[Worker] TensorFlow.js and Body Segmentation loaded via importScripts');
+console.log('[Worker] TensorFlow.js and BodyPix loaded via importScripts');
+console.log('[Worker] TensorFlow.js available:', !!self.tf);
+console.log('[Worker] BodyPix available:', !!self.BodyPix);
+console.log('[Worker] Checking self keys:', Object.keys(self).filter(k => k.includes('body') || k.includes('Body') || k.includes('tf')));
+console.log('[Worker] All globals after importScripts:', Object.keys(self).filter(k => k.includes('body') || k.includes('Body') || k.includes('tf')));
+
+// Debug: Check for common issues
+if (!self.tf) {
+  console.error('[Worker] TensorFlow.js not found! Available globals:', Object.keys(self));
+}
+if (!self['body-pix']) {
+  console.error('[Worker] BodyPix not found! Available globals:', Object.keys(self));
+}
 
 // =============================================================================
 // Worker State
@@ -35,7 +49,7 @@ let processingFrame = false;
 
 function calculateAutoFrameTransform(segmentation) {
   const { width, height, data } = segmentation;
-  
+
   let minX = width;
   let maxX = 0;
   let minY = height;
@@ -46,10 +60,8 @@ function calculateAutoFrameTransform(segmentation) {
   for (let y = 0; y < height; y += 8) {
     for (let x = 0; x < width; x += 8) {
       const idx = y * width + x;
-      // Check if this pixel is part of the person (boolean or confidence > 0.5)
-      const isPerson = typeof data[idx] === 'boolean' ? data[idx] : data[idx] > 0.5;
-      
-      if (isPerson) {
+      // data[idx] is a confidence value between 0 and 1
+      if (data[idx] > 0.5) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -63,13 +75,13 @@ function calculateAutoFrameTransform(segmentation) {
     const boxCenterX = (minX + maxX) / 2;
     const boxHeight = maxY - minY;
     const faceY = minY + boxHeight * 0.25;
-    
+
     const centerXPercent = boxCenterX / width;
     const faceYPercent = faceY / height;
-    
+
     const targetPanX = (0.5 - centerXPercent) * 100;
     const targetPanY = (0.5 - faceYPercent) * 100;
-    
+
     let targetZoom = (height * 0.6) / boxHeight;
     targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
 
@@ -84,26 +96,35 @@ function calculateAutoFrameTransform(segmentation) {
 // =============================================================================
 
 async function segmentationToMask(segmentation) {
-  // Body-segmentation returns a different format than BodyPix
-  // It provides a width, height, and an array of boolean values
   const { width, height, data } = segmentation;
   
-  // Convert to binary mask (person = 255, background = 0)
-  const rgba = new Uint8ClampedArray(width * height * 4);
-  
-  for (let i = 0; i < data.length; i++) {
-    // data is an array of booleans for body-pix, or confidence values for body-segmentation
-    const isPerson = typeof data[i] === 'boolean' ? data[i] : data[i] > 0.5;
-    const value = isPerson ? 255 : 0;
-    const offset = i * 4;
-    rgba[offset] = value;     // R
-    rgba[offset + 1] = value; // G
-    rgba[offset + 2] = value; // B
-    rgba[offset + 3] = 255;   // A (fully opaque)
+  // Validate input data
+  if (!width || !height || !data || data.length === 0) {
+    console.error('[Worker] Invalid segmentation data:', { width, height, dataLength: data?.length });
+    return null;
   }
   
-  const imageData = new ImageData(rgba, width, height);
-  return createImageBitmap(imageData);
+  const rgba = new Uint8ClampedArray(width * height * 4);
+
+  for (let i = 0; i < data.length; i++) {
+    // data[i] is a confidence value between 0 and 1
+    const isPerson = data[i] > 0.5; // Use threshold for person detection
+    const value = isPerson ? 255 : 0;
+    const offset = i * 4;
+    rgba[offset] = value; // R
+    rgba[offset + 1] = value; // G
+    rgba[offset + 2] = value; // B
+    rgba[offset + 3] = 255; // A (fully opaque)
+  }
+
+  try {
+    const imageData = new ImageData(rgba, width, height);
+    return await createImageBitmap(imageData);
+  } catch (error) {
+    console.error('[Worker] Error creating ImageBitmap in segmentationToMask:', error);
+    // Return a default mask or handle the error appropriately
+    return null; // Or a default ImageBitmap
+  }
 }
 
 // =============================================================================
@@ -113,36 +134,45 @@ async function segmentationToMask(segmentation) {
 async function initSegmenter() {
   try {
     console.log('[Worker] Initializing TensorFlow.js...');
-    
+
     // Configure TensorFlow.js for WebGL backend
     await tf.setBackend('webgl');
     await tf.ready();
     console.log('[Worker] TensorFlow.js ready, backend:', tf.getBackend());
-    
-    console.log('[Worker] Loading Body Segmentation model...');
-    
-    // Load body segmentation model
-    // This downloads model on first use, cached thereafter
-    net = await bodySegmentation.createSegmenter(
-      bodySegmentation.SupportedModels.BodyPix,
-      {
-        runtime: 'tfjs',
-        modelType: 'general',
-        enableSmoothing: true
-      }
-    );
-    
+
+    console.log('[Worker] Loading BodyPix model...');
+    console.log('[Worker] Checking BodyPix global:', !!self.BodyPix);
+    console.log('[Worker] Checking BodyPix.load:', typeof self.BodyPix?.load);
+
+    // Debug: Check if BodyPix is accessible
+    if (!self.BodyPix) {
+      console.error('[Worker] BodyPix global not found. Available globals:', Object.keys(self));
+      throw new Error('BodyPix global not found. Available globals: ' + Object.keys(self).join(', '));
+    }
+
+    if (typeof self.BodyPix.load !== 'function') {
+      throw new Error('BodyPix.load is not a function. Available methods: ' + Object.keys(self.BodyPix).join(', '));
+    }
+
+    // Load BodyPix with MobileNetV1 architecture
+    // This downloads ~7MB model on first use, cached thereafter
+    net = await self.BodyPix.load({
+      architecture: 'MobileNetV1',
+      outputStride: 16,
+      multiplier: 0.75,
+      quantBytes: 2,
+    });
+
     isInitialized = true;
-    console.log('[Worker] Body Segmentation model loaded successfully!');
-    
+    console.log('[Worker] BodyPix model loaded successfully!');
+
     self.postMessage({ type: 'init-complete', success: true });
-    
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
     self.postMessage({
       type: 'init-complete',
       success: false,
-      error: error.message || String(error)
+      error: error.message || String(error),
     });
   }
 }
@@ -156,72 +186,83 @@ async function processFrame(imageBitmap, autoFrame) {
     console.warn('[Worker] Not initialized, skipping frame');
     return;
   }
-  
+
+  // Validate input imageBitmap
+  if (!imageBitmap || !imageBitmap.width || !imageBitmap.height) {
+    console.error('[Worker] Invalid imageBitmap in processFrame:', {
+      imageBitmapExists: !!imageBitmap,
+      width: imageBitmap?.width,
+      height: imageBitmap?.height
+    });
+    if (imageBitmap) {
+      imageBitmap.close();
+    }
+    return;
+  }
+
   if (processingFrame) {
     // Drop frame if still processing previous
     imageBitmap.close();
     return;
   }
-  
+
   processingFrame = true;
   autoFrameEnabled = autoFrame;
-  
+
   try {
     // Create OffscreenCanvas to process the ImageBitmap
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to get 2D context from OffscreenCanvas');
+    }
     ctx.drawImage(imageBitmap, 0, 0);
-    
-    // Run segmentation using body-segmentation API
-    const segmentation = await net.segmentPeople(canvas, {
+
+    // Run segmentation
+    const segmentation = await net.segmentPerson(canvas, {
       flipHorizontal: false,
       internalResolution: 'medium',
-      segmentationThreshold: 0.7
+      segmentationThreshold: 0.7,
+      scoreThreshold: 0.3,
     });
-    
-    // For simplicity, use the first person if multiple are detected
-    const personSegmentation = segmentation.length > 0 ? segmentation[0] : null;
-    
-    if (!personSegmentation) {
-      console.warn('[Worker] No person detected in frame');
-      processingFrame = false;
-      imageBitmap.close();
+
+    // Validate segmentation result
+    if (!segmentation || !segmentation.data) {
+      throw new Error('Invalid segmentation result received');
+    }
+
+    // Create mask bitmap for transfer
+    const maskBitmap = await segmentationToMask(segmentation);
+    if (!maskBitmap) {
+      console.warn('[Worker] segmentationToMask returned null, skipping frame');
       return;
     }
-    
-    // Create mask bitmap for transfer
-    const maskBitmap = await segmentationToMask(personSegmentation);
-    
+
     // Calculate auto-frame transform if enabled
     let autoFrameTransform = null;
     if (autoFrameEnabled) {
-      autoFrameTransform = calculateAutoFrameTransform(personSegmentation);
+      autoFrameTransform = calculateAutoFrameTransform(segmentation);
     }
-    
+
     // Build response
     const response = {
       type: 'mask',
       mask: maskBitmap,
-      timestamp: performance.now()
+      timestamp: performance.now(),
     };
-    
+
     if (autoFrameTransform) {
       response.autoFrameTransform = autoFrameTransform;
     }
-    
-    // Send result back to main thread
-    self.postMessage(response, [maskBitmap]);
 
+    // Transfer the mask bitmap to main thread (zero-copy)
+    self.postMessage(response, [maskBitmap]);
   } catch (error) {
-    console.error('[Worker] Segmentation failed:', error);
-    self.postMessage({
-      type: 'error',
-      error: error.message || String(error),
-      timestamp: performance.now()
-    });
+    console.error('[Worker] Processing failed:', error);
+    self.postMessage({ type: 'error', error: String(error) });
   } finally {
-    processingFrame = false;
     imageBitmap.close();
+    processingFrame = false;
   }
 }
 
@@ -229,18 +270,23 @@ async function processFrame(imageBitmap, autoFrame) {
 // Message Handler
 // =============================================================================
 
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
   const msg = e.data;
 
   switch (msg.type) {
     case 'init':
       await initSegmenter();
       break;
-      
+
     case 'process':
+      // Validate message data before processing
+      if (!msg || !msg.image) {
+        console.error('[Worker] Invalid process message:', msg);
+        return;
+      }
       await processFrame(msg.image, msg.autoFrame);
       break;
-      
+
     case 'close':
       console.log('[Worker] Closing...');
       if (net) {
@@ -250,7 +296,7 @@ self.onmessage = async function(e) {
       isInitialized = false;
       self.close();
       break;
-      
+
     default:
       console.warn('[Worker] Unknown message type:', msg.type);
   }
@@ -260,4 +306,4 @@ self.onmessage = async function(e) {
 // Worker Ready Signal
 // =============================================================================
 
-console.log('[Worker] Segmentation worker loaded (TensorFlow.js Body Segmentation)');
+console.log('[Worker] Segmentation worker loaded (TensorFlow.js BodyPix)');

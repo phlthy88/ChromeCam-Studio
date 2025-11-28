@@ -440,6 +440,9 @@ export function useVideoRenderer({
 
   // Frame rate limiting for performance - use ref for proper RAF handling
   const frameSkipRef = useRef(0);
+  
+  // Throttle imageData access to prevent forced reflows (10fps max)
+  const lastImageDataTimeRef = useRef<number>(0);
 
   // Keep settings ref updated
   useEffect(() => {
@@ -474,8 +477,16 @@ export function useVideoRenderer({
     let isLoopActive = true;
 
     const processVideo = () => {
-      // FIX 2: Race Condition / Mount Check - strict check before any canvas operations
+      // Enhanced validation: Race Condition / Mount Check with detailed validation
       if (!isLoopActive || !canvasRef.current || !videoRef.current) return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      // Additional video validation to prevent crashes
+      if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+        return; // Video not ready or has invalid dimensions
+      }
 
       // Frame rate limiting for performance mode
       const skipFactor =
@@ -493,14 +504,17 @@ export function useVideoRenderer({
         return;
       }
 
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
       // Use willReadFrequently: true since we call getImageData for overlays
       let ctx: CanvasRenderingContext2D | null = null;
       try {
         ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
       } catch (e) {
-        // Canvas control likely transferred to worker, stop this loop
+        console.error('[useVideoRenderer] Failed to get canvas context:', e);
+        return;
+      }
+
+      if (!ctx) {
+        console.error('[useVideoRenderer] Canvas 2D context is null');
         return;
       }
       const maskCanvas = maskCanvasRef.current;
@@ -594,16 +608,23 @@ export function useVideoRenderer({
         Math.abs(panY) > 0.5;
 
       if (canvas && ctx && video && video.readyState >= 2) {
-        // Resize canvas to match video dimensions
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          // Direct iteration - no array allocation
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+        // Batch DOM writes: resize canvas to match video dimensions only when needed
+        const needsResize = canvas.width !== video.videoWidth || canvas.height !== video.videoHeight;
+        if (needsResize) {
+          // Batch all canvas dimension changes together to minimize forced reflows
+          const newWidth = video.videoWidth;
+          const newHeight = video.videoHeight;
+          
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+          
           if (tempCanvas) {
-            tempCanvas.width = video.videoWidth;
-            tempCanvas.height = video.videoHeight;
+            tempCanvas.width = newWidth;
+            tempCanvas.height = newHeight;
           }
-          // Note: video element doesn't need width/height set
+          
+          // Clear filter cache when dimensions change as cached filters may be size-dependent
+          filterCache.clear();
         }
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -628,7 +649,15 @@ export function useVideoRenderer({
           }
 
           // Build base filter string with caching to avoid string concatenation every frame
+          // Optimize filter computation: only rebuild when settings change
           const baseFilter = filterCache.buildFilterString(settingsRef.current);
+          
+          // Cache hardware adjustment status to avoid repeated checks
+          const needsSoftwareAdjustment = 
+            !hardwareCapabilities.contrast || 
+            !hardwareCapabilities.brightness || 
+            !hardwareCapabilities.saturation;
+          
           const effectiveContrast = hardwareCapabilities.contrast
             ? 100
             : settingsRef.current.contrast;
@@ -641,17 +670,18 @@ export function useVideoRenderer({
 
           // Only add hardware adjustment to base filter if not using hardware controls
           let finalFilter = baseFilter;
-          if (
+          if (needsSoftwareAdjustment && (
             effectiveContrast !== 100 ||
             effectiveBrightness !== 100 ||
             effectiveSaturation !== 100
-          ) {
+          )) {
             finalFilter += `contrast(${effectiveContrast}%) brightness(${effectiveBrightness}%) saturate(${effectiveSaturation}%)`;
           }
 
-          // Apply auto gain if enabled
-          if (autoGain > 0) {
-            finalFilter += ` brightness(${100 + autoGain}%)`;
+          // Apply auto gain if enabled - pre-build to avoid string concatenation in render loop
+          const autoGainFilter = autoGain > 0 ? ` brightness(${100 + autoGain}%)` : '';
+          if (autoGainFilter) {
+            finalFilter += autoGainFilter;
           }
 
           const segmentationMask = segmentationMaskRef.current;
@@ -659,11 +689,13 @@ export function useVideoRenderer({
             blur > 0 || portraitLighting > 0 || faceSmoothing > 0 || autoFrame || virtualBackground;
 
           if (isAiNeeded && segmentationMask && maskCanvas && maskCtx && tempCanvas && tempCtx) {
-            // Resize mask canvas if needed
-            if (maskCanvas.width !== segmentationMask.width) {
+            // Batch mask canvas resize operations
+            const needsMaskResize = maskCanvas.width !== segmentationMask.width;
+            if (needsMaskResize) {
               maskCanvas.width = segmentationMask.width;
               maskCanvas.height = segmentationMask.height;
             }
+            
             if (segmentationMask instanceof ImageData) {
               maskCtx.putImageData(segmentationMask, 0, 0);
             } else {
@@ -811,21 +843,26 @@ export function useVideoRenderer({
             drawGridOverlay(ctx, canvas.width, canvas.height, gridOverlay);
           }
 
-          // Get image data for histogram, zebra, and focus peaking
+          // Get image data for histogram, zebra, and focus peaking (throttled)
           if (showHistogram || showZebraStripes || showFocusPeaking) {
             try {
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              // Throttle expensive getImageData calls to max 10fps to prevent forced reflows
+              const now = performance.now();
+              if (!lastImageDataTimeRef.current || now - lastImageDataTimeRef.current > 100) {
+                lastImageDataTimeRef.current = now;
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-              if (showZebraStripes) {
-                drawZebraStripes(ctx, canvas.width, canvas.height, imageData, zebraThreshold);
-              }
+                if (showZebraStripes) {
+                  drawZebraStripes(ctx, canvas.width, canvas.height, imageData, zebraThreshold);
+                }
 
-              if (showFocusPeaking) {
-                drawFocusPeaking(ctx, canvas.width, canvas.height, imageData, focusPeakingColor);
-              }
+                if (showFocusPeaking) {
+                  drawFocusPeaking(ctx, canvas.width, canvas.height, imageData, focusPeakingColor);
+                }
 
-              if (showHistogram) {
-                drawHistogram(ctx, canvas.width, canvas.height, imageData);
+                if (showHistogram) {
+                  drawHistogram(ctx, canvas.width, canvas.height, imageData);
+                }
               }
             } catch (_e) {
               // Canvas might be tainted, ignore

@@ -230,13 +230,22 @@ export function useCameraStream({
           audio: audioConstraints,
         });
 
+        if (!stream) {
+          throw new Error('Failed to get media stream from getUserMedia');
+        }
+
         if (isCancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
         streamRef.current = stream;
-        const videoTrack = stream.getVideoTracks()[0];
+        const videoTracks = stream.getVideoTracks();
+        const videoTrack = videoTracks[0];
+
+        if (!videoTrack) {
+          throw new Error('No video track available from media stream');
+        }
 
         if (videoTrack) {
           videoTrackRef.current = videoTrack;
@@ -465,11 +474,16 @@ export function useCameraStream({
       }
 
       if (hasChanges) {
-        // Check if track is still valid before applying constraints
-        if (track.readyState === 'ended' || track.readyState !== 'live') {
+        // Enhanced track validation before applying constraints
+        if (!track || track.readyState === 'ended' || !track.enabled || track.readyState !== 'live') {
           console.debug(
-            '[Camera] Skipping constraint application - track not ready:',
-            track.readyState
+            '[Camera] Skipping constraint application - track invalid:',
+            {
+              trackExists: !!track,
+              readyState: track?.readyState,
+              enabled: track?.enabled,
+              id: track?.id
+            }
           );
           return;
         }

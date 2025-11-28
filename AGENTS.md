@@ -137,6 +137,50 @@ npm run test:coverage # Coverage report
 npm run test:run      # CI mode (no watch)
 ```
 
+### 7. Segmentation Manager Timeout Issues
+**Location**: `utils/segmentationManager.ts:144-155`
+
+**Problem**: Worker initialization timeout inconsistency between implementations.
+
+**Current State**:
+```typescript
+// Current implementation (60s timeout)
+const initTimeout = setTimeout(() => {
+  logger.error('SegmentationManager', 'Worker initialization timeout (60s) - falling back to main thread');
+  // ...
+}, 60000);
+
+// Fix version (30s timeout)  
+const initTimeout = setTimeout(() => {
+  logger.error('SegmentationManager', 'Worker initialization timeout (30s) - falling back to main thread');
+  // ...
+}, 30000);
+```
+
+**Impact**: Inconsistent behavior between different versions of the segmentation manager.
+
+**Recommended Fix**:
+```typescript
+// Standardize on 45-second timeout
+const initTimeout = setTimeout(() => {
+  logger.error('SegmentationManager', 'Worker initialization timeout (45s) - falling back to main thread');
+  if (this.worker) {
+    this.worker.terminate();
+    this.worker = null;
+  }
+  resolve(false);
+}, 45000); // 45 seconds
+```
+
+**Debugging Steps**:
+1. Check browser Network tab for failed CDN requests to `https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js`
+2. Verify worker URL doesn't contain `?worker_file&type=module`
+3. Monitor Console for `importScripts` errors
+4. Use `./fix/diagnose-worker-fix.sh` for comprehensive worker health check
+5. Clear Vite cache: `rm -rf node_modules/.vite dist`
+
+---
+
 ## Important Gotchas
 
 ### 1. AI Processing on Main Thread (Critical Performance Issue)
@@ -157,12 +201,45 @@ const segmentation = await segmenter.segmentPeople(video); // Blocks UI
 ### 2. Worker Architecture Issues
 **Location**: `fix/diagnose-worker-fix.sh`
 
-**Problem**: MediaPipe CDN loading fails in Web Workers due to CORS/CSP policies.
+**Problem**: Mixed worker implementations and missing BodyPix dependency causing importScripts failures.
+
+**Root Cause**: 
+- Current worker tries to load `/mediapipe/body-pix.min.js` which contains error message instead of actual BodyPix code
+- MediaPipe files in public/mediapipe/ are for SelfieSegmentation, not BodyPix
+- Worker implementation inconsistency between local and CDN dependencies
+
+**Current Implementation**: Uses TensorFlow.js BodyPix API
+- Loads models via CDN: `https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js`
+- Loads BodyPix via CDN: `https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.1/dist/body-pix.min.js`
+- Works correctly in both classic and module workers
+- More reliable and better documented than Body Segmentation API
 
 **Solution**: 
-- Bundle MediaPipe WASM locally in `public/mediapipe/`
+- Bundle ML models locally in `public/mediapipe/`
 - Use direct URL workers: `new Worker('/workers/segmentation.worker.js', { type: 'classic' })`
 - Transfer canvas via OffscreenCanvas for zero-copy rendering
+- Files in `public/` bypass Vite's module system entirely
+
+**Critical Timeout Configuration**:
+- Current: 60-second timeout in `utils/segmentationManager.ts:144`
+- Fix version: 30-second timeout in `fix/segmentationManager.ts:141`
+- **Recommendation**: Standardize on 45-second timeout for balance between slow networks and fast failure detection
+
+**Worker File Locations**:
+- Active: `public/workers/segmentation.worker.js` (TensorFlow.js BodyPix - CDN based)
+- Fix template: `fix/segmentation.worker.js` (TensorFlow.js BodyPix - CDN based)
+
+**Debug Commands**:
+```bash
+# Run worker diagnostic
+./fix/diagnose-worker-fix.sh
+
+# Check timeout configurations
+grep -n "60000\|30000\|45000" utils/segmentationManager.ts
+
+# Clear Vite cache if worker issues persist
+rm -rf node_modules/.vite dist
+```
 
 ### 3. Memory Allocation Hotspots
 **Location**: `hooks/useAutoLowLight.ts:114`, `hooks/useVideoRenderer.ts`
@@ -324,12 +401,56 @@ tempCtxRef.current = tempCanvas.getContext('2d', { willReadFrequently: true });
    - Check for missing type definitions in `types/media.ts`
    - Verify worker protocol types are current
 
+### Debugging Segmentation Worker Timeout Issues
+
+When experiencing segmentation worker timeout errors:
+
+1. **Check Current Timeout Configuration**:
+```bash
+# Verify current timeout value
+grep -n "60000\|30000\|45000" utils/segmentationManager.ts
+```
+
+2. **Run Worker Diagnostic**:
+```bash
+./fix/diagnose-worker-fix.sh
+```
+
+3. **Clear Vite Cache**:
+```bash
+rm -rf node_modules/.vite dist
+npm run dev
+```
+
+4. **Monitor Browser Console**:
+   - Look for: `Worker initialization timeout (60s) - falling back to main thread`
+   - Check Network tab for failed requests to `/mediapipe/tf.min.js`
+   - Verify worker URL is `/workers/segmentation.worker.js` (no query params)
+
+5. **Fix Timeout Inconsistency**:
+   - Standardize timeout to 45 seconds in `utils/segmentationManager.ts:144`
+   - Update error message to reflect new timeout value
+
+**Expected Success Logs**:
+```
+[Worker] TensorFlow.js and BodyPix loaded via importScripts
+[Worker] Initializing TensorFlow.js...
+[Worker] TensorFlow.js ready, backend: webgl
+[Worker] Loading BodyPix model...
+[Worker] BodyPix model loaded successfully!
+[SegmentationManager] Worker initialized successfully
+```
+
 ### Debug Commands
 ```bash
 npm run dev           # Development with source maps
 npm run build         # Production build check
 npm run test:coverage # Coverage analysis
 npm run build:analyze # Bundle analysis
+
+# Worker-specific debugging
+./fix/diagnose-worker-fix.sh    # Comprehensive worker diagnostic
+rm -rf node_modules/.vite       # Clear Vite cache
 ```
 
 ## Contributing Guidelines
