@@ -7,6 +7,7 @@ import {
   useCameraStream,
   useBodySegmentation,
   useVideoRenderer,
+  useOffscreenRenderer,
   useMediaRecorder,
   useAutoLowLight,
   useAudioProcessor,
@@ -200,7 +201,19 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     onFaceDetected?.(faceDetected);
   }, [faceLandmarks, onFaceDetected]);
 
-  // Canvas rendering with effects
+  // OffscreenCanvas rendering (Worker-based)
+  const { isWorkerReady } = settings.webglEnabled
+    ? useOffscreenRenderer({
+        videoRef,
+        canvasRef,
+        settings,
+        segmentationMaskRef,
+        isAiActive,
+      })
+    : { isWorkerReady: false };
+
+  // Main thread rendering (Fallback)
+  // Only active if the worker is NOT ready
   useVideoRenderer({
     videoRef,
     canvasRef,
@@ -213,6 +226,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     isCompareActive,
     autoGain,
     faceLandmarks,
+    enabled: !isWorkerReady, // We will add this prop to useVideoRenderer next
   });
 
   // Recording and snapshots

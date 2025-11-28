@@ -54,7 +54,7 @@ export const AI = {
   BACKGROUND_COLOR: { r: 0, g: 0, b: 0, a: 0 },
 
   // Model URLs
-  TF_CDN: 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js',
+  TF_CDN: 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
   MEDIAPIPE_CDN: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/',
 
   // Timeouts

@@ -49,7 +49,7 @@ const VIDEO_TEXTURE_TARGET = 0x0de1; // gl.TEXTURE_2D
  */
 export class WebGLVideoRenderer {
   private gl: WebGL2RenderingContext | null = null;
-  private canvas: HTMLCanvasElement | null = null;
+  private canvas: HTMLCanvasElement | OffscreenCanvas | null = null;
 
   // Base rendering program
   private baseProgram: WebGLProgram | null = null;
@@ -62,15 +62,19 @@ export class WebGLVideoRenderer {
   private bgTexture: WebGLTexture | null = null;
 
   // Current state
-  private currentVideo: HTMLVideoElement | HTMLImageElement | null = null;
-  private currentMask: ImageData | null = null;
-  private currentBg: HTMLImageElement | null = null;
+  private currentVideo: HTMLVideoElement | HTMLImageElement | ImageBitmap | null = null;
+  private currentMask: ImageData | ImageBitmap | null = null;
+  private currentBg: HTMLImageElement | ImageBitmap | null = null;
 
   /**
    * Check if WebGL2 is supported (required for this renderer)
    */
   static isSupported(): boolean {
     try {
+      if (typeof OffscreenCanvas !== 'undefined') {
+        const canvas = new OffscreenCanvas(1, 1);
+        return !!canvas.getContext('webgl2');
+      }
       const canvas = document.createElement('canvas');
       return !!canvas.getContext('webgl2');
     } catch {
@@ -81,7 +85,7 @@ export class WebGLVideoRenderer {
   /**
    * Initialize the WebGL2 context and shaders
    */
-  initialize(canvas: HTMLCanvasElement): boolean {
+  initialize(canvas: HTMLCanvasElement | OffscreenCanvas): boolean {
     this.canvas = canvas;
 
     // Get WebGL2 context
@@ -278,7 +282,7 @@ export class WebGLVideoRenderer {
   /**
    * Upload video frame to texture
    */
-  private uploadVideoTexture(video: HTMLVideoElement | HTMLImageElement): boolean {
+  private uploadVideoTexture(video: HTMLVideoElement | HTMLImageElement | ImageBitmap): boolean {
     if (!this.gl || !this.videoTexture) return false;
 
     const gl = this.gl;
@@ -302,7 +306,7 @@ export class WebGLVideoRenderer {
   /**
    * Upload mask data to texture
    */
-  private uploadMaskTexture(mask: ImageData): boolean {
+  private uploadMaskTexture(mask: ImageData | ImageBitmap): boolean {
     if (!this.gl || !this.maskTexture) return false;
 
     const gl = this.gl;
@@ -314,29 +318,33 @@ export class WebGLVideoRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-    // Convert ImageData to a format suitable for WebGL
-    // The mask should have alpha values indicating person vs background
-    const maskTextureData = new Uint8Array(mask.width * mask.height * 4);
-    for (let i = 0; i < mask.data.length; i += 4) {
-      // Use red channel as mask value (as expected by fragment shader)
-      const maskValue = mask.data[i] ?? 0;
-      maskTextureData[i] = maskValue; // R
-      maskTextureData[i + 1] = maskValue; // G
-      maskTextureData[i + 2] = maskValue; // B
-      maskTextureData[i + 3] = 255; // A
-    }
+    if (mask instanceof ImageBitmap) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mask);
+    } else {
+      // Convert ImageData to a format suitable for WebGL
+      // The mask should have alpha values indicating person vs background
+      const maskTextureData = new Uint8Array(mask.width * mask.height * 4);
+      for (let i = 0; i < mask.data.length; i += 4) {
+        // Use red channel as mask value (as expected by fragment shader)
+        const maskValue = mask.data[i] ?? 0;
+        maskTextureData[i] = maskValue; // R
+        maskTextureData[i + 1] = maskValue; // G
+        maskTextureData[i + 2] = maskValue; // B
+        maskTextureData[i + 3] = 255; // A
+      }
 
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      mask.width,
-      mask.height,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      maskTextureData
-    );
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        mask.width,
+        mask.height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        maskTextureData
+      );
+    }
 
     return true;
   }
@@ -344,7 +352,7 @@ export class WebGLVideoRenderer {
   /**
    * Upload background image to texture
    */
-  private uploadBgTexture(bgImage: HTMLImageElement): boolean {
+  private uploadBgTexture(bgImage: HTMLImageElement | ImageBitmap): boolean {
     if (!this.gl || !this.bgTexture) return false;
 
     const gl = this.gl;
@@ -369,9 +377,9 @@ export class WebGLVideoRenderer {
    * Render the video frame with all effects
    */
   render(
-    video: HTMLVideoElement | HTMLImageElement,
-    mask: ImageData | null,
-    bgImage: HTMLImageElement | null,
+    video: HTMLVideoElement | HTMLImageElement | ImageBitmap,
+    mask: ImageData | ImageBitmap | null,
+    bgImage: HTMLImageElement | ImageBitmap | null,
     settings: {
       blur: number;
       portraitLighting: number;
@@ -475,7 +483,7 @@ export class WebGLVideoRenderer {
   /**
    * Get the canvas element
    */
-  getCanvas(): HTMLCanvasElement | null {
+  getCanvas(): HTMLCanvasElement | OffscreenCanvas | null {
     return this.canvas;
   }
 

@@ -1,153 +1,75 @@
 /**
- * Segmentation Worker - MediaPipe Selfie Segmentation
- *
+ * Segmentation Worker - TensorFlow.js Body Segmentation
+ * 
  * CRITICAL: This file MUST live in public/workers/ to bypass Vite's module system.
  * Do NOT move this to src/ or use any TypeScript import syntax.
- *
- * OPTIMIZED VERSION:
- * - Uses locally bundled MediaPipe WASM files (no CDN dependencies)
- * - Works reliably in Web Workers with proper CORS handling
- * - Includes performance monitoring and error recovery
+ * 
+ * Uses TensorFlow.js Body Segmentation model which:
+ * - Loads models via HTTP fetch (not importScripts)
+ * - Uses pure WebGL (no WASM dependencies)
+ * - Works correctly in both classic and module workers
+ * - More modern and actively maintained than BodyPix
  */
 
 // =============================================================================
-// Load TensorFlow.js and MediaPipe Selfie Segmentation - LOCAL VERSION
+// Load TensorFlow.js and Body Segmentation - MUST be separate importScripts calls
 // =============================================================================
 
-try {
-  // Load TensorFlow.js from CDN (local bundling would make app too large)
-  importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
-  console.log('[Worker] TensorFlow.js loaded from CDN');
-} catch (e) {
-  console.error('[Worker] Failed to load TensorFlow.js from CDN:', e);
-  throw new Error('TensorFlow.js loading failed');
-}
+importScripts('/mediapipe/tf.min.js');
+importScripts('/mediapipe/body-pix.min.js');
 
-try {
-  // Load MediaPipe Selfie Segmentation locally
-  importScripts('/mediapipe/selfie_segmentation.js');
-  console.log('[Worker] MediaPipe Selfie Segmentation loaded locally');
-} catch (e) {
-  console.warn('[Worker] Failed to load local MediaPipe, falling back to CDN:', e);
-  try {
-    importScripts(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
-    );
-    console.log('[Worker] MediaPipe Selfie Segmentation loaded from CDN');
-  } catch (cdnError) {
-    console.error('[Worker] Failed to load MediaPipe from any source:', cdnError);
-    throw new Error('MediaPipe loading failed');
-  }
-}
-
-// Check if SelfieSegmentation is available
-if (typeof SelfieSegmentation === 'undefined') {
-  console.error('[Worker] SelfieSegmentation not available after loading');
-  self.postMessage({
-    type: 'init-complete',
-    success: false,
-    error: 'SelfieSegmentation not available globally',
-  });
-} else {
-  console.log('[Worker] SelfieSegmentation global available');
-}
-
-console.log('[Worker] TensorFlow.js and MediaPipe Selfie Segmentation loaded successfully');
-
-// Check if required globals are available
-if (typeof tf === 'undefined') {
-  console.error('[Worker] CRITICAL: tf is not defined after loading. Worker cannot function.');
-  console.error('[Worker] Available globals:', Object.keys(self));
-  self.postMessage({
-    type: 'init-complete',
-    success: false,
-    error: 'TensorFlow.js not available globally',
-  });
-} else {
-  console.log('[Worker] TensorFlow.js global available, version:', tf?.version || 'unknown');
-}
-
-if (typeof SelfieSegmentation === 'undefined') {
-  console.error('[Worker] SelfieSegmentation not available after loading');
-  self.postMessage({
-    type: 'init-complete',
-    success: false,
-    error: 'SelfieSegmentation not available globally',
-  });
-} else {
-  console.log('[Worker] SelfieSegmentation global available');
-}
+console.log('[Worker] TensorFlow.js and Body Segmentation loaded via importScripts');
 
 // =============================================================================
 // Worker State
 // =============================================================================
-// Worker State
-// =============================================================================
 
-let segmenter = null;
-let selfieSegmentation = null;
+let net = null;
 let isInitialized = false;
 let autoFrameEnabled = false;
 let processingFrame = false;
 
 // =============================================================================
-// Auto-Frame Transform Calculation (for body position)
+// Auto-Frame Transform Calculation
 // =============================================================================
 
-function calculateAutoFrameTransform(segmentationResult) {
-  // Process MediaPipe segmentation result for auto framing
-  // Since MediaPipe selfie segmentation provides a segmentationMask, we can analyze it
-  if (!segmentationResult || !segmentationResult.segmentationMask) {
-    console.warn('[Worker] No segmentation mask for auto-frame transform');
-    return null;
-  }
-
-  // Extract width and height from the segmentation mask
-  const width = segmentationResult.segmentationMask.width;
-  const height = segmentationResult.segmentationMask.height;
-
-  // Create a canvas to analyze the segmentation mask
-  const canvas = new OffscreenCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(segmentationResult.segmentationMask, 0, 0);
-
-  // Get the image data to analyze
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-
+function calculateAutoFrameTransform(segmentation) {
+  const { width, height, data } = segmentation;
+  
   let minX = width;
   let maxX = 0;
   let minY = height;
   let maxY = 0;
-  let foundPerson = false;
+  let found = false;
 
   // Sample every 8th pixel for performance
   for (let y = 0; y < height; y += 8) {
     for (let x = 0; x < width; x += 8) {
       const idx = y * width + x;
-      // Check if this pixel is part of the person (non-zero alpha value)
-      if (data[idx * 4] > 128) {
-        // Assuming person pixels are marked with value > 128
+      // Check if this pixel is part of the person (boolean or confidence > 0.5)
+      const isPerson = typeof data[idx] === 'boolean' ? data[idx] : data[idx] > 0.5;
+      
+      if (isPerson) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
-        foundPerson = true;
+        found = true;
       }
     }
   }
 
-  if (foundPerson && maxX > minX && maxY > minY) {
+  if (found && maxY > minY) {
     const boxCenterX = (minX + maxX) / 2;
     const boxHeight = maxY - minY;
-    const faceY = minY + boxHeight * 0.25; // Approximate face position
-
+    const faceY = minY + boxHeight * 0.25;
+    
     const centerXPercent = boxCenterX / width;
     const faceYPercent = faceY / height;
-
+    
     const targetPanX = (0.5 - centerXPercent) * 100;
     const targetPanY = (0.5 - faceYPercent) * 100;
-
+    
     let targetZoom = (height * 0.6) / boxHeight;
     targetZoom = Math.max(1, Math.min(targetZoom, 2.5));
 
@@ -161,49 +83,27 @@ function calculateAutoFrameTransform(segmentationResult) {
 // Convert Segmentation to ImageBitmap Mask
 // =============================================================================
 
-async function segmentationToMask(segmentationResult) {
-  if (!segmentationResult) {
-    console.warn('[Worker] No segmentation result to convert');
-    return null;
+async function segmentationToMask(segmentation) {
+  // Body-segmentation returns a different format than BodyPix
+  // It provides a width, height, and an array of boolean values
+  const { width, height, data } = segmentation;
+  
+  // Convert to binary mask (person = 255, background = 0)
+  const rgba = new Uint8ClampedArray(width * height * 4);
+  
+  for (let i = 0; i < data.length; i++) {
+    // data is an array of booleans for body-pix, or confidence values for body-segmentation
+    const isPerson = typeof data[i] === 'boolean' ? data[i] : data[i] > 0.5;
+    const value = isPerson ? 255 : 0;
+    const offset = i * 4;
+    rgba[offset] = value;     // R
+    rgba[offset + 1] = value; // G
+    rgba[offset + 2] = value; // B
+    rgba[offset + 3] = 255;   // A (fully opaque)
   }
-
-  // For MediaPipe selfie segmentation, if there's a segmentationMask property, use it
-  if (segmentationResult.segmentationMask) {
-    const width = segmentationResult.segmentationMask.width;
-    const height = segmentationResult.segmentationMask.height;
-
-    // Create a canvas to work with the segmentation mask
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-
-    // Draw the segmentation mask to the canvas
-    ctx.drawImage(segmentationResult.segmentationMask, 0, 0);
-
-    // Get the image data from the canvas
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const rgba = new Uint8ClampedArray(width * height * 4);
-
-    // Copy the segmentation mask data to RGBA format
-    // The segmentation mask should have values indicating person (255) or background (0)
-    for (let i = 0; i < width * height; i++) {
-      // Use red channel value as the mask value (assuming grayscale)
-      const maskValue = imageData.data[i * 4]; // R channel
-      const offset = i * 4;
-      rgba[offset] = maskValue; // R - person (255) or background (0)
-      rgba[offset + 1] = maskValue; // G
-      rgba[offset + 2] = maskValue; // B
-      rgba[offset + 3] = 255; // A (fully opaque)
-    }
-
-    const processedImageData = new ImageData(rgba, width, height);
-    return createImageBitmap(processedImageData);
-  } else {
-    // If no segmentation mask is available, we'll create a binary mask from the result
-    // MediaPipe selfie segmentation may provide multi-class segmentation data
-    // For now, we'll log an error and return null
-    console.warn('[Worker] Segmentation result does not contain segmentationMask property');
-    return null;
-  }
+  
+  const imageData = new ImageData(rgba, width, height);
+  return createImageBitmap(imageData);
 }
 
 // =============================================================================
@@ -212,64 +112,37 @@ async function segmentationToMask(segmentationResult) {
 
 async function initSegmenter() {
   try {
-    console.log('[Worker] Initializing TensorFlow.js and MediaPipe...');
-
-    // Ensure TensorFlow.js is available
-    if (typeof tf === 'undefined') {
-      throw new Error('TensorFlow.js not loaded. Check importScripts calls.');
-    }
-
+    console.log('[Worker] Initializing TensorFlow.js...');
+    
     // Configure TensorFlow.js for WebGL backend
     await tf.setBackend('webgl');
     await tf.ready();
     console.log('[Worker] TensorFlow.js ready, backend:', tf.getBackend());
-
-    // Ensure SelfieSegmentation is available
-    if (typeof SelfieSegmentation === 'undefined') {
-      throw new Error('SelfieSegmentation not loaded. Check MediaPipe importScripts calls.');
-    }
-
-    // Initialize MediaPipe Selfie Segmentation with local assets
-    selfieSegmentation = new SelfieSegmentation({
-      locateFile: (file) => {
-        // Handle different file types appropriately for MediaPipe
-        const localPath = `/mediapipe/${file}`;
-
-        // Log different file types for debugging
-        if (file.endsWith('.tflite')) {
-          console.log(`[Worker] Loading MediaPipe model (.tflite): ${localPath}`);
-        } else if (file.endsWith('.wasm')) {
-          console.log(`[Worker] Loading MediaPipe WASM: ${localPath}`);
-        } else if (file.endsWith('.js')) {
-          console.log(`[Worker] Loading MediaPipe script: ${localPath}`);
-        } else {
-          console.log(`[Worker] Loading MediaPipe asset: ${localPath}`);
-        }
-
-        return localPath;
-      },
-    });
-
-    // Configure the selfie segmentation instance
-    selfieSegmentation.setOptions({
-      modelSelection: 1, // General model (0 for landscape, 1 for portrait)
-      selfieMode: false,
-    });
-
-    // The segmenter will be created on demand during processing
-    // since it needs to work with OffscreenCanvas which requires different handling
-    console.log('[Worker] MediaPipe initialization complete');
-
+    
+    console.log('[Worker] Loading Body Segmentation model...');
+    
+    // Load body segmentation model
+    // This downloads model on first use, cached thereafter
+    net = await bodySegmentation.createSegmenter(
+      bodySegmentation.SupportedModels.BodyPix,
+      {
+        runtime: 'tfjs',
+        modelType: 'general',
+        enableSmoothing: true
+      }
+    );
+    
     isInitialized = true;
-    console.log('[Worker] MediaPipe Selfie Segmentation model loaded successfully!');
-
+    console.log('[Worker] Body Segmentation model loaded successfully!');
+    
     self.postMessage({ type: 'init-complete', success: true });
+    
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
     self.postMessage({
       type: 'init-complete',
       success: false,
-      error: error.message || String(error),
+      error: error.message || String(error)
     });
   }
 }
@@ -279,89 +152,76 @@ async function initSegmenter() {
 // =============================================================================
 
 async function processFrame(imageBitmap, autoFrame) {
-  if (!isInitialized) {
+  if (!isInitialized || !net) {
     console.warn('[Worker] Not initialized, skipping frame');
     return;
   }
-
+  
   if (processingFrame) {
     // Drop frame if still processing previous
     imageBitmap.close();
     return;
   }
-
+  
   processingFrame = true;
   autoFrameEnabled = autoFrame;
-
+  
   try {
     // Create OffscreenCanvas to process the ImageBitmap
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext('2d');
     ctx.drawImage(imageBitmap, 0, 0);
-
-    // For MediaPipe selfie segmentation in a worker context with manual processing,
-    // we need to use the callback approach properly.
-    // Using a promise-based approach with temporary callbacks for each frame
-    const segmentationResult = await new Promise((resolve, reject) => {
-      const startTime = Date.now();
-
-      // Set a temporary callback to capture results
-      const onSegmentationResults = (results) => {
-        // Clear timeout if we got results
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        resolve(results);
-      };
-
-      // Set up a timeout to avoid hanging
-      const timeoutId = setTimeout(() => {
-        console.error('[Worker] Segmentation timeout');
-        reject(new Error('Segmentation timeout'));
-      }, 5000); // 5 second timeout
-
-      // Set the temporary callback
-      selfieSegmentation.onResults = onSegmentationResults;
-
-      // Send the image for processing
-      selfieSegmentation.send({ image: canvas }).catch((err) => {
-        clearTimeout(timeoutId);
-        reject(err);
-      });
+    
+    // Run segmentation using body-segmentation API
+    const segmentation = await net.segmentPeople(canvas, {
+      flipHorizontal: false,
+      internalResolution: 'medium',
+      segmentationThreshold: 0.7
     });
-
+    
+    // For simplicity, use the first person if multiple are detected
+    const personSegmentation = segmentation.length > 0 ? segmentation[0] : null;
+    
+    if (!personSegmentation) {
+      console.warn('[Worker] No person detected in frame');
+      processingFrame = false;
+      imageBitmap.close();
+      return;
+    }
+    
     // Create mask bitmap for transfer
-    const maskBitmap = await segmentationToMask(segmentationResult);
-
+    const maskBitmap = await segmentationToMask(personSegmentation);
+    
     // Calculate auto-frame transform if enabled
     let autoFrameTransform = null;
-    if (autoFrameEnabled && segmentationResult) {
-      // Pass the segmentation result to auto-frame calculation
-      autoFrameTransform = calculateAutoFrameTransform(segmentationResult);
+    if (autoFrameEnabled) {
+      autoFrameTransform = calculateAutoFrameTransform(personSegmentation);
     }
-
+    
     // Build response
     const response = {
       type: 'mask',
       mask: maskBitmap,
-      timestamp: performance.now(),
+      timestamp: performance.now()
     };
-
+    
     if (autoFrameTransform) {
       response.autoFrameTransform = autoFrameTransform;
     }
-
-    // Transfer the mask bitmap to main thread (zero-copy)
+    
+    // Send result back to main thread
     self.postMessage(response, [maskBitmap]);
 
-    // Dispose of the segmenter and canvas to free memory
-    segmenter.dispose();
   } catch (error) {
-    console.error('[Worker] Processing failed:', error);
-    self.postMessage({ type: 'error', error: String(error) });
+    console.error('[Worker] Segmentation failed:', error);
+    self.postMessage({
+      type: 'error',
+      error: error.message || String(error),
+      timestamp: performance.now()
+    });
   } finally {
-    imageBitmap.close();
     processingFrame = false;
+    imageBitmap.close();
   }
 }
 
@@ -369,27 +229,28 @@ async function processFrame(imageBitmap, autoFrame) {
 // Message Handler
 // =============================================================================
 
-self.onmessage = async function (e) {
+self.onmessage = async function(e) {
   const msg = e.data;
 
   switch (msg.type) {
     case 'init':
       await initSegmenter();
       break;
-
+      
     case 'process':
       await processFrame(msg.image, msg.autoFrame);
       break;
-
+      
     case 'close':
       console.log('[Worker] Closing...');
-      if (selfieSegmentation) {
-        selfieSegmentation.close();
+      if (net) {
+        net.dispose();
+        net = null;
       }
       isInitialized = false;
       self.close();
       break;
-
+      
     default:
       console.warn('[Worker] Unknown message type:', msg.type);
   }
@@ -399,4 +260,4 @@ self.onmessage = async function (e) {
 // Worker Ready Signal
 // =============================================================================
 
-console.log('[Worker] Segmentation worker loaded (MediaPipe Selfie Segmentation)');
+console.log('[Worker] Segmentation worker loaded (TensorFlow.js Body Segmentation)');

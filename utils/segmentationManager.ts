@@ -8,6 +8,7 @@
  */
 
 import { logger } from './logger';
+
 import type { FaceLandmarks } from '../types/face';
 import type { SegmentationConfig } from '../types/media';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
@@ -50,23 +51,6 @@ class SegmentationManager {
   private _onFaceLandmarks?: (landmarks: FaceLandmarks) => void;
   private currentFps = 0;
 
-  // Preload TensorFlow.js to speed up worker initialization
-  private async preloadTensorFlow(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
-      script.onload = () => {
-        // Remove the script after loading to avoid conflicts
-        document.head.removeChild(script);
-        resolve();
-      };
-      script.onerror = () => {
-        document.head.removeChild(script);
-        reject(new Error('Failed to preload TensorFlow.js'));
-      };
-      document.head.appendChild(script);
-    });
-  }
   private currentLatency = 0;
   private referenceCount = 0;
 
@@ -141,15 +125,6 @@ class SegmentationManager {
   // =============================================================================
 
   private async initializeWorker(): Promise<boolean> {
-    // Preload TensorFlow.js to improve worker initialization speed
-    try {
-      logger.info('SegmentationManager', 'Preloading TensorFlow.js for worker...');
-      await this.preloadTensorFlow();
-      logger.info('SegmentationManager', 'TensorFlow.js preloaded successfully');
-    } catch (e) {
-      logger.warn('SegmentationManager', 'Failed to preload TensorFlow.js, continuing anyway:', e);
-    }
-
     return new Promise((resolve) => {
       // CRITICAL: Use direct URL string, NOT Vite's ?worker import
       // The worker file lives in public/workers/ and is served as-is

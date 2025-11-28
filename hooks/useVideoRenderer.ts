@@ -308,6 +308,7 @@ export interface UseVideoRendererOptions {
   isCompareActive: boolean;
   autoGain: number;
   faceLandmarks?: FaceLandmarks | null;
+  enabled?: boolean;
 }
 
 export interface UseVideoRendererReturn {
@@ -334,6 +335,7 @@ export function useVideoRenderer({
   isCompareActive,
   autoGain,
   faceLandmarks,
+  enabled = true,
 }: UseVideoRendererOptions): UseVideoRendererReturn {
   // Refs for auxiliary canvases and contexts
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -391,7 +393,7 @@ export function useVideoRenderer({
   // FIX: lutIntensity in deps
   const webGLOptions = useMemo(
     () => ({
-      enabled: settings.cinematicLut !== 'none' || beautyEnabled,
+      enabled: enabled && (settings.cinematicLut !== 'none' || beautyEnabled),
       lutPreset: settings.cinematicLut,
       lutIntensity: settings.cinematicLutIntensity,
       faceLandmarks: stableLandmarksRef.current,
@@ -412,6 +414,7 @@ export function useVideoRenderer({
       settings.noseSlimming,
       settings.jawSlimming,
       settings.mouthScaling,
+      enabled,
     ]
   );
 
@@ -429,7 +432,7 @@ export function useVideoRenderer({
   const { drawGridOverlay, drawHistogram, drawZebraStripes, drawFocusPeaking } = useProOverlays();
 
   // Performance monitoring
-  const performanceMetrics = usePerformanceMonitor(true);
+  const performanceMetrics = usePerformanceMonitor(enabled);
 
   // Adaptive quality: disable heavy effects if performance is poor
   const adaptiveQualityRef = useRef(false);
@@ -445,6 +448,8 @@ export function useVideoRenderer({
 
   // Initialize auxiliary canvases with proper context options
   useEffect(() => {
+    if (!enabled) return;
+
     const maskCanvas = document.createElement('canvas');
     maskCanvasRef.current = maskCanvas;
     // Use willReadFrequently: true for contexts that use getImageData frequently
@@ -460,10 +465,12 @@ export function useVideoRenderer({
       tempCanvasRef.current = null;
       tempCtxRef.current = null;
     };
-  }, []);
+  }, [enabled]);
 
   // Main render loop
   useEffect(() => {
+    if (!enabled) return;
+
     let isLoopActive = true;
 
     const processVideo = () => {
@@ -489,7 +496,13 @@ export function useVideoRenderer({
       const video = videoRef.current;
       const canvas = canvasRef.current;
       // Use willReadFrequently: true since we call getImageData for overlays
-      const ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
+      let ctx: CanvasRenderingContext2D | null = null;
+      try {
+        ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
+      } catch (e) {
+        // Canvas control likely transferred to worker, stop this loop
+        return;
+      }
       const maskCanvas = maskCanvasRef.current;
       const maskCtx = maskCtxRef.current;
       const tempCanvas = tempCanvasRef.current;
@@ -851,6 +864,7 @@ export function useVideoRenderer({
     isWebGLReady,
     applyLutGrading,
     settings,
+    enabled,
   ]);
 
   return {

@@ -149,12 +149,12 @@ export default defineConfig(({ mode }) => {
       headers: {
         'Content-Security-Policy': [
           "default-src 'self'",
-          "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
+          "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
           "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
           "img-src 'self' blob: data:",
           "media-src 'self' blob:",
-          "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
-          "worker-src 'self' blob:",
+          "connect-src 'self' ws: wss: https://storage.googleapis.com https:",
+          "worker-src 'self' blob: https://storage.googleapis.com",
         ].join('; '),
         'Cross-Origin-Embedder-Policy': 'credentialless',
         'Cross-Origin-Opener-Policy': 'same-origin',
@@ -332,12 +332,12 @@ export default defineConfig(({ mode }) => {
       headers: {
         'Content-Security-Policy': [
           "default-src 'self'",
-          "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
+          "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com",
           "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
           "img-src 'self' blob: data:",
           "media-src 'self' blob:",
-          "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:",
-          "worker-src 'self' blob:",
+          "connect-src 'self' ws: wss: https://storage.googleapis.com https:",
+          "worker-src 'self' blob: https://storage.googleapis.com",
         ].join('; '),
         'Cross-Origin-Embedder-Policy': 'credentialless',
         'Cross-Origin-Opener-Policy': 'same-origin',

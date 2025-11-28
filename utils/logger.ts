@@ -33,8 +33,10 @@ class Logger {
         console.error(prefix, message, data || '');
       } else if (level === 'warn') {
         console.warn(prefix, message, data || '');
+      } else if (level === 'debug') {
+        console.debug(prefix, message, data || '');
       } else {
-        console.warn(prefix, message, data || '');
+        console.info(prefix, message, data || '');
       }
     }
   }

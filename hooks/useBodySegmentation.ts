@@ -5,13 +5,11 @@ import { segmentationManager, type SegmentationMode } from '../utils/segmentatio
 import { FaceLandmarks } from '../types/face';
 import { logger } from '../utils/logger';
 import { INFERENCE_FRAME_SKIP_FACTOR } from '../constants/ai';
+import { ensureTfjsWebGLBackend } from '../utils/tfLoader';
 
 // Constants to avoid GC in the inference loop
 const FOREGROUND_COLOR = { r: 255, g: 255, b: 255, a: 255 };
 const BACKGROUND_COLOR = { r: 0, g: 0, b: 0, a: 0 };
-
-// Global flag to prevent concurrent script loading
-let scriptsLoadingPromise: Promise<void> | null = null;
 
 export interface AutoFrameTransform {
   panX: number;
@@ -56,163 +54,23 @@ export function useBodySegmentation({
   const targetTransformRef = useRef<AutoFrameTransform>({ panX: 0, panY: 0, zoom: 1 });
   const barcodeDetectorRef = useRef<BarcodeDetector | null>(null);
 
-  // Load MediaPipe scripts if not already loaded - only for main thread fallback
+  // Load required TensorFlow.js components via centralized loader
   const loadScripts = useCallback(async () => {
     if (typeof window !== 'undefined') {
-      // Check if scripts are already loaded
-      const scriptsLoaded = window.tf && window.bodySegmentation;
-      if (scriptsLoaded) {
-        logger.info('useBodySegmentation', 'AI scripts already loaded globally');
+      // Check if TensorFlow.js is already loaded and ready
+      if (window.tf) {
+        logger.info('useBodySegmentation', 'TensorFlow.js already loaded globally');
         return;
       }
 
-      logger.info('useBodySegmentation', 'Starting AI script loading process');
-      logger.debug(
-        'useBodySegmentation',
-        `Current globals - tf: ${!!window.tf}, bodySegmentation: ${!!window.bodySegmentation}`
-      );
-
-      // Note: Script loading capability is verified by CSP allowing external scripts
-
-      // Prevent concurrent loading attempts
-      if (scriptsLoadingPromise) {
-        logger.info('useBodySegmentation', 'AI scripts loading in progress, waiting...');
-        await scriptsLoadingPromise;
-        return;
-      }
-
-      // Create loading promise with timeout
-      scriptsLoadingPromise = new Promise<void>((resolve, reject) => {
-        // Set timeout for overall loading
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Script loading timeout after 30 seconds'));
-        }, 30000);
-
-        (async () => {
-          try {
-            const loadScript = (url: string, retries = 3): Promise<void> => {
-              return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = url;
-                script.crossOrigin = 'anonymous';
-
-                script.onload = () => {
-                  logger.debug(
-                    'useBodySegmentation',
-                    `Trying alternative script loading for ${url} (attempt ${retries})`
-                  );
-                  resolve();
-                };
-
-                script.onerror = (error) => {
-                  logger.warn(
-                    'useBodySegmentation',
-                    `[useBodySegmentation] Failed to load script: ${url.split('/').pop()}`,
-                    error
-                  );
-                  if (retries > 0) {
-                    logger.debug('useBodySegmentation', `Script loaded successfully: ${url}`);
-                    setTimeout(() => {
-                      loadScript(url, retries - 1)
-                        .then(resolve)
-                        .catch(reject);
-                    }, 1000);
-                  } else {
-                    reject(new Error(`Failed to load script after retries: ${url}`));
-                  }
-                };
-
-                document.head.appendChild(script);
-              });
-            };
-
-            // Load TensorFlow.js (updated to match package.json version)
-            if (!window.tf) {
-              logger.info('useBodySegmentation', 'Loading TensorFlow.js...');
-              await loadScript(
-                'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js'
-              );
-              // Wait for global to be available
-              let tfRetries = 10;
-              while (!window.tf && tfRetries > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                tfRetries--;
-              }
-              if (!window.tf) {
-                throw new Error('TensorFlow.js global not available after loading');
-              }
-              logger.info('useBodySegmentation', 'TensorFlow.js loaded successfully');
-            }
-
-            // Load TensorFlow.js WebGL backend
-            logger.info('useBodySegmentation', 'Loading TensorFlow.js WebGL backend...');
-            await loadScript(
-              'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js'
-            );
-            await new Promise((resolve) => setTimeout(resolve, 200));
-
-            // Load MediaPipe Selfie Segmentation
-            if (!window.SelfieSegmentation) {
-              logger.info('useBodySegmentation', 'Loading MediaPipe Selfie Segmentation...');
-              await loadScript(
-                'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js'
-              );
-              // Wait for global to be available
-              let mpRetries = 10;
-              while (!window.SelfieSegmentation && mpRetries > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                mpRetries--;
-              }
-              if (!window.SelfieSegmentation) {
-                throw new Error('MediaPipe Selfie Segmentation global not available after loading');
-              }
-              logger.info(
-                'useBodySegmentation',
-                'MediaPipe Selfie Segmentation loaded successfully'
-              );
-            }
-
-            // Load TensorFlow.js Body Segmentation library
-            if (!window.bodySegmentation) {
-              logger.info(
-                'useBodySegmentation',
-                'Loading TensorFlow.js Body Segmentation library...'
-              );
-              await loadScript(
-                'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js'
-              );
-              // Wait for global to be available
-              let bsRetries = 10;
-              while (!window.bodySegmentation && bsRetries > 0) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                bsRetries--;
-              }
-              if (!window.bodySegmentation) {
-                throw new Error('Body Segmentation library not available after loading');
-              }
-              logger.info('useBodySegmentation', 'Body Segmentation library loaded successfully');
-            }
-
-            logger.info(
-              'useBodySegmentation',
-              '[useBodySegmentation] All AI scripts loaded successfully'
-            );
-            clearTimeout(timeoutId);
-            resolve();
-          } catch (error) {
-            clearTimeout(timeoutId);
-            reject(error);
-          }
-        })();
-      });
+      logger.info('useBodySegmentation', 'Starting TensorFlow.js loading process');
 
       try {
-        await scriptsLoadingPromise;
-        scriptsLoadingPromise = null; // Clear the promise
+        // Use the centralized loader to ensure TensorFlow.js is loaded once
+        await ensureTfjsWebGLBackend();
+        logger.info('useBodySegmentation', 'TensorFlow.js loaded successfully via centralized loader');
       } catch (error) {
-        scriptsLoadingPromise = null; // Clear the promise on error
-
-        logger.error('useBodySegmentation', 'Failed to load AI scripts after retries', error);
+        logger.error('useBodySegmentation', 'Failed to load TensorFlow.js via centralized loader', error);
 
         // Provide more specific error messages
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -336,14 +194,11 @@ export function useBodySegmentation({
               setFaceLandmarks(landmarks);
             }
           });
-        } else if (mode === 'disabled') {
+        } else if (mode === 'disabled' || mode === 'main-thread') {
           // Worker unavailable, fall back to main thread
-          logger.warn('useBodySegmentation', 'Worker unavailable, falling back to main thread');
+          logger.warn('useBodySegmentation', `Worker unavailable (mode: ${mode}), falling back to main thread`);
           setLoadingStatus('Worker unavailable, using main thread...');
           await initMainThread();
-        } else {
-          // Unexpected mode
-          throw new Error(`Unexpected segmentation mode: ${mode}`);
         }
       } catch (error) {
         if (!isMounted) return;

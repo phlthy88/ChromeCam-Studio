@@ -43,6 +43,7 @@ export type {
   UseAutoLowLightReturn,
 } from './useAutoLowLight';
 export { useWebGLRenderer } from './useWebGLRenderer';
+export { useOffscreenRenderer } from './useOffscreenRenderer';
 export type { UseWebGLRendererOptions, UseWebGLRendererReturn } from './useWebGLRenderer';
 export { useAudioProcessor } from './useAudioProcessor';
 export type { UseAudioProcessorOptions, UseAudioProcessorReturn } from './useAudioProcessor';
