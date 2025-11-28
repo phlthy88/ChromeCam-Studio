@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import OBSWebSocket, { OBSWebSocketError, EventTypes } from 'obs-websocket-js';
 import { DEFAULT_OBS_WEBSOCKET_URL, OBS_CONNECTION_RETRY_DELAY_MS } from '../constants/network';
+import { logger } from '../utils/logger';
 
 // Define simplified types for our UI state
 interface OBSConnection {
@@ -68,7 +69,7 @@ export const useOBSIntegration = () => {
     async (address: string = DEFAULT_OBS_WEBSOCKET_URL, password?: string) => {
       if (!obsRef.current) return;
 
-      let isMounted = true;
+      const isMounted = true;
       updateState({ connecting: true, error: null });
 
       try {
@@ -148,7 +149,7 @@ export const useOBSIntegration = () => {
         }
       } catch (error) {
         const e = error as OBSWebSocketError;
-        console.error('OBS Connection failed:', e);
+        logger.error('useOBSIntegration', 'OBS Connection failed:', e);
         if (isMounted) {
           updateState({
             connecting: false,

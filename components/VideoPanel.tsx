@@ -16,6 +16,7 @@ import {
   useBroadcastMode,
 } from '../hooks';
 import { BroadcastModeOverlay } from './BroadcastModeOverlay';
+import { logger } from '../utils/logger';
 
 import type { DetectedCapabilities } from './settings';
 
@@ -192,25 +193,21 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
   // Monitor face detection status
   useEffect(() => {
     const faceDetected = !!(faceLandmarks && faceLandmarks.length > 0);
-    console.log(
-      '[VideoPanel] Face detection status:',
-      faceDetected,
-      'landmarks:',
-      faceLandmarks?.length || 0
+    logger.info(
+      'VideoPanel',
+      `Face detection status: ${faceDetected}, landmarks: ${faceLandmarks?.length || 0}`
     );
     onFaceDetected?.(faceDetected);
   }, [faceLandmarks, onFaceDetected]);
 
   // OffscreenCanvas rendering (Worker-based)
-  const { isWorkerReady } = settings.webglEnabled
-    ? useOffscreenRenderer({
-        videoRef,
-        canvasRef,
-        settings,
-        segmentationMaskRef,
-        isAiActive,
-      })
-    : { isWorkerReady: false };
+  const { isWorkerReady } = useOffscreenRenderer({
+    videoRef,
+    canvasRef,
+    settings,
+    segmentationMaskRef,
+    isAiActive,
+  });
 
   // Main thread rendering (Fallback)
   // Only active if the worker is NOT ready

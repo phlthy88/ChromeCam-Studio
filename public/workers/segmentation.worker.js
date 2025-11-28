@@ -11,27 +11,51 @@
  */
 
 // =============================================================================
-// Load TensorFlow.js and BodyPix - MUST be separate importScripts calls
+// Dependency Loading with Fallback
 // =============================================================================
 
-console.log('[Worker] Loading TensorFlow.js...');
-importScripts('/mediapipe/tf.min.js');
+const TF_VERSION = '4.22.0';
+const BODYPIX_VERSION = '2.2.1';
 
-console.log('[Worker] Loading BodyPix...');
-importScripts('/mediapipe/body-pix.min.js');
+const CDN_URLS = {
+  tf: `https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@${TF_VERSION}/dist/tf.min.js`,
+  bodyPix: `https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@${BODYPIX_VERSION}/dist/body-pix.min.js`,
+};
 
-console.log('[Worker] TensorFlow.js and BodyPix loaded via importScripts');
-console.log('[Worker] TensorFlow.js available:', !!self.tf);
-console.log('[Worker] BodyPix available:', !!self.BodyPix);
-console.log('[Worker] Checking self keys:', Object.keys(self).filter(k => k.includes('body') || k.includes('Body') || k.includes('tf')));
-console.log('[Worker] All globals after importScripts:', Object.keys(self).filter(k => k.includes('body') || k.includes('Body') || k.includes('tf')));
+const LOCAL_URLS = {
+  tf: '/mediapipe/tf.min.js',
+  bodyPix: '/mediapipe/body-pix.min.js',
+};
 
-// Debug: Check for common issues
-if (!self.tf) {
-  console.error('[Worker] TensorFlow.js not found! Available globals:', Object.keys(self));
+function loadScriptWithFallback(localUrl, cdnUrl, name) {
+  try {
+    console.log(`[Worker] Loading ${name} from local path: ${localUrl}`);
+    importScripts(localUrl);
+    console.log(`[Worker] ${name} loaded successfully from local path.`);
+  } catch (e) {
+    console.warn(`[Worker] Failed to load ${name} from local path. Attempting CDN fallback: ${cdnUrl}`);
+    try {
+      importScripts(cdnUrl);
+      console.log(`[Worker] ${name} loaded successfully from CDN.`);
+    } catch (cdnError) {
+      console.error(`[Worker] CRITICAL: Failed to load ${name} from both local and CDN paths.`);
+      throw cdnError; // Re-throw the error to fail initialization
+    }
+  }
 }
-if (!self['body-pix']) {
-  console.error('[Worker] BodyPix not found! Available globals:', Object.keys(self));
+
+try {
+  loadScriptWithFallback(LOCAL_URLS.tf, CDN_URLS.tf, 'TensorFlow.js');
+  loadScriptWithFallback(LOCAL_URLS.bodyPix, CDN_URLS.bodyPix, 'BodyPix');
+} catch (error) {
+  // If loading fails, post an error message to the main thread
+  self.postMessage({
+    type: 'init-complete',
+    success: false,
+    error: 'Failed to load critical ML libraries.',
+  });
+  // Terminate the worker if it can't load dependencies
+  self.close();
 }
 
 // =============================================================================
@@ -43,8 +67,12 @@ let isInitialized = false;
 let autoFrameEnabled = false;
 let processingFrame = false;
 
-// =============================================================================
-// Auto-Frame Transform Calculation
+// Performance metrics
+let frameCount = 0;
+let lastFpsTimestamp = performance.now();
+const fpsHistory = [];
+const latencyHistory = [];
+const historySize = 30; // Average over 30 frames
 // =============================================================================
 
 function calculateAutoFrameTransform(segmentation) {
@@ -178,6 +206,16 @@ async function initSegmenter() {
 }
 
 // =============================================================================
+// Performance Calculation
+// =============================================================================
+
+function calculateAverage(history) {
+  if (history.length === 0) return 0;
+  const sum = history.reduce((a, b) => a + b, 0);
+  return sum / history.length;
+}
+
+// =============================================================================
 // Frame Processing
 // =============================================================================
 
@@ -187,38 +225,27 @@ async function processFrame(imageBitmap, autoFrame) {
     return;
   }
 
-  // Validate input imageBitmap
   if (!imageBitmap || !imageBitmap.width || !imageBitmap.height) {
-    console.error('[Worker] Invalid imageBitmap in processFrame:', {
-      imageBitmapExists: !!imageBitmap,
-      width: imageBitmap?.width,
-      height: imageBitmap?.height
-    });
-    if (imageBitmap) {
-      imageBitmap.close();
-    }
+    console.error('[Worker] Invalid imageBitmap in processFrame');
+    if (imageBitmap) imageBitmap.close();
     return;
   }
 
   if (processingFrame) {
-    // Drop frame if still processing previous
-    imageBitmap.close();
+    imageBitmap.close(); // Drop frame if busy
     return;
   }
 
   processingFrame = true;
   autoFrameEnabled = autoFrame;
+  const startTime = performance.now();
 
   try {
-    // Create OffscreenCanvas to process the ImageBitmap
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Failed to get 2D context from OffscreenCanvas');
-    }
+    if (!ctx) throw new Error('Failed to get 2D context');
     ctx.drawImage(imageBitmap, 0, 0);
 
-    // Run segmentation
     const segmentation = await net.segmentPerson(canvas, {
       flipHorizontal: false,
       internalResolution: 'medium',
@@ -226,36 +253,52 @@ async function processFrame(imageBitmap, autoFrame) {
       scoreThreshold: 0.3,
     });
 
-    // Validate segmentation result
     if (!segmentation || !segmentation.data) {
-      throw new Error('Invalid segmentation result received');
+      throw new Error('Invalid segmentation result');
     }
 
-    // Create mask bitmap for transfer
     const maskBitmap = await segmentationToMask(segmentation);
     if (!maskBitmap) {
-      console.warn('[Worker] segmentationToMask returned null, skipping frame');
+      console.warn('[Worker] segmentationToMask returned null');
       return;
     }
 
-    // Calculate auto-frame transform if enabled
     let autoFrameTransform = null;
     if (autoFrameEnabled) {
       autoFrameTransform = calculateAutoFrameTransform(segmentation);
     }
 
-    // Build response
+    // Calculate performance metrics
+    const endTime = performance.now();
+    const currentLatency = endTime - startTime;
+    latencyHistory.push(currentLatency);
+    if (latencyHistory.length > historySize) latencyHistory.shift();
+
+    frameCount++;
+    const now = performance.now();
+    const elapsed = now - lastFpsTimestamp;
+
+    let currentFps = 0;
+    if (elapsed >= 1000) {
+      currentFps = (frameCount / elapsed) * 1000;
+      fpsHistory.push(currentFps);
+      if (fpsHistory.length > historySize) fpsHistory.shift();
+      frameCount = 0;
+      lastFpsTimestamp = now;
+    }
+
+    const avgFps = calculateAverage(fpsHistory);
+    const avgLatency = calculateAverage(latencyHistory);
+
     const response = {
       type: 'mask',
       mask: maskBitmap,
-      timestamp: performance.now(),
+      timestamp: now,
+      fps: avgFps,
+      latency: avgLatency,
+      autoFrameTransform,
     };
 
-    if (autoFrameTransform) {
-      response.autoFrameTransform = autoFrameTransform;
-    }
-
-    // Transfer the mask bitmap to main thread (zero-copy)
     self.postMessage(response, [maskBitmap]);
   } catch (error) {
     console.error('[Worker] Processing failed:', error);

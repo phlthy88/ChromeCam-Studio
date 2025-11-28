@@ -135,12 +135,12 @@ class VignetteCache {
       this.lastHeight = height;
       this.lastIntensity = intensity;
 
-      return this.gradients.get(cacheKey)!;
+      return this.gradients.get(cacheKey) || createVignetteGradient(ctx, width, height, intensity);
     }
 
     // Return cached gradient
     const cacheKey = `${width}x${height}_${intensity}`;
-    return this.gradients.get(cacheKey)!;
+    return this.gradients.get(cacheKey) || createVignetteGradient(ctx, width, height, intensity);
   }
 
   clear(): void {
@@ -180,7 +180,7 @@ class FilterCache {
     const key = `${settings.brightness}_${settings.contrast}_${settings.saturation}_${settings.hue}_${settings.sharpness}_${settings.grayscale}_${settings.sepia}`;
 
     if (this.cache.has(key)) {
-      return this.cache.get(key)!;
+      return this.cache.get(key) || '';
     }
 
     // Build filter string only when settings change
@@ -509,12 +509,12 @@ export function useVideoRenderer({
       try {
         ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
       } catch (e) {
-        console.error('[useVideoRenderer] Failed to get canvas context:', e);
+        logger.error('useVideoRenderer', 'Failed to get canvas context:', e);
         return;
       }
 
       if (!ctx) {
-        console.error('[useVideoRenderer] Canvas 2D context is null');
+        logger.error('useVideoRenderer', 'Canvas 2D context is null');
         return;
       }
       const maskCanvas = maskCanvasRef.current;
@@ -902,6 +902,7 @@ export function useVideoRenderer({
     applyLutGrading,
     settings,
     enabled,
+    targetAspectRatio,
   ]);
 
   return {

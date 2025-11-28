@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/logger';
 
 export interface UseBroadcastModeReturn {
   /** Whether broadcast mode is active */
@@ -25,7 +26,7 @@ export function useBroadcastMode(): UseBroadcastModeReturn {
 
   const enterBroadcastMode = useCallback(() => {
     setIsBroadcastMode(true);
-    console.log('[BroadcastMode] Entered broadcast mode');
+    logger.info('useBroadcastMode', 'Entered broadcast mode');
 
     // Optional: Show toast notification
     window.dispatchEvent(
@@ -41,7 +42,7 @@ export function useBroadcastMode(): UseBroadcastModeReturn {
 
   const exitBroadcastMode = useCallback(() => {
     setIsBroadcastMode(false);
-    console.log('[BroadcastMode] Exited broadcast mode');
+    logger.info('useBroadcastMode', 'Exited broadcast mode');
   }, []);
 
   const toggleBroadcastMode = useCallback(() => {

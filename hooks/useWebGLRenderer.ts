@@ -57,6 +57,69 @@ export interface UseWebGLRendererReturn {
 }
 
 /**
+ * Simple blur effect for skin smoothing
+ */
+const applySimpleBlur = (
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  const tempData = new Uint8ClampedArray(data);
+  const radiusInt = Math.floor(radius);
+
+  for (let y = radiusInt; y < height - radiusInt; y++) {
+    for (let x = radiusInt; x < width - radiusInt; x++) {
+      let r = 0,
+        g = 0,
+        b = 0,
+        count = 0;
+
+      // Simple box blur
+      for (let dy = -radiusInt; dy <= radiusInt; dy++) {
+        for (let dx = -radiusInt; dx <= radiusInt; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            const idx = (ny * width + nx) * 4;
+            r += tempData[idx] || 0;
+            g += tempData[idx + 1] || 0;
+            b += tempData[idx + 2] || 0;
+            count++;
+          }
+        }
+      }
+
+      const idx = (y * width + x) * 4;
+      data[idx] = r / count;
+      data[idx + 1] = g / count;
+      data[idx + 2] = b / count;
+    }
+  }
+};
+
+/**
+ * Simple brightness and contrast adjustment
+ */
+const applyBrightnessContrast = (
+  data: Uint8ClampedArray,
+  brightness: number,
+  contrast: number
+) => {
+  const factor = (259 * (contrast * 255)) / (255 * (259 - contrast));
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i] || 0;
+    const g = data[i + 1] || 0;
+    const b = data[i + 2] || 0;
+
+    data[i] = Math.max(0, Math.min(255, factor * (r - 128) + 128 + brightness * 255));
+    data[i + 1] = Math.max(0, Math.min(255, factor * (g - 128) + 128 + brightness * 255));
+    data[i + 2] = Math.max(0, Math.min(255, factor * (b - 128) + 128 + brightness * 255));
+  }
+};
+
+/**
  * Hook for WebGL-based LUT color grading
  */
 export function useWebGLRenderer({
@@ -108,8 +171,9 @@ export function useWebGLRenderer({
 
     // Warn if beauty effects requested but WebGL not available
     if (hasBeautySettings && !isWebGLSupported) {
-      console.warn(
-        '[useWebGLRenderer] ⚠️ Beauty effects requested but WebGL not available - using Canvas 2D enhancement fallback'
+      logger.warn(
+        'useWebGLRenderer',
+        'Beauty effects requested but WebGL not available - using Canvas 2D enhancement fallback'
       );
     }
 
@@ -118,8 +182,9 @@ export function useWebGLRenderer({
 
   // Warn if beauty effects requested but WebGL not available
   if (hasBeautySettings && !isWebGLSupported) {
-    console.warn(
-      '[useWebGLRenderer] ⚠️ Beauty effects requested but WebGL not available - using Canvas 2D enhancement fallback'
+    logger.warn(
+      'useWebGLRenderer',
+      'Beauty effects requested but WebGL not available - using Canvas 2D enhancement fallback'
     );
   }
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -321,7 +386,7 @@ export function useWebGLRenderer({
 
           // Log additional diagnostic information
           if (error instanceof Error && error.stack) {
-            console.debug('[useWebGLRenderer] Error stack:', error.stack);
+            logger.debug('useWebGLRenderer', 'Error stack:', error.stack);
           }
 
           if (retryCount < WEBGL_MAX_RETRIES) {
@@ -397,6 +462,70 @@ export function useWebGLRenderer({
       setCurrentLutName('None');
     }
   }, [isReady, lutPreset]);
+
+  const applyCanvas2DBeautyFilters = useCallback(
+    (
+      source: HTMLVideoElement | HTMLCanvasElement | ImageBitmap,
+      beautySettings: UseWebGLRendererOptions['beautySettings'],
+      faceLandmarks: FaceLandmarks
+    ): HTMLVideoElement | HTMLCanvasElement | ImageBitmap => {
+      if (!beautySettings || !faceLandmarks || faceLandmarks.length < 68) {
+        return source;
+      }
+
+      // Create a temporary canvas for beauty effects
+      if (!softwareFallbackCanvasRef.current) {
+        softwareFallbackCanvasRef.current = document.createElement('canvas');
+      }
+      const canvas = softwareFallbackCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return source;
+
+      // Set canvas size to match source
+      const width = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
+      const height = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Draw the source
+      ctx.drawImage(source, 0, 0);
+
+      // Apply simple beauty effects using Canvas2D
+      try {
+        // Get image data
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+
+        // Simple skin smoothing effect
+        if (beautySettings.eyeEnlargement > 0 || beautySettings.noseSlimming > 0) {
+          // Apply a subtle blur to smooth skin
+          const blurRadius = Math.min(
+            2,
+            (beautySettings.eyeEnlargement + beautySettings.noseSlimming) / 50
+          );
+          if (blurRadius > 0) {
+            applySimpleBlur(data, width, height, blurRadius);
+          }
+        }
+
+        // Simple brightness/contrast adjustment for "beauty" effect
+        const brightness = (beautySettings.jawSlimming + beautySettings.mouthScaling) * 0.5;
+        if (brightness > 0) {
+          applyBrightnessContrast(data, brightness * 0.01, 1.05);
+        }
+
+        // Put the modified image data back
+        ctx.putImageData(imageData, 0, 0);
+
+        logger.info('useWebGLRenderer', '[useWebGLRenderer] Canvas2D beauty filters applied');
+        return canvas;
+      } catch (error) {
+        console.warn('[useWebGLRenderer] Canvas2D beauty filters failed:', error);
+        return source;
+      }
+    },
+    []
+  );
 
   // Apply LUT grading to source
   const applyLutGrading = useCallback(
@@ -521,137 +650,15 @@ export function useWebGLRenderer({
         return null;
       }
     },
-    [enabled, isReady, lutPreset, hasBeautySettings, beautySettings, faceLandmarks]
-  );
-
-  /**
-   * Simple blur effect for skin smoothing
-   */
-  const applySimpleBlur = (
-    data: Uint8ClampedArray,
-    width: number,
-    height: number,
-    radius: number
-  ) => {
-    const tempData = new Uint8ClampedArray(data);
-    const radiusInt = Math.floor(radius);
-
-    for (let y = radiusInt; y < height - radiusInt; y++) {
-      for (let x = radiusInt; x < width - radiusInt; x++) {
-        let r = 0,
-          g = 0,
-          b = 0,
-          count = 0;
-
-        // Simple box blur
-        for (let dy = -radiusInt; dy <= radiusInt; dy++) {
-          for (let dx = -radiusInt; dx <= radiusInt; dx++) {
-            const nx = x + dx;
-            const ny = y + dy;
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-              const idx = (ny * width + nx) * 4;
-              r += tempData[idx] || 0;
-              g += tempData[idx + 1] || 0;
-              b += tempData[idx + 2] || 0;
-              count++;
-            }
-          }
-        }
-
-        const idx = (y * width + x) * 4;
-        data[idx] = r / count;
-        data[idx + 1] = g / count;
-        data[idx + 2] = b / count;
-      }
-    }
-  };
-
-  /**
-   * Simple brightness and contrast adjustment
-   */
-  const applyBrightnessContrast = (
-    data: Uint8ClampedArray,
-    brightness: number,
-    contrast: number
-  ) => {
-    const factor = (259 * (contrast * 255)) / (255 * (259 - contrast));
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] || 0;
-      const g = data[i + 1] || 0;
-      const b = data[i + 2] || 0;
-
-      data[i] = Math.max(0, Math.min(255, factor * (r - 128) + 128 + brightness * 255));
-      data[i + 1] = Math.max(0, Math.min(255, factor * (g - 128) + 128 + brightness * 255));
-      data[i + 2] = Math.max(0, Math.min(255, factor * (b - 128) + 128 + brightness * 255));
-    }
-  };
-
-  /**
-   * Fallback beauty filters using Canvas2D when WebGL2 is not available
-   */
-  const applyCanvas2DBeautyFilters = useCallback(
-    (
-      source: HTMLVideoElement | HTMLCanvasElement | ImageBitmap,
-      beautySettings: any,
-      faceLandmarks: any[]
-    ): HTMLVideoElement | HTMLCanvasElement | ImageBitmap => {
-      if (!beautySettings || !faceLandmarks || faceLandmarks.length < 68) {
-        return source;
-      }
-
-      // Create a temporary canvas for beauty effects
-      if (!softwareFallbackCanvasRef.current) {
-        softwareFallbackCanvasRef.current = document.createElement('canvas');
-      }
-      const canvas = softwareFallbackCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return source;
-
-      // Set canvas size to match source
-      const width = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
-      const height = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
-      canvas.width = width;
-      canvas.height = height;
-
-      // Draw the source
-      ctx.drawImage(source, 0, 0);
-
-      // Apply simple beauty effects using Canvas2D
-      try {
-        // Get image data
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const data = imageData.data;
-
-        // Simple skin smoothing effect
-        if (beautySettings.eyeEnlargement > 0 || beautySettings.noseSlimming > 0) {
-          // Apply a subtle blur to smooth skin
-          const blurRadius = Math.min(
-            2,
-            (beautySettings.eyeEnlargement + beautySettings.noseSlimming) / 50
-          );
-          if (blurRadius > 0) {
-            applySimpleBlur(data, width, height, blurRadius);
-          }
-        }
-
-        // Simple brightness/contrast adjustment for "beauty" effect
-        const brightness = (beautySettings.jawSlimming + beautySettings.mouthScaling) * 0.5;
-        if (brightness > 0) {
-          applyBrightnessContrast(data, brightness * 0.01, 1.05);
-        }
-
-        // Put the modified image data back
-        ctx.putImageData(imageData, 0, 0);
-
-        logger.info('useWebGLRenderer', '[useWebGLRenderer] Canvas2D beauty filters applied');
-        return canvas;
-      } catch (error) {
-        console.warn('[useWebGLRenderer] Canvas2D beauty filters failed:', error);
-        return source;
-      }
-    },
-    []
+    [
+      enabled,
+      isReady,
+      lutPreset,
+      hasBeautySettings,
+      beautySettings,
+      faceLandmarks,
+      applyCanvas2DBeautyFilters,
+    ]
   );
 
   return {
