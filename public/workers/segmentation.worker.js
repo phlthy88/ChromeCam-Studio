@@ -33,7 +33,9 @@ function loadScriptWithFallback(localUrl, cdnUrl, name) {
     importScripts(localUrl);
     console.log(`[Worker] ${name} loaded successfully from local path.`);
   } catch (e) {
-    console.warn(`[Worker] Failed to load ${name} from local path. Attempting CDN fallback: ${cdnUrl}`);
+    console.warn(
+      `[Worker] Failed to load ${name} from local path. Attempting CDN fallback: ${cdnUrl}`
+    );
     try {
       importScripts(cdnUrl);
       console.log(`[Worker] ${name} loaded successfully from CDN.`);
@@ -125,13 +127,17 @@ function calculateAutoFrameTransform(segmentation) {
 
 async function segmentationToMask(segmentation) {
   const { width, height, data } = segmentation;
-  
+
   // Validate input data
   if (!width || !height || !data || data.length === 0) {
-    console.error('[Worker] Invalid segmentation data:', { width, height, dataLength: data?.length });
+    console.error('[Worker] Invalid segmentation data:', {
+      width,
+      height,
+      dataLength: data?.length,
+    });
     return null;
   }
-  
+
   const rgba = new Uint8ClampedArray(width * height * 4);
 
   for (let i = 0; i < data.length; i++) {
@@ -164,7 +170,9 @@ async function initSegmenter() {
     console.log('[Worker] Initializing TensorFlow.js...');
 
     // Configure TensorFlow.js for WebGL backend
+    console.log('[Worker] Setting backend to webgl...');
     await tf.setBackend('webgl');
+    console.log('[Worker] Waiting for TensorFlow.js to be ready...');
     await tf.ready();
     console.log('[Worker] TensorFlow.js ready, backend:', tf.getBackend());
 
@@ -175,15 +183,22 @@ async function initSegmenter() {
     // Debug: Check if BodyPix is accessible
     if (!self.BodyPix) {
       console.error('[Worker] BodyPix global not found. Available globals:', Object.keys(self));
-      throw new Error('BodyPix global not found. Available globals: ' + Object.keys(self).join(', '));
+      throw new Error(
+        'BodyPix global not found. Available globals: ' + Object.keys(self).join(', ')
+      );
     }
 
     if (typeof self.BodyPix.load !== 'function') {
-      throw new Error('BodyPix.load is not a function. Available methods: ' + Object.keys(self.BodyPix).join(', '));
+      throw new Error(
+        'BodyPix.load is not a function. Available methods: ' + Object.keys(self.BodyPix).join(', ')
+      );
     }
 
     // Load BodyPix with MobileNetV1 architecture
     // This downloads ~7MB model on first use, cached thereafter
+    console.log('[Worker] Starting BodyPix.load() - this may take 10-30 seconds on first load...');
+    const loadStartTime = performance.now();
+
     net = await self.BodyPix.load({
       architecture: 'MobileNetV1',
       outputStride: 16,
@@ -191,12 +206,14 @@ async function initSegmenter() {
       quantBytes: 2,
     });
 
+    const loadTime = ((performance.now() - loadStartTime) / 1000).toFixed(2);
     isInitialized = true;
-    console.log('[Worker] BodyPix model loaded successfully!');
+    console.log(`[Worker] BodyPix model loaded successfully in ${loadTime}s!`);
 
     self.postMessage({ type: 'init-complete', success: true });
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
+    console.error('[Worker] Error stack:', error.stack);
     self.postMessage({
       type: 'init-complete',
       success: false,
@@ -226,8 +243,14 @@ async function processFrame(imageBitmap, autoFrame) {
   }
 
   if (!imageBitmap || !imageBitmap.width || !imageBitmap.height) {
-    console.error('[Worker] Invalid imageBitmap in processFrame');
-    if (imageBitmap) imageBitmap.close();
+    console.error('[Worker] Invalid imageBitmap in processFrame:', {
+      imageBitmapExists: !!imageBitmap,
+      width: imageBitmap?.width,
+      height: imageBitmap?.height,
+    });
+    if (imageBitmap) {
+      imageBitmap.close();
+    }
     return;
   }
 

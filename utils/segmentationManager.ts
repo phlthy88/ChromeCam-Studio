@@ -8,6 +8,7 @@
  */
 
 import { logger } from './logger';
+import { WORKER_INIT_TIMEOUT_MS, SEGMENTATION_TIMEOUT_MS } from '../constants/ai';
 
 import type { FaceLandmarks } from '../types/face';
 import type { SegmentationConfig } from '../types/media';
@@ -63,6 +64,7 @@ class SegmentationManager {
   };
   private lastError: string | null = null;
   private workerFactory: WorkerFactory;
+  private initTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Disposal timeout management - prevents "death spiral" in React Strict Mode
   private disposeTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -70,8 +72,7 @@ class SegmentationManager {
 
   constructor(workerFactory?: WorkerFactory) {
     this.workerFactory =
-      workerFactory ??
-      (() => new Worker('/workers/segmentation.worker.js', { type: 'classic' }));
+      workerFactory ?? (() => new Worker('/workers/segmentation.worker.js', { type: 'classic' }));
   }
 
   // =============================================================================
@@ -96,7 +97,10 @@ class SegmentationManager {
 
   async initialize(): Promise<SegmentationMode> {
     if (this.initializationPromise) {
-      logger.info('SegmentationManager', 'Already initializing, waiting for existing initialization');
+      logger.info(
+        'SegmentationManager',
+        'Already initializing, waiting for existing initialization'
+      );
       return this.initializationPromise;
     }
 
@@ -163,14 +167,14 @@ class SegmentationManager {
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
         this.lastError = errorMsg;
-        logger.warn(`SegmentationManager: Initialization attempt failed: ${errorMsg}`);
+        logger.warn('SegmentationManager', `Initialization attempt failed: ${errorMsg}`);
       }
 
       // If we are here, the attempt failed. Wait before the next one.
       if (this.initializationAttempts < this.config.maxInitializationAttempts) {
         const delay = this.config.baseRetryDelay * Math.pow(2, this.initializationAttempts - 1);
-        logger.info(`SegmentationManager: Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        logger.info('SegmentationManager', `Retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
@@ -197,18 +201,18 @@ class SegmentationManager {
         return;
       }
 
-      // Timeout for initialization
-      const initTimeout = setTimeout(() => {
+      // Timeout for initialization using centralized constant
+      this.initTimeout = setTimeout(() => {
         logger.error(
           'SegmentationManager',
-          `Worker initialization timeout (${this.config.initializationTimeout}ms) - falling back to main thread`
+          `Worker initialization timeout (${WORKER_INIT_TIMEOUT_MS / 1000}s) - falling back to main thread`
         );
         if (this.worker) {
           this.worker.terminate();
           this.worker = null;
         }
         resolve(false);
-      }, this.config.initializationTimeout);
+      }, WORKER_INIT_TIMEOUT_MS);
 
       // Handle worker messages
       this.worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
@@ -216,7 +220,10 @@ class SegmentationManager {
 
         switch (type) {
           case 'init-complete':
-            clearTimeout(initTimeout);
+            if (this.initTimeout) {
+              clearTimeout(this.initTimeout);
+              this.initTimeout = null;
+            }
             if (success) {
               logger.info('SegmentationManager', 'Worker initialized successfully');
               resolve(true);
@@ -237,15 +244,15 @@ class SegmentationManager {
 
               if (callback) {
                 // Update performance metrics
-              if (fps !== undefined) this.currentFps = fps;
-              if (latency !== undefined) this.currentLatency = latency;
+                if (fps !== undefined) this.currentFps = fps;
+                if (latency !== undefined) this.currentLatency = latency;
 
-              callback({
-                mask: mask || null,
-                autoFrameTransform,
-                fps: this.currentFps,
-                latency: this.currentLatency,
-              });
+                callback({
+                  mask: mask || null,
+                  autoFrameTransform,
+                  fps: this.currentFps,
+                  latency: this.currentLatency,
+                });
               }
             } else if (mask) {
               // Unsolicited mask (e.g., from continuous processing)
@@ -265,7 +272,10 @@ class SegmentationManager {
 
       // Handle worker errors
       this.worker.onerror = (e: ErrorEvent) => {
-        clearTimeout(initTimeout);
+        if (this.initTimeout) {
+          clearTimeout(this.initTimeout);
+          this.initTimeout = null;
+        }
         logger.error('SegmentationManager', 'Worker error:', e);
         if (this.worker) {
           this.worker.terminate();
@@ -325,13 +335,13 @@ class SegmentationManager {
       // Transfer the ImageBitmap to the worker (zero-copy)
       this.worker.postMessage({ type: 'process', id, image: frame, autoFrame }, [frame]);
 
-      // Timeout for individual frame processing (3 seconds - more reasonable for complex scenes)
+      // Timeout for individual frame processing (use project constant)
       setTimeout(() => {
         if (this.pendingCallbacks.has(id)) {
           this.pendingCallbacks.delete(id);
           resolve({ mask: null, error: 'Segmentation timeout' });
         }
-      }, 3000);
+      }, SEGMENTATION_TIMEOUT_MS);
     });
   }
 
@@ -405,6 +415,10 @@ class SegmentationManager {
       this.worker = null;
     }
     this.pendingCallbacks.clear();
+    if (this.initTimeout) {
+      clearTimeout(this.initTimeout);
+      this.initTimeout = null;
+    }
   }
 
   acquire(): void {
