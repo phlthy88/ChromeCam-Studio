@@ -62,13 +62,18 @@ describe('segmentationManager', () => {
     const promise = manager.initialize();
 
     // --- First attempt: Times out ---
-    await vi.advanceTimersByTimeAsync(1);
+    // Advance timers to trigger the timeout and run the resulting microtasks.
+    await vi.runOnlyPendingTimersAsync();
     expect(mockWorkers[0]?.terminate).toHaveBeenCalledTimes(1);
 
     // --- Second attempt: Succeeds ---
-    await vi.advanceTimersByTimeAsync(1); // Backoff delay
+    // Advance timers to trigger the retry delay.
+    await vi.runOnlyPendingTimersAsync();
     expect(mockWorkers.length).toBe(2);
     mockWorkers[1]?.onmessage?.({ data: { type: 'init-complete', success: true } });
+
+    // Resolve any microtasks that may have been queued.
+    await vi.advanceTimersByTimeAsync(1);
 
     await expect(promise).resolves.toBe('worker');
     vi.useRealTimers();
