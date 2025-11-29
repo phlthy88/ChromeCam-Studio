@@ -17,6 +17,11 @@
  */
 // Define a placeholder for the TensorFlow.js library
 // This is used to avoid using 'any' in the global scope
-export interface TensorFlowLibrary {
-  [key: string]: unknown;
+export interface Tf {
+  getBackend(): string;
+  setBackend(backendName: string): Promise<boolean>;
+  ready(): Promise<void>;
+  [key: string]: any;
 }
+
+export type TensorFlowLibrary = Tf;

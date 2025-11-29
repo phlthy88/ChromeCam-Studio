@@ -1564,50 +1564,52 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               </div>
             </ControlSection>
 
-            {/* Beauty Filters */}
-            <ControlSection title="Beauty Filters">
-              <div className="space-y-5">
-                {/* Face Detection Status */}
-                <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-                  <div
-                    className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-success' : 'bg-error'}`}
-                  />
-                  {faceDetected ? 'Face detected' : 'No face detected'}
-                </div>
+            {/* Beauty Filters - Disabled due to missing landmarks support in current worker */}
+            {false && (
+              <ControlSection title="Beauty Filters">
+                <div className="space-y-5">
+                  {/* Face Detection Status */}
+                  <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                    <div
+                      className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-success' : 'bg-error'}`}
+                    />
+                    {faceDetected ? 'Face detected' : 'No face detected'}
+                  </div>
 
-                <Slider
-                  label="Eye Enlargement"
-                  value={settings.eyeEnlargement}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('eyeEnlargement', v)}
-                />
-                <Slider
-                  label="Nose Slimming"
-                  value={settings.noseSlimming}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('noseSlimming', v)}
-                />
-                <Slider
-                  label="Jaw Slimming"
-                  value={settings.jawSlimming}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('jawSlimming', v)}
-                />
-                <Slider
-                  label="Mouth Scaling"
-                  value={settings.mouthScaling}
-                  min={0}
-                  max={100}
-                  onChange={(v) => update('mouthScaling', v)}
-                />
-                <p className="md-body-small text-on-surface-variant ml-1">
-                  AI-powered facial reshaping using real-time landmark detection.
-                </p>
-              </div>
-            </ControlSection>
+                  <Slider
+                    label="Eye Enlargement"
+                    value={settings.eyeEnlargement}
+                    min={0}
+                    max={100}
+                    onChange={(v) => update('eyeEnlargement', v)}
+                  />
+                  <Slider
+                    label="Nose Slimming"
+                    value={settings.noseSlimming}
+                    min={0}
+                    max={100}
+                    onChange={(v) => update('noseSlimming', v)}
+                  />
+                  <Slider
+                    label="Jaw Slimming"
+                    value={settings.jawSlimming}
+                    min={0}
+                    max={100}
+                    onChange={(v) => update('jawSlimming', v)}
+                  />
+                  <Slider
+                    label="Mouth Scaling"
+                    value={settings.mouthScaling}
+                    min={0}
+                    max={100}
+                    onChange={(v) => update('mouthScaling', v)}
+                  />
+                  <p className="md-body-small text-on-surface-variant ml-1">
+                    AI-powered facial reshaping using real-time landmark detection.
+                  </p>
+                </div>
+              </ControlSection>
+            )}
 
             {/* Tools & Utilities */}
             <ControlSection title="Tools">

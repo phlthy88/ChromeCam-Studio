@@ -66,35 +66,22 @@ export interface SegmentationConfig {
   threshold: number;
 }
 
-/**
- * Worker message protocol for type-safe communication
- */
-export interface SegmentationWorkerMessage {
-  type: 'init' | 'segment' | 'dispose' | 'updateConfig';
-  payload?: {
-    imageBitmap?: ImageBitmap;
-    backgroundImage?: ImageBitmap;
-    config?: SegmentationConfig;
-    offscreenCanvas?: OffscreenCanvas;
-  };
-  timestamp: number;
-}
+// Protocol for the new Module Worker
+export type SegmentationWorkerInput =
+  | { type: 'init' }
+  | { type: 'close' }
+  // The 'process' message is just the payload directly in the new worker
+  | { id: number; image: ImageBitmap; autoFrame: boolean };
 
-/**
- * Worker response protocol
- */
-export interface SegmentationWorkerResponse {
-  type: 'ready' | 'result' | 'error' | 'performance';
-  payload?: {
-    processedFrame?: ImageBitmap;
-    maskData?: Uint8ClampedArray;
-    width?: number;
-    height?: number;
-    error?: string;
-    fps?: number;
-    latency?: number;
-  };
-  timestamp: number;
+export interface SegmentationWorkerOutput {
+  type: 'init-complete' | 'mask' | 'error';
+  id?: number;
+  success?: boolean;
+  error?: string;
+  mask?: ImageBitmap | null;
+  fps?: number;
+  latency?: number;
+  autoFrameTransform?: { panX: number; panY: number; zoom: number } | null;
 }
 
 /**
