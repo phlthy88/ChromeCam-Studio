@@ -856,7 +856,7 @@ export function useVideoRenderer({
           // Apply WebGL LUT cinematic color grading
           const { cinematicLut } = settingsRef.current;
           if (cinematicLut !== 'none' && isWebGLReady) {
-            const lutCanvas = applyLutGrading(canvas, settings.cinematicLutIntensity);
+            const lutCanvas = applyLutGrading(canvas, settingsRef.current.cinematicLutIntensity);
             if (lutCanvas) {
               ctx.drawImage(lutCanvas, 0, 0);
             }
@@ -870,9 +870,9 @@ export function useVideoRenderer({
           // Get image data for histogram, zebra, and focus peaking (throttled)
           if (showHistogram || showZebraStripes || showFocusPeaking) {
             try {
-              // Throttle expensive getImageData calls to max 10fps to prevent forced reflows
+              // Throttle expensive getImageData calls to max 5fps (200ms) to stop main thread starvation
               const now = performance.now();
-              if (!lastImageDataTimeRef.current || now - lastImageDataTimeRef.current > 100) {
+              if (!lastImageDataTimeRef.current || now - lastImageDataTimeRef.current > 200) {
                 lastImageDataTimeRef.current = now;
 
                 const analysisCanvas = analysisCanvasRef.current;

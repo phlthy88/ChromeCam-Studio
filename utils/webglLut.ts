@@ -8,11 +8,11 @@
 import { FaceLandmarks } from '../types/face';
 import { logger } from './logger';
 
-// Vertex shader - simple pass-through for full-screen quad (GLSL ES 1.0 for LUT)
-const VERTEX_SHADER = `
-    attribute vec2 a_position;
-    attribute vec2 a_texCoord;
-    varying vec2 v_texCoord;
+// Vertex shader - simple pass-through for full-screen quad (GLSL ES 3.0 for LUT)
+const VERTEX_SHADER = `#version 300 es
+    in vec2 a_position;
+    in vec2 a_texCoord;
+    out vec2 v_texCoord;
 
     void main() {
         gl_Position = vec4(a_position, 0.0, 1.0);
@@ -128,7 +128,7 @@ void main() {
 `;
 
 // Fragment shader - applies 3D LUT color grading with intensity control
-const FRAGMENT_SHADER = `
+const FRAGMENT_SHADER = `#version 300 es
     precision mediump float;
 
     uniform sampler2D u_image;
@@ -136,7 +136,8 @@ const FRAGMENT_SHADER = `
     uniform float u_lutSize;
     uniform float u_intensity;
 
-    varying vec2 v_texCoord;
+    in vec2 v_texCoord;
+    out vec4 fragColor;
 
     vec3 applyLut(vec3 color) {
         // LUT is stored as a 2D texture with slices arranged horizontally
@@ -160,20 +161,20 @@ const FRAGMENT_SHADER = `
         );
 
         // Sample both slices and interpolate
-        vec3 color0 = texture2D(u_lut, uv0).rgb;
-        vec3 color1 = texture2D(u_lut, uv1).rgb;
+        vec3 color0 = texture(u_lut, uv0).rgb;
+        vec3 color1 = texture(u_lut, uv1).rgb;
 
         return mix(color0, color1, blueFrac);
     }
 
     void main() {
-        vec4 originalColor = texture2D(u_image, v_texCoord);
+        vec4 originalColor = texture(u_image, v_texCoord);
         vec3 lutColor = applyLut(originalColor.rgb);
 
         // Mix between original and LUT-graded color based on intensity
         vec3 finalColor = mix(originalColor.rgb, lutColor, u_intensity);
 
-        gl_FragColor = vec4(finalColor, originalColor.a);
+        fragColor = vec4(finalColor, originalColor.a);
     }
 `;
 
@@ -517,7 +518,7 @@ export class WebGLFaceWarpRenderer {
  * Handles GPU-accelerated color grading
  */
 export class WebGLLutRenderer {
-  private gl: WebGLRenderingContext | null = null;
+  private gl: WebGL2RenderingContext | null = null;
   private program: WebGLProgram | null = null;
   private positionBuffer: WebGLBuffer | null = null;
   private texCoordBuffer: WebGLBuffer | null = null;
@@ -532,7 +533,7 @@ export class WebGLLutRenderer {
   static isSupported(): boolean {
     try {
       const canvas = document.createElement('canvas');
-      return !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+      return !!(canvas.getContext('webgl2'));
     } catch {
       return false;
     }
@@ -545,14 +546,14 @@ export class WebGLLutRenderer {
     this.canvas = canvas;
 
     // Get WebGL context
-    this.gl = canvas.getContext('webgl', {
+    this.gl = canvas.getContext('webgl2', {
       alpha: false,
       premultipliedAlpha: false,
       preserveDrawingBuffer: true,
-    }) as WebGLRenderingContext | null;
+    }) as WebGL2RenderingContext | null;
 
     if (!this.gl) {
-      logger.error('WebGLLutRenderer', 'WebGL context creation failed, falling back to Canvas 2D');
+      logger.error('WebGLLutRenderer', 'WebGL2 context creation failed, falling back to Canvas 2D');
       return false;
     }
 
