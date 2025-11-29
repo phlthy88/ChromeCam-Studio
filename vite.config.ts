@@ -178,6 +178,7 @@ export default defineConfig(({ mode }) => {
             orientation: 'any',
             scope: '/',
             start_url: '/',
+            categories: ['utilities', 'photography'],
             icons: [
               {
                 src: 'pwa-192x192.png',
@@ -197,29 +198,23 @@ export default defineConfig(({ mode }) => {
                 type: 'image/png',
                 purpose: 'maskable',
               },
-              {
-                src: 'pwa-192x192.svg',
-                sizes: 'any',
-                type: 'image/svg+xml',
-                purpose: 'any',
-              },
             ],
             screenshots: [
               {
-                src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4MCIgaGVpZ2h0PSI3MjAiIHZpZXdCb3g9IjAgMCAxMjgwIDcyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMWMxYjFmIi8+Cjx0ZXh0IHg9IjY0MCIgeT0iMzYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LXNpemU9IjQ4IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjUwMCI+Q2hyb21lQ2FtIFN0dWRpbzwvdGV4dD4KPHRleHQgeD0iNjQwIiB5PSI0MjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiIGZvbnQtc2l6ZT0iMjQiPkFkdmFuY2VkIHdlYmNhbSBzdHVkaW8gd2l0aCBsb2NhbCBBSSBlZmZlY3RzPC90ZXh0Pgo8L3N2Zz4K',
+                src: 'screenshot-wide.png',
                 sizes: '1280x720',
-                type: 'image/svg+xml',
+                type: 'image/png',
                 form_factor: 'wide',
                 label: 'ChromeCam Studio Interface',
               },
               {
-                src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzkwIiBoZWlnaHQ9Ijg0MCIgdmlld0JveD0iMCAwIDM5MCA4NDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzOTAiIGhlaWdodD0iODQwIiBmaWxsPSIjMWMxYjFmIi8+Cjx0ZXh0IHg9IjE5NSIgeT0iNDIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LXNpemU9IjI0IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjUwMCI+Q2hyb21lQ2FtPC90ZXh0Pgo8dGV4dCB4PSIxOTUiIHk9IjQ2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1zaXplPSIxNiI+QUkgV2ViY2FtIFN0dWRpbzwvdGV4dD4KPC9zdmc+Cg==',
+                src: 'screenshot-narrow.png',
                 sizes: '390x840',
-                type: 'image/svg+xml',
+                type: 'image/png',
+                form_factor: 'narrow',
                 label: 'ChromeCam Studio Mobile',
               },
             ],
-            display_override: ['window-controls-overlay'],
             shortcuts: [
               {
                 name: 'Open Settings',
@@ -227,9 +222,9 @@ export default defineConfig(({ mode }) => {
                 description: 'Open directly to camera settings',
                 icons: [
                   {
-                    src: 'pwa-192x192.svg',
+                    src: 'pwa-192x192.png',
                     sizes: '192x192',
-                    type: 'image/svg+xml',
+                    type: 'image/png',
                   },
                 ],
               },
@@ -282,22 +277,30 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: false,
-      minify: 'esbuild',
+      minify: 'terser', // Changed from esbuild to terser for better minification
+      cssMinify: true, // Use default CSS minification
       rollupOptions: {
         output: {
           manualChunks: (id) => {
-            // Vendor libraries
+            // Separate heavy libraries to their own chunks
             if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom')) {
-                return 'vendor';
-              }
-              if (id.includes('@tensorflow') || id.includes('tensorflow-models')) {
+              if (id.includes('@tensorflow') || id.includes('tensorflow')) {
                 return 'tensorflow';
+              }
+              if (id.includes('@mediapipe')) {
+                return 'mediapipe';
+              }
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'react';
               }
               if (id.includes('obs-websocket-js')) {
                 return 'obs';
               }
-              // Other node_modules go to vendor
+              // Separate other heavy dependencies
+              if (id.includes('@tensorflow-models')) {
+                return 'tensorflow-models';
+              }
+              // Group smaller dependencies together
               return 'vendor';
             }
 
@@ -305,6 +308,8 @@ export default defineConfig(({ mode }) => {
             if (
               id.includes('components/VideoPanel') ||
               id.includes('hooks/useVideoRenderer') ||
+              id.includes('hooks/useWebGLRenderer') ||
+              id.includes('utils/webglLut') ||
               id.includes('hooks/useBodySegmentation') ||
               id.includes('hooks/useCameraStream')
             ) {
@@ -330,9 +335,20 @@ export default defineConfig(({ mode }) => {
             if (
               id.includes('hooks/useAutoLowLight') ||
               id.includes('hooks/useAudioProcessor') ||
-              id.includes('hooks/useProOverlays')
+              id.includes('hooks/useProOverlays') ||
+              id.includes('hooks/useFaceTracking')
             ) {
               return 'advanced-features';
+            }
+
+            // Separate settings to reduce main bundle size
+            if (id.includes('components/settings')) {
+              return 'settings';
+            }
+
+            // Separate AI-related code
+            if (id.includes('utils/segmentationManager') || id.includes('workers')) {
+              return 'ai';
             }
           },
           chunkFileNames: 'assets/js/[name]-[hash].js',
@@ -344,7 +360,6 @@ export default defineConfig(({ mode }) => {
       reportCompressedSize: true,
       chunkSizeWarningLimit: 2000,
       cssCodeSplit: true,
-      cssMinify: true,
     },
     // =========================================================================
     // PRODUCTION WORKER CONFIG: Simplified for better bundling

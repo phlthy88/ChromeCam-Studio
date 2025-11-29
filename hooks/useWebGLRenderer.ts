@@ -332,7 +332,7 @@ export function useWebGLRenderer({
 
           logger.info(
             'useWebGLRenderer',
-            `[useWebGLRenderer] Initializing WebGL LUT renderer (attempt ${retryCount + 1}/${WEBGL_MAX_RETRIES + 1})...`
+            `[useWebGLRenderer] Initializing WebGL renderer (attempt ${retryCount + 1}/${WEBGL_MAX_RETRIES + 1})...`
           );
 
           // Initialize LUT renderer first (this confirms WebGL works)
@@ -356,7 +356,8 @@ export function useWebGLRenderer({
           logger.info('useWebGLRenderer', '✅ WebGL LUT renderer initialized successfully');
 
           // Only initialize face warp renderer AFTER WebGL is confirmed to work
-          if (enabled && !faceWarpRendererRef.current) {
+          // Check if beauty features are requested specifically
+          if (hasBeautySettings && !faceWarpRendererRef.current) {
             logger.info('useWebGLRenderer', '[useWebGLRenderer] 🚀 Initializing face warp renderer...');
             try {
               const faceWarpRenderer = new WebGLFaceWarpRenderer();
@@ -367,10 +368,15 @@ export function useWebGLRenderer({
                   '[useWebGLRenderer] ✅ Face warp renderer initialized successfully'
                 );
                 faceWarpRendererRef.current = faceWarpRenderer;
+
+                // Update WebGL support status if beauty renderer worked
+                setIsWebGLSupported(true);
               } else {
                 console.warn(
                   '[useWebGLRenderer] ❌ Failed to initialize face warp renderer - will fall back to Canvas 2D'
                 );
+                // Still consider WebGL available if the base renderer works
+                setIsWebGLSupported(true);
               }
             } catch (warpError) {
               console.warn(
@@ -378,7 +384,12 @@ export function useWebGLRenderer({
                 warpError,
                 '- will fall back to Canvas 2D'
               );
+              // Still consider WebGL available if the base renderer works
+              setIsWebGLSupported(true);
             }
+          } else {
+            // If no beauty settings, just confirm base WebGL is supported
+            setIsWebGLSupported(true);
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);

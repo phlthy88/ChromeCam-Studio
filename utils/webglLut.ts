@@ -544,12 +544,21 @@ export class WebGLLutRenderer {
   initialize(canvas: HTMLCanvasElement): boolean {
     this.canvas = canvas;
 
-    // Get WebGL context
-    this.gl = canvas.getContext('webgl', {
+    // Try WebGL2 first for better performance and features
+    this.gl = canvas.getContext('webgl2', {
       alpha: false,
       premultipliedAlpha: false,
       preserveDrawingBuffer: true,
-    }) as WebGLRenderingContext | null;
+    }) as WebGL2RenderingContext | null;
+
+    if (!this.gl) {
+      // Fallback to WebGL1 if WebGL2 is not supported
+      this.gl = canvas.getContext('webgl', {
+        alpha: false,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: true,
+      }) as WebGLRenderingContext | null;
+    }
 
     if (!this.gl) {
       logger.error('WebGLLutRenderer', 'WebGL context creation failed, falling back to Canvas 2D');

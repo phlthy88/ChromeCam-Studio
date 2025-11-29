@@ -15,8 +15,14 @@
  * limitations under the License.
  * =============================================================================
  */
-// Define a placeholder for the TensorFlow.js library
-// This is used to avoid using 'any' in the global scope
-export interface TensorFlowLibrary {
-  [key: string]: unknown;
+
+export interface Tf {
+  getBackend(): string;
+  setBackend(backendName: string): Promise<boolean>;
+  ready(): Promise<void>;
+  // Allow other properties
+  [key: string]: any;
 }
+
+// Keep the old name as an alias if needed, or just for backward compatibility if used elsewhere (though search showed only utils/tfLoader.ts using the file)
+export type TensorFlowLibrary = Tf;

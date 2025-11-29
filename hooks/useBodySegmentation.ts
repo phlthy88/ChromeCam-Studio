@@ -255,13 +255,12 @@ export function useBodySegmentation({
     let animationFrameId: number;
     let isProcessing = false; // CRITICAL: Semaphore to prevent call stacking
     let frameSkipCounter = 0;
-    let consecutiveTimeouts = 0; // Track consecutive timeouts for recovery
     let lastPerformanceUpdate = performance.now();
 
     // Dynamic frame skipping based on performance
     const TARGET_FRAME_TIME = 16.67; // ~60fps target
     const MAX_SKIP_INTERVAL = 10;
-    
+
     const inferenceLoop = async () => {
       if (!isLoopActive || segmentationMode === 'disabled') {
         animationFrameId = requestAnimationFrame(inferenceLoop);
@@ -325,49 +324,32 @@ export function useBodySegmentation({
             if (canRunWorker) {
               // Use Web Worker for off-main-thread processing
               // AWAIT IS CRITICAL HERE - ensures we wait for completion
-              const result = await segmentationManager.segment(
-                video,
-                settingsRef.current.autoFrame
-              );
-              
-              // Update performance metrics
-              if (result.fps !== undefined) resultFps = result.fps;
-              if (result.latency !== undefined) resultLatency = result.latency;
-              
-              // Handle consecutive timeout recovery
-              if (result.error && result.error.includes('Segmentation timeout')) {
-                consecutiveTimeouts++;
-                logger.warn('useBodySegmentation', `[AI] Worker segmentation timeout (${consecutiveTimeouts}/3):`, result.error);
-                
-                if (consecutiveTimeouts >= 3) {
-                  logger.error('useBodySegmentation', '[AI] Too many consecutive timeouts, re-initializing worker...');
-                  segmentationManager.terminateWorker();
-                  setSegmentationMode('disabled');
-                  consecutiveTimeouts = 0;
-                }
-              } else {
-                consecutiveTimeouts = 0; // Reset on successful processing
-              }
-              
-              // Convert ImageBitmap to ImageData for compatibility
-              if (result.mask instanceof ImageBitmap) {
-                const offscreenCanvas = new OffscreenCanvas(result.mask.width, result.mask.height);
-                const ctx = offscreenCanvas.getContext('2d');
-                if (!ctx) {
-                  throw new Error('Failed to get 2D context from offscreen canvas');
-                }
-                ctx.drawImage(result.mask, 0, 0);
-                mask = ctx.getImageData(0, 0, result.mask.width, result.mask.height);
-              } else {
-                mask = result.mask;
-              }
+              try {
+                // segmentationManager.segment already handles ImageBitmap internally
+                const result = await segmentationManager.segment(
+                  video,
+                  settingsRef.current.autoFrame
+                );
 
-              if (result.error && !result.error.includes('Segmentation timeout')) {
-                logger.warn('useBodySegmentation', '[AI] Worker segmentation error:', result.error);
-              }
+                // Update performance metrics
+                if (result.fps !== undefined) resultFps = result.fps;
+                if (result.latency !== undefined) resultLatency = result.latency;
 
-              if (result.autoFrameTransform) {
-                targetTransformRef.current = result.autoFrameTransform;
+                // Handle consecutive timeout recovery
+                // consecutiveTimeouts = 0; // Reset on successful processing (variable removed)
+
+                // result.mask is already ImageData from our new worker
+                if (result.mask && isMounted) {
+                  // Explicitly type as ImageData to satisfy TypeScript
+                  segmentationMaskRef.current = result.mask as ImageData;
+                  setIsAiActive(true);
+                }
+
+                if (result.autoFrameTransform) {
+                  targetTransformRef.current = result.autoFrameTransform;
+                }
+              } catch (error) {
+                logger.warn('useBodySegmentation', '[AI] Worker segmentation error:', error);
               }
             } else if (canRunMainThread && segmenter) {
               // Fallback to main thread processing
@@ -389,7 +371,7 @@ export function useBodySegmentation({
             if (!settingsRef.current.autoFrame) {
               targetTransformRef.current = { panX: 0, panY: 0, zoom: 1 };
             }
-            
+
             // Dynamic frame skipping adjustment based on performance
             const now = performance.now();
             if (now - lastPerformanceUpdate > 1000) { // Update every second

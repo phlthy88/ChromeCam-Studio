@@ -2,7 +2,7 @@
   "name": "ChromeCam Studio",
   "short_name": "ChromeCam",
   "description": "Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows.",
-  "id": "ChromeCam-Studio",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1c1b1f",
@@ -11,40 +11,41 @@
   "scope": "/",
   "icons": [
     {
-      "src": "pwa-192x192.svg",
+      "src": "pwa-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "pwa-512x512.svg",
+      "src": "pwa-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "masked-icon.svg",
+      "src": "pwa-maskable-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4MCIgaGVpZ2h0PSI3MjAiIHZpZXdCb3g9IjAgMCAxMjgwIDcyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMWMxYjFmIi8+Cjx0ZXh0IHg9IjY0MCIgeT0iMzYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LXNpemU9IjQ4IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjUwMCI+Q2hyb21lQ2FtIFN0dWRpbzwvdGV4dD4KPHRleHQgeD0iNjQwIiB5PSI0MjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiIGZvbnQtc2l6ZT0iMjQiPkFkdmFuY2VkIHdlYmNhbSBzdHVkaW8gd2l0aCBsb2NhbCBBSSBlZmZlY3RzPC90ZXh0Pgo8L3N2Zz4K",
+      "src": "screenshot-wide.png",
       "sizes": "1280x720",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "form_factor": "wide",
       "label": "ChromeCam Studio Interface"
     },
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzkwIiBoZWlnaHQ9Ijg0MCIgdmlld0JveD0iMCAwIDM5MCA4NDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzOTAiIGhlaWdodD0iODQwIiBmaWxsPSIjMWMxYjFmIi8+Cjx0ZXh0IHg9IjE5NSIgeT0iNDIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LXNpemU9IjI0IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjUwMCI+Q2hyb21lQ2FtPC90ZXh0Pgo8dGV4dCB4PSIxOTUiIHk9IjQ2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1zaXplPSIxNiI+QUkgV2ViY2FtIFN0dWRpbzwvdGV4dD4KPC9zdmc+Cg==",
+      "src": "screenshot-narrow.png",
       "sizes": "390x840",
-      "type": "image/svg+xml",
+      "type": "image/png",
+      "form_factor": "narrow",
       "label": "ChromeCam Studio Mobile"
     }
   ],
-  "display_override": ["window-controls-overlay"],
+  "categories": ["utilities", "photography"],
   "shortcuts": [
     {
       "name": "Open Settings",
@@ -52,9 +53,9 @@
       "description": "Open directly to camera settings",
       "icons": [
         {
-          "src": "pwa-192x192.svg",
+          "src": "pwa-192x192.png",
           "sizes": "192x192",
-          "type": "image/svg+xml"
+          "type": "image/png"
         }
       ]
     }

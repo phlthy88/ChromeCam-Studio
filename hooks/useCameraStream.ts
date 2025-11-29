@@ -218,18 +218,24 @@ export function useCameraStream({
             }
           : false;
 
-        // Extended video constraints with PTZ support
-        const extendedVideoConstraints: ExtendedMediaTrackConstraintSet = {
-          ...videoConstraints,
-          pan: true,
-          tilt: true,
-          zoom: true,
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: extendedVideoConstraints as MediaTrackConstraints,
-          audio: audioConstraints,
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: videoConstraints,
+            audio: audioConstraints,
+          });
+        } catch (err) {
+          // Handle OverconstrainedError for WebKit browsers that are strict about constraints
+          if (err instanceof Error && err.name === 'OverconstrainedError') {
+            logger.warn('useCameraStream', 'Constraints failed in WebKit, retrying with defaults');
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: { exact: deviceId } },
+              audio: audioConstraints,
+            });
+          } else {
+            throw err;
+          }
+        }
 
         if (!stream) {
           throw new Error('Failed to get media stream from getUserMedia');

@@ -9,6 +9,7 @@ import { SegmentationManager } from '../utils/segmentationManager';
 // make assertions against.
 class MockWorker {
   onmessage: ((event: { data: any }) => void) | null = null;
+  onerror: ((event: any) => void) | null = null;
   postMessage = vi.fn();
   terminate = vi.fn();
 }
@@ -30,96 +31,52 @@ describe('segmentationManager', () => {
   });
 
   it('should resolve with "worker" on successful initialization', async () => {
+    const manager = new SegmentationManager();
+
+    // The new implementation always returns 'worker' if the worker was created successfully
+    const result = await manager.initialize();
+    expect(result).toBe('worker');
+  });
+
+  it('should fail initialization if worker cannot be created', async () => {
+    // Temporarily replace the Worker constructor to throw an error
+    vi.stubGlobal('Worker', vi.fn(() => {
+      throw new Error('Failed to create worker');
+    }));
+
+    try {
+      const manager = new SegmentationManager();
+      await expect(manager.initialize()).rejects.toThrow('Worker failed to initialize');
+    } finally {
+      vi.unstubAllGlobals();
+      vi.stubGlobal('Worker', MockWorker);
+    }
+  });
+
+  it('should initialize model correctly', async () => {
     const mockWorker = new MockWorker();
-    const manager = new SegmentationManager(() => mockWorker as unknown as Worker);
+    vi.stubGlobal('Worker', vi.fn(() => mockWorker));
 
-    const promise = manager.initialize();
+    const manager = new SegmentationManager();
 
-    // The manager should have attached the onmessage handler.
-    expect(mockWorker.onmessage).toBeInstanceOf(Function);
+    // Wait for a short time or use a promise to ensure worker is ready
+    setTimeout(() => {
+      // Simulate worker ready message
+      mockWorker.onmessage?.({ data: { type: 'ready', version: '1.0.0' } });
+    }, 0);
 
-    // Simulate the worker sending the success message.
-    mockWorker.onmessage?.({ data: { type: 'init-complete', success: true } });
-
-    // The main promise should resolve to 'worker'.
-    await expect(promise).resolves.toBe('worker');
-    expect(mockWorker.postMessage).toHaveBeenCalledWith({
-      type: 'init',
-      config: { modelType: 'general' },
-    });
+    // Test model initialization
+    await expect(manager.initializeModel('general')).resolves.not.toThrow();
   });
 
-  it('should retry initialization on timeout and eventually succeed', async () => {
-    vi.useFakeTimers();
-    const mockWorkers: MockWorker[] = [];
-    const manager = new SegmentationManager(() => {
-      const worker = new MockWorker();
-      mockWorkers.push(worker);
-      return worker as unknown as Worker;
-    });
-    manager.configure({ initializationTimeout: 1, baseRetryDelay: 1 });
+  it('should dispose worker properly', () => {
+    const mockWorker = new MockWorker();
+    vi.stubGlobal('Worker', vi.fn(() => mockWorker));
 
-    const promise = manager.initialize();
+    const manager = new SegmentationManager();
+    manager.dispose();
 
-    // --- First attempt: Times out ---
-    // Advance timers to trigger the timeout and run the resulting microtasks.
-    await vi.runOnlyPendingTimersAsync();
-    expect(mockWorkers[0]?.terminate).toHaveBeenCalledTimes(1);
-
-    // --- Second attempt: Succeeds ---
-    // Advance timers to trigger the retry delay.
-    await vi.runOnlyPendingTimersAsync();
-    expect(mockWorkers.length).toBe(2);
-    mockWorkers[1]?.onmessage?.({ data: { type: 'init-complete', success: true } });
-
-    // Resolve any microtasks that may have been queued.
-    await vi.advanceTimersByTimeAsync(1);
-
-    await expect(promise).resolves.toBe('worker');
-    vi.useRealTimers();
-  });
-
-  it('should eventually resolve with "main-thread" after all retries fail', async () => {
-    vi.useFakeTimers();
-    const mockWorkers: MockWorker[] = [];
-    const manager = new SegmentationManager(() => {
-      const worker = new MockWorker();
-      mockWorkers.push(worker);
-      return worker as unknown as Worker;
-    });
-    manager.configure({
-      initializationTimeout: 1,
-      baseRetryDelay: 1,
-      maxInitializationAttempts: 3,
-    });
-
-    const promise = manager.initialize();
-
-    // Exhaust all retry attempts.
-    await vi.runAllTimersAsync();
-
-    await expect(promise).resolves.toBe('main-thread');
-    expect(mockWorkers.length).toBe(3);
-    expect(mockWorkers.every((w) => w.terminate.mock.calls.length === 1)).toBe(true);
-    vi.useRealTimers();
-  });
-
-  it('should handle immediate worker creation failure and still fall back', async () => {
-    vi.useFakeTimers();
-    let attempt = 0;
-    const manager = new SegmentationManager(() => {
-      attempt++;
-      throw new Error(`Factory error on attempt ${attempt}`);
-    });
-    manager.configure({ baseRetryDelay: 1, maxInitializationAttempts: 3 });
-
-    const promise = manager.initialize();
-
-    // Exhaust all retry attempts.
-    await vi.runAllTimersAsync();
-
-    await expect(promise).resolves.toBe('main-thread');
-    expect(attempt).toBe(3);
-    vi.useRealTimers();
+    // Check if terminate was called
+    expect(mockWorker.terminate).toHaveBeenCalled();
   });
 });

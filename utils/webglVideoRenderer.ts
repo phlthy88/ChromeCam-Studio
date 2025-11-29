@@ -295,10 +295,20 @@ export class WebGLVideoRenderer {
     gl.texParameteri(VIDEO_TEXTURE_TARGET, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     try {
+      // WebKit requires checking video readyState before texture upload
+      if (video instanceof HTMLVideoElement && video.readyState < 3) {
+        console.warn('[WebGLVideoRenderer] Video not ready for texture upload');
+        return false;
+      }
+
       gl.texImage2D(VIDEO_TEXTURE_TARGET, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
       return true;
     } catch (e) {
       console.error('[WebGLVideoRenderer] Error uploading video texture:', e);
+      // Additional handling for SecurityError which can occur in WebKit when video is not ready
+      if (e instanceof DOMException && (e.name === 'SecurityError' || e.name === 'InvalidStateError')) {
+        console.warn('[WebGLVideoRenderer] Security or state error during video upload, likely WebKit issue');
+      }
       return false;
     }
   }
@@ -365,10 +375,21 @@ export class WebGLVideoRenderer {
     gl.texParameteri(VIDEO_TEXTURE_TARGET, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     try {
+      // WebKit requires checking video readyState before texture upload
+      // Only check readyState if bgImage is actually a video element
+      if (bgImage instanceof HTMLVideoElement && bgImage.readyState < 3) {
+        console.warn('[WebGLVideoRenderer] Background video not ready for texture upload');
+        return false;
+      }
+
       gl.texImage2D(VIDEO_TEXTURE_TARGET, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bgImage);
       return true;
     } catch (e) {
       console.error('[WebGLVideoRenderer] Error uploading background texture:', e);
+      // Additional handling for SecurityError which can occur in WebKit when video is not ready
+      if (e instanceof DOMException && (e.name === 'SecurityError' || e.name === 'InvalidStateError')) {
+        console.warn('[WebGLVideoRenderer] Security or state error during background upload, likely WebKit issue');
+      }
       return false;
     }
   }

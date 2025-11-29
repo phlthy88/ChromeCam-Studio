@@ -484,8 +484,11 @@ export function useVideoRenderer({
       const canvas = canvasRef.current;
       
       // Additional video validation to prevent crashes
-      if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-        return; // Video not ready or has invalid dimensions
+      // WebKit requires higher readyState for video to be properly accessible
+      if (video.readyState < 3 || video.videoWidth === 0 || video.videoHeight === 0) {
+        // Don't terminate the loop - just skip this frame and continue
+        requestRef.current = requestAnimationFrame(processVideo);
+        return;
       }
 
       // Frame rate limiting for performance mode
@@ -507,7 +510,12 @@ export function useVideoRenderer({
       // Use willReadFrequently: true since we call getImageData for overlays
       let ctx: CanvasRenderingContext2D | null = null;
       try {
-        ctx = canvas?.getContext('2d', { alpha: false, willReadFrequently: true });
+        // Use the proper context options with willReadFrequently for video processing
+        const contextOptions: CanvasRenderingContext2DSettings = {
+          alpha: false,
+          willReadFrequently: true,  // Critical for performance when using getImageData frequently
+        };
+        ctx = canvas?.getContext('2d', contextOptions);
       } catch (e) {
         logger.error('useVideoRenderer', 'Failed to get canvas context:', e);
         return;

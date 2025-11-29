@@ -10,13 +10,15 @@
       http-equiv="Content-Security-Policy"
       content="
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval';
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com;
+      style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com;
       font-src 'self' https://fonts.gstatic.com;
-      connect-src 'self' ws: wss:;
-      img-src 'self' blob: data:;
+      connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://storage.googleapis.com https:;
+      img-src 'self' blob: data: https:;
       media-src 'self' blob:;
-      worker-src 'self' blob:;
+      worker-src 'self' blob: https://cdn.jsdelivr.net https://storage.googleapis.com;
+      child-src 'self' blob:;
+      frame-src 'self' blob:;
     "
     />
 
@@ -26,20 +28,28 @@
       name="description"
       content="Advanced webcam studio with local AI effects for ChromeOS, macOS, and Windows."
     />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="ChromeCam" />
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-
-    <!-- PWA Manifest -->
+    <!-- Web App Manifest -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
+    <!-- WebKit-specific tags for PWA support -->
+    <meta name="application-name" content="ChromeCam Studio" />
+    <meta name="msapplication-TileColor" content="#1c1b1f" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" sizes="192x192" />
+    <link rel="icon" type="image/png" href="/pwa-512x512.png" sizes="512x512" />
+
     <!-- Preconnect for external resources -->
-    <!-- Removed unused CDN preconnects since we now load TensorFlow.js locally -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://storage.googleapis.com">
 
     <!-- Material 3 Design Tokens -->
     <link rel="stylesheet" href="/styles/m3-tokens.css" />
@@ -48,7 +58,8 @@
     <link rel="stylesheet" href="/styles/main.css" />
 
     <!-- Performance optimizations -->
-    <!-- Removed unused preconnect to Google Fonts -->
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="https://storage.googleapis.com">
 
     <!-- AI/ML Libraries loaded dynamically when needed for better performance -->
   </head>
