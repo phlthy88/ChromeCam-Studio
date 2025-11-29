@@ -139,7 +139,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onCloseMobile,
   capabilities,
   detectedCapabilities,
-  faceDetected = false,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  faceDetected: _faceDetected = false,
 }) => {
   // OBS Integration
   const {
@@ -1565,9 +1566,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             </ControlSection>
 
             {/* Beauty Filters */}
-            <ControlSection title="Beauty Filters">
+            {/* <ControlSection title="Beauty Filters">
               <div className="space-y-5">
-                {/* Face Detection Status */}
                 <div className="flex items-center gap-2 text-xs text-on-surface-variant">
                   <div
                     className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-success' : 'bg-error'}`}
@@ -1607,7 +1607,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   AI-powered facial reshaping using real-time landmark detection.
                 </p>
               </div>
-            </ControlSection>
+            </ControlSection> */}
 
             {/* Tools & Utilities */}
             <ControlSection title="Tools">

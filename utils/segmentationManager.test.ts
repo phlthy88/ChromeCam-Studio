@@ -40,38 +40,43 @@ describe('segmentationManager', () => {
 
   it('should fail initialization if worker cannot be created', async () => {
     // Temporarily replace the Worker constructor to throw an error
-    vi.stubGlobal('Worker', vi.fn(() => {
-      throw new Error('Failed to create worker');
-    }));
+    // Use a class or function so it can be 'new'ed
+    vi.stubGlobal('Worker', class {
+        constructor() { throw new Error('Failed to create worker'); }
+    });
 
     try {
       const manager = new SegmentationManager();
-      await expect(manager.initialize()).rejects.toThrow('Worker failed to initialize');
+      // Expect 'disabled' return instead of throw
+      const result = await manager.initialize();
+      expect(result).toBe('disabled');
     } finally {
-      vi.unstubAllGlobals();
-      vi.stubGlobal('Worker', MockWorker);
+      // Cleanup handled by afterEach, but we can reset if needed for reliability
     }
   });
 
   it('should initialize model correctly', async () => {
     const mockWorker = new MockWorker();
-    vi.stubGlobal('Worker', vi.fn(() => mockWorker));
+    vi.stubGlobal('Worker', function() { return mockWorker; });
 
     const manager = new SegmentationManager();
 
     // Wait for a short time or use a promise to ensure worker is ready
     setTimeout(() => {
-      // Simulate worker ready message
-      mockWorker.onmessage?.({ data: { type: 'ready', version: '1.0.0' } });
+      // Simulate worker init complete message
+      // Note: New manager expects 'init-complete', NOT 'ready'
+      if (mockWorker.onmessage) {
+          mockWorker.onmessage({ data: { type: 'init-complete', success: true } } as any);
+      }
     }, 0);
 
-    // Test model initialization
+    // Test model initialization (compatibility method)
     await expect(manager.initializeModel('general')).resolves.not.toThrow();
   });
 
   it('should dispose worker properly', () => {
     const mockWorker = new MockWorker();
-    vi.stubGlobal('Worker', vi.fn(() => mockWorker));
+    vi.stubGlobal('Worker', function() { return mockWorker; });
 
     const manager = new SegmentationManager();
     manager.dispose();

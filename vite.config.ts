@@ -199,20 +199,25 @@ export default defineConfig(({ mode }) => {
                 purpose: 'maskable',
               },
             ],
+            file_handlers: [
+              {
+                action: '/',
+                accept: { 'image/png': ['.png'], 'image/jpeg': ['.jpg', '.jpeg'] },
+              },
+            ],
             screenshots: [
               {
-                src: 'screenshot-wide.png',
+                src: 'screenshots/desktop-wide.png',
                 sizes: '1280x720',
                 type: 'image/png',
                 form_factor: 'wide',
-                label: 'ChromeCam Studio Interface',
+                label: 'ChromeCam Studio',
               },
               {
-                src: 'screenshot-narrow.png',
-                sizes: '390x840',
+                src: 'screenshots/mobile.png',
+                sizes: '750x1334',
                 type: 'image/png',
-                form_factor: 'narrow',
-                label: 'ChromeCam Studio Mobile',
+                label: 'ChromeCam Mobile',
               },
             ],
             shortcuts: [
