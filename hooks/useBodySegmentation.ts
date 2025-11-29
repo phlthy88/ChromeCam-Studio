@@ -5,7 +5,7 @@ import { segmentationManager, type SegmentationMode } from '../utils/segmentatio
 import { FaceLandmarks } from '../types/face';
 import { logger } from '../utils/logger';
 import { INFERENCE_FRAME_SKIP_FACTOR } from '../constants/ai';
-import { ensureTfjsWebGLBackend } from '../utils/tfLoader';
+import { ensureTfjsWebGLBackend, ensureBodySegmentationLoaded } from '../utils/tfLoader';
 
 // Constants to avoid GC in the inference loop
 const FOREGROUND_COLOR = { r: 255, g: 255, b: 255, a: 255 };
@@ -34,6 +34,8 @@ export interface UseBodySegmentationReturn {
   setQrResult: (result: string | null) => void;
   /** Current segmentation processing mode */
   segmentationMode: SegmentationMode;
+  /** Performance metrics */
+  metrics: { fps: number; latency: number };
 }
 
 /**
@@ -68,7 +70,8 @@ export function useBodySegmentation({
       try {
         // Use the centralized loader to ensure TensorFlow.js is loaded once
         await ensureTfjsWebGLBackend();
-        logger.info('useBodySegmentation', 'TensorFlow.js loaded successfully via centralized loader');
+        await ensureBodySegmentationLoaded();
+        logger.info('useBodySegmentation', 'TensorFlow.js and BodySegmentation loaded successfully via centralized loader');
       } catch (error) {
         logger.error('useBodySegmentation', 'Failed to load TensorFlow.js via centralized loader', error);
 
@@ -106,8 +109,46 @@ export function useBodySegmentation({
   const [qrResult, setQrResult] = useState<string | null>(null);
   const [segmentationMode, setSegmentationMode] = useState<SegmentationMode>('disabled');
   const [faceLandmarks, setFaceLandmarks] = useState<FaceLandmarks | null>(null);
+  const [metrics, setMetrics] = useState({ fps: 0, latency: 0 });
 
   const settingsRef = useRef(settings);
+
+  // Canvas pool for worker result conversion (size 2) - prevents GC thrashing
+  const canvasPoolRef = useRef<OffscreenCanvas[]>([]);
+  const poolIndexRef = useRef(0);
+
+  const getPooledCanvas = useCallback((width: number, height: number) => {
+    // Lazy initialization
+    if (canvasPoolRef.current.length === 0) {
+      try {
+        canvasPoolRef.current = [
+          new OffscreenCanvas(width, height),
+          new OffscreenCanvas(width, height)
+        ];
+      } catch (e) {
+        // Fallback for environments without OffscreenCanvas (though checked elsewhere)
+        logger.error('useBodySegmentation', 'Failed to create OffscreenCanvas pool', e);
+        // We'll handle this by returning a new one if pool is empty or assume main thread fallback
+      }
+    }
+
+    if (canvasPoolRef.current.length > 0) {
+      const canvas = canvasPoolRef.current[poolIndexRef.current];
+      poolIndexRef.current = (poolIndexRef.current + 1) % canvasPoolRef.current.length;
+
+      if (canvas) {
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        return canvas;
+      }
+    }
+
+    // Fallback if pool creation failed
+    return new OffscreenCanvas(width, height);
+  }, []);
+
   useEffect(() => {
     settingsRef.current = settings;
     const isAiNeeded =
@@ -253,7 +294,8 @@ export function useBodySegmentation({
     let isLoopActive = true;
     let isMounted = true;
     let animationFrameId: number;
-    let isProcessing = false; // CRITICAL: Semaphore to prevent call stacking
+    let pendingRequests = 0; // CRITICAL: Queue depth control
+    const MAX_PENDING_REQUESTS = 2; // Allow up to 2 frames in flight (queue depth)
     let frameSkipCounter = 0;
     let consecutiveTimeouts = 0; // Track consecutive timeouts for recovery
     let lastPerformanceUpdate = performance.now();
@@ -276,10 +318,9 @@ export function useBodySegmentation({
       }
       frameSkipCounter = 0;
 
-      // 2. CRITICAL: Prevent Overlapping Calls
-      // If the previous segmentation is still running, SKIP this frame entirely.
-      // This is the key fix for the "Death Spiral" - prevents async call stacking.
-      if (isProcessing) {
+      // 2. CRITICAL: Queue Management
+      // If we have too many pending requests, skip this frame to prevent backing up
+      if (pendingRequests >= MAX_PENDING_REQUESTS) {
         animationFrameId = requestAnimationFrame(inferenceLoop);
         return;
       }
@@ -291,7 +332,7 @@ export function useBodySegmentation({
         blur > 0 || portraitLighting > 0 || faceSmoothing > 0 || autoFrame || virtualBackground;
 
       if (video && video.readyState >= 2 && !video.paused) {
-        isProcessing = true; // Lock - prevent concurrent processing
+        pendingRequests++; // Lock/Increment queue
 
         try {
           // QR Code detection
@@ -351,11 +392,12 @@ export function useBodySegmentation({
               
               // Convert ImageBitmap to ImageData for compatibility
               if (result.mask instanceof ImageBitmap) {
-                const offscreenCanvas = new OffscreenCanvas(result.mask.width, result.mask.height);
+                const offscreenCanvas = getPooledCanvas(result.mask.width, result.mask.height);
                 const ctx = offscreenCanvas.getContext('2d');
                 if (!ctx) {
                   throw new Error('Failed to get 2D context from offscreen canvas');
                 }
+                ctx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height); // Clear before draw
                 ctx.drawImage(result.mask, 0, 0);
                 mask = ctx.getImageData(0, 0, result.mask.width, result.mask.height);
               } else {
@@ -390,6 +432,11 @@ export function useBodySegmentation({
               targetTransformRef.current = { panX: 0, panY: 0, zoom: 1 };
             }
             
+            // Update metrics state
+            if (isMounted) {
+              setMetrics({ fps: Math.round(resultFps), latency: Math.round(resultLatency) });
+            }
+
             // Dynamic frame skipping adjustment based on performance
             const now = performance.now();
             if (now - lastPerformanceUpdate > 1000) { // Update every second
@@ -420,7 +467,7 @@ export function useBodySegmentation({
             setLoadingError('AI processing encountered an error.');
           }
         } finally {
-          isProcessing = false; // Unlock - always release, even on error
+          pendingRequests--; // Unlock/Decrement queue - always release
         }
       }
 
@@ -458,6 +505,7 @@ export function useBodySegmentation({
     qrResult,
     setQrResult,
     segmentationMode,
+    metrics,
   };
 }
 
