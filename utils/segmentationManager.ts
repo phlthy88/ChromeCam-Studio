@@ -10,7 +10,7 @@ import { logger } from './logger';
 import { WORKER_INIT_TIMEOUT_MS, SEGMENTATION_TIMEOUT_MS } from '../constants/ai';
 
 import type { FaceLandmarks } from '../types/face';
-import type { SegmentationConfig } from '../types/media';
+import type { SegmentationConfig, SegmentationWorkerOutput } from '../types/media';
 import type { AutoFrameTransform } from '../hooks/useBodySegmentation';
 
 // =============================================================================
@@ -26,17 +26,6 @@ export interface SegmentationResult {
 }
 
 export type SegmentationMode = 'worker' | 'main-thread' | 'disabled';
-
-interface WorkerMessage {
-  type: string;
-  id?: number;
-  mask?: ImageBitmap;
-  autoFrameTransform?: AutoFrameTransform;
-  success?: boolean;
-  error?: string;
-  fps?: number;
-  latency?: number;
-}
 
 // =============================================================================
 // Singleton Manager
@@ -213,7 +202,7 @@ class SegmentationManager {
       }, WORKER_INIT_TIMEOUT_MS);
 
       // Handle worker messages
-      this.worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
+      this.worker.onmessage = (e: MessageEvent<SegmentationWorkerOutput>) => {
         const { type, id, mask, autoFrameTransform, success, error, fps, latency } = e.data;
 
         switch (type) {
@@ -247,7 +236,7 @@ class SegmentationManager {
 
                 callback({
                   mask: mask || null,
-                  autoFrameTransform,
+                  autoFrameTransform: autoFrameTransform ?? undefined,
                   fps: this.currentFps,
                   latency: this.currentLatency,
                 });
@@ -331,7 +320,7 @@ class SegmentationManager {
       this.pendingCallbacks.set(id, resolve);
 
       // Transfer the ImageBitmap to the worker (zero-copy)
-      this.worker.postMessage({ type: 'process', id, image: frame, autoFrame }, [frame]);
+      this.worker.postMessage({ id, image: frame, autoFrame }, [frame]);
 
       // Timeout for individual frame processing (use project constant)
       setTimeout(() => {
