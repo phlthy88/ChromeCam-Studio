@@ -178,10 +178,26 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
     loadingStatus,
     loadingError,
     qrResult,
+    segmentationMode,
+    metrics,
   } = useBodySegmentation({
     videoRef,
     settings,
   });
+
+  // Persistent error state (stays visible for 10s after resolution)
+  const [displayedError, setDisplayedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const currentError = cameraError || loadingError || audioError || bgImageError;
+    if (currentError) {
+      setDisplayedError(currentError);
+    } else if (displayedError) {
+      // Keep showing last error for 10 seconds
+      const timer = setTimeout(() => setDisplayedError(null), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [cameraError, loadingError, audioError, bgImageError, displayedError]);
 
   // Check if beauty effects are active
   const isBeautyActive =
@@ -411,9 +427,16 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-primary"></span>
                 </span>
-                <span className="text-[10px] sm:md-label-small text-on-surface-variant hidden sm:inline">
-                  AI
-                </span>
+                <div className="flex flex-col leading-none">
+                  <span className="text-[10px] sm:md-label-small text-on-surface-variant hidden sm:inline whitespace-nowrap">
+                    AI ({segmentationMode === 'worker' ? 'Worker' : 'Main'})
+                  </span>
+                  {metrics.fps > 0 && (
+                    <span className="text-[8px] text-on-surface-variant/70 hidden sm:inline">
+                      {metrics.fps} FPS
+                    </span>
+                  )}
+                </div>
               </div>
             )}
             {isBeautyActive && faceLandmarks && (
@@ -505,11 +528,11 @@ const VideoPanel: React.FC<VideoPanelProps> = ({
           </div>
         )}
 
-      {/* Error Display - Responsive */}
-      {(cameraError || loadingError || audioError || bgImageError) && (
+      {/* Error Display - Responsive (Persistent) */}
+      {displayedError && (
         <div className="absolute z-30 text-on-error-container bg-error-container/90 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full backdrop-blur-sm flex items-center gap-2 mx-2 max-w-[calc(100%-1rem)]">
           <span className="text-xs sm:text-sm font-medium truncate">
-            {cameraError || loadingError || audioError || bgImageError}
+            {displayedError}
           </span>
         </div>
       )}

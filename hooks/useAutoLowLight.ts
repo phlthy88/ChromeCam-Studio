@@ -72,7 +72,6 @@ export function useAutoLowLight({
   }, [sampleSize]);
 
   // OPTIMIZED VERSION: Pre-allocate buffers to avoid GC pressure
-  const imageDataRef = useRef<ImageData | null>(null);
   const analysisDataRef = useRef<{
     totalWeightedBrightness: number;
     totalWeight: number;
@@ -92,11 +91,6 @@ export function useAutoLowLight({
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (ctx) {
       ctxRef.current = ctx;
-    }
-    
-    // Pre-allocate ImageData buffer
-    if (ctx) {
-      imageDataRef.current = ctx.createImageData(sampleSize, sampleSize);
     }
     
     // Pre-calculate weight cache for center-weighting
@@ -122,7 +116,6 @@ export function useAutoLowLight({
     return () => {
       canvasRef.current = null;
       ctxRef.current = null;
-      imageDataRef.current = null;
       analysisDataRef.current = null;
     };
   }, [sampleSize]);
@@ -132,10 +125,9 @@ export function useAutoLowLight({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
-    const imageData = imageDataRef.current;
     const analysisData = analysisDataRef.current;
 
-    if (!video || !canvas || !ctx || !imageData || !analysisData || video.paused || video.readyState < 2) {
+    if (!video || !canvas || !ctx || !analysisData || video.paused || video.readyState < 2) {
       return null;
     }
 
@@ -150,8 +142,9 @@ export function useAutoLowLight({
       // This automatically handles averaging pixels (bilinear filtering)
       ctx.drawImage(video, 0, 0, sampleSize, sampleSize);
 
-      // 2. Reuse pre-allocated ImageData buffer (NO NEW ALLOCATION)
-      ctx.getImageData(0, 0, sampleSize, sampleSize, imageData);
+      // 2. Get ImageData (standard 4-argument call)
+      // Note: We cannot avoid this allocation in 2D canvas, but it's small (16KB)
+      const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
 
       const data = imageData.data;
       const weightCache = analysisData.weightCache;

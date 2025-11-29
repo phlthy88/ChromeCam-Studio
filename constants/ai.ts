@@ -22,7 +22,7 @@ export const LUMINANCE_BLUE_COEFFICIENT = 0.0722;
 export const MODEL_LOAD_TIMEOUT_MS = 30000;
 
 // Worker initialization timeout - increased for slow networks and WASM loading
-export const WORKER_INIT_TIMEOUT_MS = 45000; // 45 seconds
+export const WORKER_INIT_TIMEOUT_MS = 15000; // 15 seconds
 
 // Backend initialization timeout
 export const BACKEND_INIT_TIMEOUT_MS = 10000; // 10 seconds
@@ -37,7 +37,7 @@ export const FACE_DETECTION_TIMEOUT_MS = 5000; // 5 seconds
 export const SEGMENTATION_FRAME_SKIP = 3;
 
 // AI inference frame skip factor
-export const INFERENCE_FRAME_SKIP_FACTOR = 3;
+export const INFERENCE_FRAME_SKIP_FACTOR = 2;
 
 // Segmentation promise timeout
 export const SEGMENTATION_TIMEOUT_MS = 5000;
@@ -59,5 +59,5 @@ export const AI = {
 
   // Timeouts
   MODEL_LOAD_TIMEOUT: 30000,
-  WORKER_INIT_TIMEOUT: 45000,
+  WORKER_INIT_TIMEOUT: 15000,
 } as const;

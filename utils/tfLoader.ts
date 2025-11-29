@@ -20,6 +20,10 @@ declare global {
 let tfLoadingPromise: Promise<void> | null = null;
 let tfLoaded = false;
 
+// Global flag to track body-segmentation loading status
+let bsLoadingPromise: Promise<void> | null = null;
+let bsLoaded = false;
+
 /**
  * Ensures TensorFlow.js is loaded only once across the application
  * @returns Promise that resolves when TensorFlow.js is ready
@@ -108,6 +112,89 @@ export async function ensureTfjsLoaded(): Promise<void> {
 }
 
 /**
+ * Ensures @tensorflow-models/body-segmentation is loaded
+ * @returns Promise that resolves when bodySegmentation is ready
+ */
+export async function ensureBodySegmentationLoaded(): Promise<void> {
+  // Ensure TFJS is loaded first
+  await ensureTfjsLoaded();
+
+  // If already loaded, return immediately
+  if (bsLoaded) {
+    logger.debug('tfLoader', 'body-segmentation already loaded, skipping');
+    return;
+  }
+
+  // If currently loading, wait for the existing promise
+  if (bsLoadingPromise) {
+    logger.debug('tfLoader', 'body-segmentation loading in progress, waiting...');
+    return bsLoadingPromise;
+  }
+
+  // Create a new loading promise
+  bsLoadingPromise = (async () => {
+    // Check if bodySegmentation is already available globally
+    if (typeof window !== 'undefined' && window.bodySegmentation) {
+      logger.info('tfLoader', 'bodySegmentation already available globally');
+      bsLoaded = true;
+      return;
+    }
+
+    logger.info('tfLoader', 'Loading body-segmentation...');
+
+    const scriptPromise = new Promise<void>((resolve, reject) => {
+      if (window.bodySegmentation) {
+        bsLoaded = true;
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.1/dist/body-segmentation.min.js';
+      script.crossOrigin = 'anonymous';
+
+      script.onload = () => {
+        logger.debug('tfLoader', 'body-segmentation script loaded, waiting for global availability');
+        setTimeout(() => {
+          if (window.bodySegmentation) {
+            logger.info('tfLoader', 'bodySegmentation loaded and available globally');
+            bsLoaded = true;
+            resolve();
+          } else {
+            logger.error('tfLoader', 'body-segmentation script loaded but global object not available');
+            reject(new Error('bodySegmentation global not available after loading'));
+          }
+        }, 100);
+      };
+
+      script.onerror = (error: Event | string) => {
+        logger.error('tfLoader', 'Failed to load body-segmentation script', error);
+        reject(new Error('Failed to load body-segmentation'));
+      };
+
+      document.head.appendChild(script);
+    });
+
+    try {
+      await scriptPromise;
+    } catch (error) {
+      bsLoadingPromise = null;
+      bsLoaded = false;
+      throw error;
+    }
+  })();
+
+  try {
+    await bsLoadingPromise;
+    bsLoadingPromise = null;
+  } catch (error) {
+    bsLoadingPromise = null;
+    bsLoaded = false;
+    throw error;
+  }
+}
+
+/**
  * Ensures TensorFlow.js WebGL backend is loaded and ready
  * @returns Promise that resolves when WebGL backend is ready
  */
@@ -150,4 +237,6 @@ export async function ensureTfjsWebGLBackend(): Promise<void> {
 export function resetTfLoaderState(): void {
   tfLoadingPromise = null;
   tfLoaded = false;
+  bsLoadingPromise = null;
+  bsLoaded = false;
 }
