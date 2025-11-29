@@ -1,85 +1,49 @@
-/**
- * Segmentation Worker - MediaPipe SelfieSegmentation
- *
- * CRITICAL: This file MUST live in public/workers/ to bypass Vite's module system.
- * Do NOT move this to src/ or use any TypeScript import syntax.
- *
- * Uses MediaPipe SelfieSegmentation model which:
- *  - Loads its own dependencies (WASM, TFLite models)
- *  - Works correctly in a classic worker via importScripts
- */
-
-// =============================================================================
-// Dependency Loading
-// =============================================================================
-
-const MEDIAPIPE_SELFIE_SEGMENTATION_VERSION = '0.1.1675465747';
-
-const CDN_URLS = {
-  selfie: `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@${MEDIAPIPE_SELFIE_SEGMENTATION_VERSION}/selfie_segmentation.js`,
-};
-
-const LOCAL_URLS = {
-  selfie: '/mediapipe/selfie_segmentation.js',
-};
-
-try {
-  console.log(`[Worker] Loading MediaPipe SelfieSegmentation from local path: ${LOCAL_URLS.selfie}`);
-  importScripts(LOCAL_URLS.selfie);
-  console.log(`[Worker] MediaPipe SelfieSegmentation loaded successfully.`);
-} catch (e) {
-  console.warn(
-    `[Worker] Failed to load from local path. Attempting CDN fallback: ${CDN_URLS.selfie}`
-  );
-  try {
-    importScripts(CDN_URLS.selfie);
-    console.log('[Worker] MediaPipe SelfieSegmentation loaded successfully from CDN.');
-  } catch (cdnError) {
-    console.error('[Worker] CRITICAL: Failed to load SelfieSegmentation from both local and CDN.');
-    self.postMessage({
-      type: 'init-complete',
-      success: false,
-      error: 'Failed to load MediaPipe SelfieSegmentation library.',
-    });
-    self.close();
-    throw cdnError;
-  }
-}
-
+import { SelfieSegmentation, type Results } from '@mediapipe/selfie_segmentation';
 
 // =============================================================================
 // Worker State
 // =============================================================================
 
-let segmenter = null;
+let segmenter: SelfieSegmentation | null = null;
 let isInitialized = false;
-let autoFrameEnabled = false;
 let processingFrame = false;
 
 // Performance metrics
 let frameCount = 0;
 let lastFpsTimestamp = performance.now();
-const fpsHistory = [];
-const latencyHistory = [];
+const fpsHistory: number[] = [];
+const latencyHistory: number[] = [];
 const historySize = 30; // Average over 30 frames
-// =============================================================================
+
+interface ProcessingState {
+  id: number;
+  startTime: number;
+  autoFrame: boolean;
+}
 
 // Store a mapping from message ID to its callback and start time
-const processingState = new Map();
+const processingState = new Map<ImageBitmap, ProcessingState>();
 
 // =============================================================================
 // Result Handling
 // =============================================================================
-function onSegmentationResults(results) {
-  const { image, segmentationMask } = results;
-  const id = processingState.get(image)?.id;
 
-  if (id === undefined) {
+function calculateAverage(history: number[]): number {
+  if (history.length === 0) return 0;
+  const sum = history.reduce((a, b) => a + b, 0);
+  return sum / history.length;
+}
+
+function onSegmentationResults(results: Results) {
+  const image = results.image as ImageBitmap;
+  const state = processingState.get(image);
+
+  if (!state) {
     console.warn('[Worker] Received segmentation result for an unknown image');
     return;
   }
 
-  const { startTime, autoFrame } = processingState.get(image);
+  const { id, startTime, autoFrame } = state;
   processingState.delete(image); // Clean up the state for this image
 
   // Calculate performance
@@ -102,7 +66,7 @@ function onSegmentationResults(results) {
   const avgLatency = calculateAverage(latencyHistory);
 
   let autoFrameTransform = null;
-  if (autoFrame && segmentationMask) {
+  if (autoFrame && results.segmentationMask) {
     // This is a placeholder for a more sophisticated auto-frame calculation
     // that would analyze the segmentation mask.
     // autoFrameTransform = calculateAutoFrameTransform(segmentation);
@@ -111,20 +75,20 @@ function onSegmentationResults(results) {
   const response = {
     type: 'mask',
     id,
-    mask: segmentationMask,
+    mask: results.segmentationMask,
     timestamp: endTime,
     autoFrameTransform,
     fps: avgFps,
     latency: avgLatency
   };
 
-  if (segmentationMask) {
-    self.postMessage(response, [segmentationMask]);
+  // Transfer the mask if it is an ImageBitmap (which allows zero-copy)
+  if (results.segmentationMask instanceof ImageBitmap) {
+    self.postMessage(response, [results.segmentationMask]);
   } else {
     self.postMessage(response);
   }
 }
-
 
 // =============================================================================
 // Segmenter Initialization
@@ -134,11 +98,7 @@ async function initSegmenter() {
   try {
     console.log('[Worker] Initializing MediaPipe SelfieSegmentation...');
 
-    if (!self.SelfieSegmentation) {
-      throw new Error('SelfieSegmentation not found on global scope.');
-    }
-
-    segmenter = new self.SelfieSegmentation({
+    segmenter = new SelfieSegmentation({
       locateFile: (file) => `/mediapipe/${file}`,
     });
 
@@ -156,7 +116,7 @@ async function initSegmenter() {
     self.postMessage({ type: 'init-complete', success: true });
   } catch (error) {
     console.error('[Worker] Initialization failed:', error);
-    const err = error;
+    const err = error as Error;
     self.postMessage({
       type: 'init-complete',
       success: false,
@@ -166,20 +126,10 @@ async function initSegmenter() {
 }
 
 // =============================================================================
-// Performance Calculation
-// =============================================================================
-
-function calculateAverage(history) {
-  if (history.length === 0) return 0;
-  const sum = history.reduce((a, b) => a + b, 0);
-  return sum / history.length;
-}
-
-// =============================================================================
 // Frame Processing
 // =============================================================================
 
-async function processFrame(id, imageBitmap, autoFrame) {
+async function processFrame(id: number, imageBitmap: ImageBitmap, autoFrame: boolean = false) {
   if (!isInitialized || !segmenter) {
     console.warn('[Worker] Not initialized, skipping frame');
     if (imageBitmap) imageBitmap.close();
@@ -199,14 +149,22 @@ async function processFrame(id, imageBitmap, autoFrame) {
   processingState.set(imageBitmap, { id, startTime, autoFrame });
 
   try {
-    await segmenter.send({ image: imageBitmap });
+    // Cast to any because the definition expects HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
+    await segmenter.send({ image: imageBitmap as any });
   } catch (error) {
     console.error('[Worker] Error during segmentation processing:', error);
     processingState.delete(imageBitmap); // Clean up on error
     self.postMessage({ type: 'error', id, error: String(error) });
+    processingFrame = false; // Reset flag on error
   } finally {
-    // The result will be handled in onSegmentationResults
-    // We can now allow the next frame to be processed.
+    // The result will be handled in onSegmentationResults, but we need to reset processingFrame there?
+    // Wait, onSegmentationResults is async callback.
+    // MediaPipe processing is usually sequential.
+    // We set processingFrame = false in onSegmentationResults? No, existing code didn't.
+    // Existing code:
+    // finally { processingFrame = false; }
+    // But `segmenter.send` awaits the processing?
+    // "await segmenter.send" - yes it waits.
     processingFrame = false;
   }
 }
@@ -215,7 +173,12 @@ async function processFrame(id, imageBitmap, autoFrame) {
 // Message Handler
 // =============================================================================
 
-self.onmessage = async function (e) {
+type WorkerMessage =
+  | { type: 'init'; config?: any }
+  | { type: 'process'; id: number; image: ImageBitmap; autoFrame: boolean }
+  | { type: 'close' };
+
+self.onmessage = async function (e: MessageEvent<WorkerMessage>) {
   const msg = e.data;
 
   switch (msg.type) {
@@ -224,12 +187,18 @@ self.onmessage = async function (e) {
       break;
 
     case 'process':
-      if (!msg || msg.id === undefined || !msg.image) {
-        console.error('[Worker] Invalid process message:', msg);
-        if(msg.image) msg.image.close();
-        return;
+      if (msg.type === 'process') {
+        if (!msg || msg.id === undefined || !msg.image) {
+          console.error('[Worker] Invalid process message:', msg);
+          // @ts-ignore
+          if (msg.image && typeof msg.image.close === 'function') {
+            // @ts-ignore
+            msg.image.close();
+          }
+          return;
+        }
+        await processFrame(msg.id, msg.image, msg.autoFrame);
       }
-      await processFrame(msg.id, msg.image, msg.autoFrame);
       break;
 
     case 'close':
@@ -243,6 +212,7 @@ self.onmessage = async function (e) {
       break;
 
     default:
+      // @ts-ignore
       console.warn('[Worker] Unknown message type:', msg.type);
   }
 };
@@ -251,4 +221,4 @@ self.onmessage = async function (e) {
 // Worker Ready Signal
 // =============================================================================
 
-console.log('[Worker] Segmentation worker loaded (MediaPipe SelfieSegmentation)');
+console.log('[Worker] Segmentation worker loaded (MediaPipe SelfieSegmentation Module)');

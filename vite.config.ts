@@ -204,18 +204,28 @@ export default defineConfig(({ mode }) => {
                 purpose: 'any',
               },
             ],
+            file_handlers: [
+              {
+                action: '/',
+                accept: {
+                  'image/png': ['.png'],
+                  'image/jpeg': ['.jpg', '.jpeg'],
+                  'image/webp': ['.webp'],
+                },
+              },
+            ],
             screenshots: [
               {
-                src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4MCIgaGVpZ2h0PSI3MjAiIHZpZXdCb3g9IjAgMCAxMjgwIDcyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMWMxYjFmIi8+Cjx0ZXh0IHg9IjY0MCIgeT0iMzYwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LXNpemU9IjQ4IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjUwMCI+Q2hyb21lQ2FtIFN0dWRpbzwvdGV4dD4KPHRleHQgeD0iNjQwIiB5PSI0MjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTk5OTkiIGZvbnQtc2l6ZT0iMjQiPkFkdmFuY2VkIHdlYmNhbSBzdHVkaW8gd2l0aCBsb2NhbCBBSSBlZmZlY3RzPC90ZXh0Pgo8L3N2Zz4K',
+                src: 'screenshots/desktop-wide.png',
                 sizes: '1280x720',
-                type: 'image/svg+xml',
+                type: 'image/png',
                 form_factor: 'wide',
                 label: 'ChromeCam Studio Interface',
               },
               {
-                src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzkwIiBoZWlnaHQ9Ijg0MCIgdmlld0JveD0iMCAwIDM5MCA4NDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzOTAiIGhlaWdodD0iODQwIiBmaWxsPSIjMWMxYjFmIi8+Cjx0ZXh0IHg9IjE5NSIgeT0iNDIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmZmZmIiBmb250LXNpemU9IjI0IiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjUwMCI+Q2hyb21lQ2FtPC90ZXh0Pgo8dGV4dCB4PSIxOTUiIHk9IjQ2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1zaXplPSIxNiI+QUkgV2ViY2FtIFN0dWRpbzwvdGV4dD4KPC9zdmc+Cg==',
-                sizes: '390x840',
-                type: 'image/svg+xml',
+                src: 'screenshots/mobile.png',
+                sizes: '750x1334',
+                type: 'image/png',
                 label: 'ChromeCam Studio Mobile',
               },
             ],

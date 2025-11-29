@@ -198,45 +198,24 @@ const segmentation = await segmenter.segmentPeople(video); // Blocks UI
 
 **Workaround**: Reduce inference rate when UI is active, use `requestIdleCallback`.
 
-### 2. Worker Architecture Issues
-**Location**: `fix/diagnose-worker-fix.sh`
+### 2. Worker Architecture
+**Status**: Modernized to TypeScript Module Worker
 
-**Problem**: Mixed worker implementations and missing BodyPix dependency causing importScripts failures.
+**Implementation**:
+- Uses `@mediapipe/selfie_segmentation` via ES imports
+- Bundled by Vite (Module Worker)
+- Logic in `workers/segmentation.worker.ts`
+- Assets in `public/mediapipe/` loaded via `locateFile`
 
-**Root Cause**: 
-- Current worker tries to load `/mediapipe/body-pix.min.js` which contains error message instead of actual BodyPix code
-- MediaPipe files in public/mediapipe/ are for SelfieSegmentation, not BodyPix
-- Worker implementation inconsistency between local and CDN dependencies
-
-**Current Implementation**: Uses TensorFlow.js BodyPix API
-- Loads models via CDN: `https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js`
-- Loads BodyPix via CDN: `https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.1/dist/body-pix.min.js`
-- Works correctly in both classic and module workers
-- More reliable and better documented than Body Segmentation API
-
-**Solution**: 
-- Bundle ML models locally in `public/mediapipe/`
-- Use direct URL workers: `new Worker('/workers/segmentation.worker.js', { type: 'classic' })`
-- Transfer canvas via OffscreenCanvas for zero-copy rendering
-- Files in `public/` bypass Vite's module system entirely
-
-**Critical Timeout Configuration**:
-- Current: 60-second timeout in `utils/segmentationManager.ts:144`
-- Fix version: 30-second timeout in `fix/segmentationManager.ts:141`
-- **Recommendation**: Standardize on 45-second timeout for balance between slow networks and fast failure detection
+**Configuration**:
+- Timeout: 45s (standardized)
+- Manager: `utils/segmentationManager.ts` imports worker via `?worker`
 
 **Worker File Locations**:
-- Active: `public/workers/segmentation.worker.js` (TensorFlow.js BodyPix - CDN based)
-- Fix template: `fix/segmentation.worker.js` (TensorFlow.js BodyPix - CDN based)
+- Active: `workers/segmentation.worker.ts` (TypeScript Module Worker)
 
 **Debug Commands**:
 ```bash
-# Run worker diagnostic
-./fix/diagnose-worker-fix.sh
-
-# Check timeout configurations
-grep -n "60000\|30000\|45000" utils/segmentationManager.ts
-
 # Clear Vite cache if worker issues persist
 rm -rf node_modules/.vite dist
 ```

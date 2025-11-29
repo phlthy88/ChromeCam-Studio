@@ -3,10 +3,9 @@
  *
  * Manages body segmentation processing via Web Worker or main thread fallback.
  *
- * CRITICAL: This uses a DIRECT URL to public/workers/segmentation.worker.js
- * DO NOT use Vite's ?worker import syntax - it forces ES modules which break importScripts()
  */
 
+import SegmentationWorker from '../workers/segmentation.worker?worker';
 import { logger } from './logger';
 import { WORKER_INIT_TIMEOUT_MS, SEGMENTATION_TIMEOUT_MS } from '../constants/ai';
 
@@ -71,8 +70,7 @@ class SegmentationManager {
   private readonly DISPOSE_DELAY_MS = 2000; // 2s grace period
 
   constructor(workerFactory?: WorkerFactory) {
-    this.workerFactory =
-      workerFactory ?? (() => new Worker('/workers/segmentation.worker.js', { type: 'classic' }));
+    this.workerFactory = workerFactory ?? (() => new SegmentationWorker());
   }
 
   // =============================================================================
