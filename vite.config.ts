@@ -117,7 +117,7 @@ export default defineConfig(({ mode }) => {
       // WORKER CONFIG: Simplified for better TensorFlow.js bundling
       // =========================================================================
       worker: {
-        format: 'es',
+        format: 'iife',
         // Removed React plugin - not needed in worker context
         plugins: () => [],
         rollupOptions: {
@@ -360,7 +360,7 @@ export default defineConfig(({ mode }) => {
     // PRODUCTION WORKER CONFIG: Simplified for better bundling
     // =========================================================================
     worker: {
-      format: 'es',
+      format: 'iife',
       // Removed React plugin - not needed in worker context
       plugins: () => [],
       rollupOptions: {
