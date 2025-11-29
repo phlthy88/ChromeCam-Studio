@@ -342,6 +342,11 @@ export function useVideoRenderer({
   const maskCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+
+  // Analysis canvas for overlay optimization (240x135)
+  const analysisCanvasRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(null);
+  const analysisCtxRef = useRef<OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null>(null);
+
   const requestRef = useRef<number | null>(null);
   const currentTransformRef = useRef<AutoFrameTransform>({ panX: 0, panY: 0, zoom: 1 });
   const settingsRef = useRef(settings);
@@ -462,11 +467,26 @@ export function useVideoRenderer({
     tempCanvasRef.current = tempCanvas;
     tempCtxRef.current = tempCanvas.getContext('2d', { willReadFrequently: true });
 
+    // Initialize Analysis Canvas (240x135)
+    if (typeof OffscreenCanvas !== 'undefined') {
+      const analysisCanvas = new OffscreenCanvas(240, 135);
+      analysisCanvasRef.current = analysisCanvas;
+      analysisCtxRef.current = analysisCanvas.getContext('2d', { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D;
+    } else {
+      const analysisCanvas = document.createElement('canvas');
+      analysisCanvas.width = 240;
+      analysisCanvas.height = 135;
+      analysisCanvasRef.current = analysisCanvas;
+      analysisCtxRef.current = analysisCanvas.getContext('2d', { willReadFrequently: true });
+    }
+
     return () => {
       maskCanvasRef.current = null;
       maskCtxRef.current = null;
       tempCanvasRef.current = null;
       tempCtxRef.current = null;
+      analysisCanvasRef.current = null;
+      analysisCtxRef.current = null;
     };
   }, [enabled]);
 
@@ -485,7 +505,11 @@ export function useVideoRenderer({
       
       // Additional video validation to prevent crashes
       if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-        return; // Video not ready or has invalid dimensions
+        // Keep the loop alive even if video is not ready yet
+        if (isLoopActive) {
+          requestRef.current = requestAnimationFrame(processVideo);
+        }
+        return;
       }
 
       // Frame rate limiting for performance mode
@@ -850,18 +874,34 @@ export function useVideoRenderer({
               const now = performance.now();
               if (!lastImageDataTimeRef.current || now - lastImageDataTimeRef.current > 100) {
                 lastImageDataTimeRef.current = now;
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-                if (showZebraStripes) {
-                  drawZebraStripes(ctx, canvas.width, canvas.height, imageData, zebraThreshold);
-                }
+                const analysisCanvas = analysisCanvasRef.current;
+                const analysisCtx = analysisCtxRef.current;
 
-                if (showFocusPeaking) {
-                  drawFocusPeaking(ctx, canvas.width, canvas.height, imageData, focusPeakingColor);
-                }
+                if (analysisCanvas && analysisCtx) {
+                  // Draw main canvas to small analysis canvas
+                  analysisCtx.drawImage(canvas, 0, 0, analysisCanvas.width, analysisCanvas.height);
 
-                if (showHistogram) {
-                  drawHistogram(ctx, canvas.width, canvas.height, imageData);
+                  // Get small Image Data
+                  const smallImageData = analysisCtx.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height);
+
+                  if (showZebraStripes) {
+                    ctx.save();
+                    ctx.scale(canvas.width / analysisCanvas.width, canvas.height / analysisCanvas.height);
+                    drawZebraStripes(ctx, analysisCanvas.width, analysisCanvas.height, smallImageData, zebraThreshold);
+                    ctx.restore();
+                  }
+
+                  if (showFocusPeaking) {
+                    ctx.save();
+                    ctx.scale(canvas.width / analysisCanvas.width, canvas.height / analysisCanvas.height);
+                    drawFocusPeaking(ctx, analysisCanvas.width, analysisCanvas.height, smallImageData, focusPeakingColor);
+                    ctx.restore();
+                  }
+
+                  if (showHistogram) {
+                    drawHistogram(ctx, canvas.width, canvas.height, smallImageData);
+                  }
                 }
               }
             } catch (_e) {
@@ -900,7 +940,7 @@ export function useVideoRenderer({
     drawFocusPeaking,
     isWebGLReady,
     applyLutGrading,
-    settings,
+    // settings, // REMOVED to prevent render loop restarts
     enabled,
     targetAspectRatio,
   ]);
