@@ -40,6 +40,42 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 }));
 
+// Polyfill OffscreenCanvas for jsdom
+if (typeof global.OffscreenCanvas === 'undefined') {
+  class OffscreenCanvasMock {
+    width: number;
+    height: number;
+    constructor(width: number, height: number) {
+      this.width = width;
+      this.height = height;
+    }
+    getContext() {
+      return {
+        clearRect: vi.fn(),
+        drawImage: vi.fn(),
+        getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
+      };
+    }
+    transferToImageBitmap() {
+      return {
+        width: this.width,
+        height: this.height,
+        close: vi.fn(),
+      };
+    }
+  }
+  // @ts-ignore
+  global.OffscreenCanvas = OffscreenCanvasMock;
+}
+
+// Polyfill ImageBitmap since jsdom lacks it
+if (typeof global.ImageBitmap === 'undefined') {
+  // @ts-ignore
+  global.ImageBitmap = class ImageBitmapMock {
+    close() {}
+  };
+}
+
 // Clean up after each test
 afterEach(() => {
   vi.clearAllMocks();
